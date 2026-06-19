@@ -53,6 +53,39 @@ export function Dashboard() {
         <p style={{ margin: '8px 0 0', fontSize: 14, color: '#7E8AA0' }}>시장 개장 전 핵심 지표와 자산군 현황을 한눈에 확인하세요.</p>
       </div>
 
+      {/* Asset-class status — 최상단(가장 보고 싶은 내 자산 현황 + 종목 진입점) */}
+      <div style={{ marginBottom: 36 }}>
+        <h2 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 700 }}>자산군 현황</h2>
+        <div style={{ display: 'grid', gridTemplateColumns: layout.assetCols, gap: 16 }}>
+          {TAB_LABELS.map((t) => {
+            const arr = stocks[t.id];
+            const avg = arr.reduce((s, x) => s + x.pct, 0) / arr.length;
+            const top = arr.reduce((m, x) => (x.pct > m.pct ? x : m), arr[0]);
+            return (
+              <button
+                key={t.id}
+                className="card-hover"
+                onClick={() => actions.openTabbedStocks(t.id)}
+                style={{ ...CARD, textAlign: 'left', cursor: 'pointer', display: 'block', width: '100%', padding: 22 }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
+                  <span style={{ fontSize: 16, fontWeight: 700, color: '#EEF2F8' }}>{t.label}</span>
+                  <span style={{ fontSize: 12, color: '#6E7A90' }}>{arr.length}종목</span>
+                </div>
+                <div style={{ fontSize: 12, color: '#7E8AA0', marginBottom: 4 }}>평균 등락</div>
+                <div style={{ fontSize: 26, fontWeight: 800, letterSpacing: '-0.01em', color: upColor(avg) }}>{fmtPct(avg)}</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 14, paddingTop: 14, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                  <span style={{ fontSize: 12, color: '#6E7A90' }}>상위</span>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: '#C4CDDC' }}>{top.name}</span>
+                  <span style={{ fontSize: 13, fontWeight: 700, marginLeft: 'auto', color: upColor(top.pct) }}>{fmtPct(top.pct)}</span>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+        <SourceNote text={SRC.assetStatus} style={{ marginTop: 14 }} />
+      </div>
+
       {/* Macro briefing */}
       <div style={{ marginBottom: 36 }}>
         <h2 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 700 }}>오늘의 매크로 브리핑</h2>
@@ -159,39 +192,6 @@ export function Dashboard() {
           </div>
         )}
         <SourceNote text={SRC.calendar} style={{ marginTop: 12 }} />
-      </div>
-
-      {/* Asset-class status */}
-      <div>
-        <h2 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 700 }}>자산군 현황</h2>
-        <div style={{ display: 'grid', gridTemplateColumns: layout.assetCols, gap: 16 }}>
-          {TAB_LABELS.map((t) => {
-            const arr = stocks[t.id];
-            const avg = arr.reduce((s, x) => s + x.pct, 0) / arr.length;
-            const top = arr.reduce((m, x) => (x.pct > m.pct ? x : m), arr[0]);
-            return (
-              <button
-                key={t.id}
-                className="card-hover"
-                onClick={() => actions.openTabbedStocks(t.id)}
-                style={{ ...CARD, textAlign: 'left', cursor: 'pointer', display: 'block', width: '100%', padding: 22 }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
-                  <span style={{ fontSize: 16, fontWeight: 700, color: '#EEF2F8' }}>{t.label}</span>
-                  <span style={{ fontSize: 12, color: '#6E7A90' }}>{arr.length}종목</span>
-                </div>
-                <div style={{ fontSize: 12, color: '#7E8AA0', marginBottom: 4 }}>평균 등락</div>
-                <div style={{ fontSize: 26, fontWeight: 800, letterSpacing: '-0.01em', color: upColor(avg) }}>{fmtPct(avg)}</div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 14, paddingTop: 14, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-                  <span style={{ fontSize: 12, color: '#6E7A90' }}>상위</span>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: '#C4CDDC' }}>{top.name}</span>
-                  <span style={{ fontSize: 13, fontWeight: 700, marginLeft: 'auto', color: upColor(top.pct) }}>{fmtPct(top.pct)}</span>
-                </div>
-              </button>
-            );
-          })}
-        </div>
-        <SourceNote text={SRC.assetStatus} style={{ marginTop: 14 }} />
       </div>
     </div>
   );
