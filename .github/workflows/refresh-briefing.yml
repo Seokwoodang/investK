@@ -1,0 +1,21 @@
+name: Refresh daily briefing
+
+# 데일리 브리핑을 하루 3회 미리 생성해 Supabase에 저장한다(슬롯별로 따로 보관, 덮어쓰지 않음).
+# Vercel 무료(Hobby)는 시간당/다회 cron을 막으므로 GitHub Actions(무료)로 호출한다.
+# KST → UTC:  오전 6시 = 21:00(전일) · 오후 5시 = 08:00 · 오후 10시(뉴욕장 개장 전) = 13:00
+on:
+  schedule:
+    - cron: '0 21 * * *' # 06:00 KST — 국내장 개장 전
+    - cron: '0 8 * * *'  # 17:00 KST — 국내장 마감 후
+    - cron: '0 13 * * *' # 22:00 KST — 뉴욕장 개장 전
+  workflow_dispatch: {} # 수동 실행 버튼
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call briefing refresh endpoint
+        run: |
+          curl -fsS -X GET \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "https://invest-seokwoodangs-projects.vercel.app/api/cron/briefing"

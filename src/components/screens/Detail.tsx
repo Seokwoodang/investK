@@ -190,10 +190,12 @@ export function Detail({ id }: { id: string }) {
   // 'AI 관점'(긍정/부정/주의)도 서버(/api/ai/perspective)에서 Claude 생성+캐시.
   // 로딩/실패/키 없음 시 정적 sel.ai 폴백.
   const [aiPerspective, setAiPerspective] = useState<Stock['ai'] | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
   useEffect(() => {
     if (state.detailTab !== 'ai' || !sel) return;
     let cancelled = false;
     setAiPerspective(null);
+    setAiLoading(true);
     fetch('/api/ai/perspective', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -213,7 +215,10 @@ export function Detail({ id }: { id: string }) {
       .then((j) => {
         if (!cancelled && j?.pos) setAiPerspective(j as Stock['ai']);
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setAiLoading(false);
+      });
     return () => {
       cancelled = true;
     };
@@ -408,10 +413,16 @@ export function Detail({ id }: { id: string }) {
       {/* AI tab */}
       {detailTab === 'ai' && (
         <>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 14, fontSize: 12, color: '#6E7A90' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 14, fontSize: 12, color: '#6E7A90', flexWrap: 'wrap' }}>
             <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.06em', padding: '3px 8px', borderRadius: 6, background: 'rgba(0,199,217,0.16)', color: '#5fd9e6' }}>AI 생성</span>
-            AI가 데이터를 종합해 생성한 의견입니다. 투자 판단의 참고용입니다.
+            이 탭을 열 때 AI가 해당 종목 데이터로 생성하며, 같은 날에는 저장된 결과를 즉시 보여줍니다. 투자 판단의 참고용입니다.
           </div>
+          {aiLoading && ai.pos.length === 0 && ai.neg.length === 0 && ai.caution.length === 0 ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '40px 24px', borderRadius: 20, border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.03)', color: '#9AA6BC', fontSize: 14 }}>
+              <span className="skeleton-pulse" style={{ width: 9, height: 9, borderRadius: '50%', background: '#5fd9e6' }} />
+              AI가 이 종목을 분석하는 중입니다… (처음 열 때 몇 초 걸리고, 이후에는 저장된 결과를 바로 보여줍니다)
+            </div>
+          ) : (
           <div style={{ display: 'grid', gridTemplateColumns: layout.aiCols, gap: 16, alignItems: 'start' }}>
             {([
               { title: '긍정 요인', color: '#34d39a', bg: 'rgba(52,211,154,0.06)', border: 'rgba(52,211,154,0.20)', items: ai.pos },
@@ -434,7 +445,15 @@ export function Detail({ id }: { id: string }) {
               </div>
             ))}
           </div>
-          <SourceNote text={aiPerspective ? SRC.ai : 'AI 생성 — Claude (Anthropic) · 현재 정적 샘플 표시 중'} style={{ marginTop: 18 }} />
+          )}
+          <SourceNote
+            text={
+              aiPerspective
+                ? 'AI 생성 — Claude (Anthropic) · 이 종목을 열 때 당일 1회 생성 후 저장(캐시)'
+                : 'AI 생성 — Claude (Anthropic) · 현재 정적 샘플 표시 중'
+            }
+            style={{ marginTop: 18 }}
+          />
         </>
       )}
 

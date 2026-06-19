@@ -48,6 +48,7 @@ const PATH: Record<Exclude<Page, 'detail'>, string> = {
 
 const WATCH_KEY = 'dash_watchlist';
 const ALERTS_KEY = 'dash_alerts';
+const LF_KEY = 'dash_large_font';
 
 export interface DashboardState {
   activeTab: TabId;
@@ -67,6 +68,7 @@ export interface DashboardState {
   gQuery: string;
   briefDate: string;
   watchOnly: boolean;
+  largeFont: boolean; // 큰글씨(어르신) 버전
   alerts: Record<string, string[]>;
 }
 
@@ -83,8 +85,9 @@ const baseState = {
   today: null as { y: number; m: number; d: number } | null,
   query: '',
   gQuery: '',
-  briefDate: '2026-06-15',
+  briefDate: '', // 빈 값 = 오늘(마운트 후 KST 기준으로 설정)
   watchOnly: false,
+  largeFont: false,
   alerts: {} as Record<string, string[]>,
 };
 
@@ -114,6 +117,7 @@ export interface DashboardActions {
   closeEventModal: () => void;
   gotoCalMonth: (delta: number) => void;
   setBriefDate: (d: string) => void;
+  toggleLargeFont: () => void;
 }
 
 interface Ctx {
@@ -138,16 +142,24 @@ export function DashboardProvider({ data, children }: { data: DashboardData; chi
   const router = useRouter();
   const [state, setState] = useState<DashboardState>(() => makeInitial(data));
 
-  // Hydrate persisted watchlist + alerts + 실제 오늘 날짜(클라이언트 기준) on mount.
+  // Hydrate persisted watchlist + alerts + 큰글씨 + 실제 오늘 날짜(클라이언트 기준) on mount.
   useEffect(() => {
     const n = new Date();
+    const todayStr = `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`;
     setState((s) => ({
       ...s,
       watchlist: load<string[]>(WATCH_KEY, [], Array.isArray),
       alerts: load<Record<string, string[]>>(ALERTS_KEY, {}, (v) => typeof v === 'object'),
+      largeFont: load<boolean>(LF_KEY, false, (v) => typeof v === 'boolean'),
       today: { y: n.getFullYear(), m: n.getMonth(), d: n.getDate() },
+      briefDate: s.briefDate || todayStr,
     }));
   }, []);
+
+  // 큰글씨(어르신) 버전: <html>에 클래스 토글 → CSS zoom으로 전체 UI 확대.
+  useEffect(() => {
+    document.documentElement.classList.toggle('large-font', state.largeFont);
+  }, [state.largeFont]);
 
   // 달력이 보는 달이 바뀌면 해당 달 일정을 가져온다. 기본(현재) 달이면 이미 받은 data.macro.events 사용(요청 없음).
   useEffect(() => {
@@ -235,6 +247,16 @@ export function DashboardProvider({ data, children }: { data: DashboardData; chi
         return { ...s, calYear: y, calMonth: m };
       }),
     setBriefDate: (briefDate) => patch({ briefDate }),
+    toggleLargeFont: () =>
+      setState((s) => {
+        const largeFont = !s.largeFont;
+        try {
+          localStorage.setItem(LF_KEY, JSON.stringify(largeFont));
+        } catch {
+          /* ignore */
+        }
+        return { ...s, largeFont };
+      }),
   }), [patch, router]);
 
   const value = useMemo(() => ({ state, actions, data }), [state, actions, data]);

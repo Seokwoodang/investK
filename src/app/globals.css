@@ -20,6 +20,20 @@ body {
   padding: 0;
 }
 
+/* 큰글씨(어르신) 버전: 전체 UI를 비례 확대. 인라인 px 스타일까지 한 번에 키운다. */
+html.large-font {
+  zoom: 1.2;
+}
+
+/* 로딩 스켈레톤 */
+.skeleton-pulse {
+  animation: skeleton-pulse 1.2s ease-in-out infinite;
+}
+@keyframes skeleton-pulse {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
+}
+
 body {
   background: #05080f;
   font-family: var(--font-sans);

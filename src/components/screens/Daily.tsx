@@ -28,18 +28,29 @@ export function Daily() {
   const { layout } = useViewportLayout();
   const { state, actions, data: dashData } = useDashboard();
   const BRIEFING = dashData.briefing;
-  const dates = Object.keys(BRIEFING).sort();
-  let bd = state.briefDate;
-  if (!BRIEFING[bd]) bd = dates[dates.length - 1];
-  const idx = dates.indexOf(bd);
-  const mock = BRIEFING[bd];
+  const mockDates = Object.keys(BRIEFING).sort();
+  // 기본 날짜 = 오늘(KST, 마운트 후). 그 전엔 가장 최근 샘플 날짜로 표시.
+  const todayStr = state.today
+    ? `${state.today.y}-${String(state.today.m + 1).padStart(2, '0')}-${String(state.today.d).padStart(2, '0')}`
+    : null;
+  const bd = state.briefDate || todayStr || mockDates[mockDates.length - 1];
 
-  // 데일리 브리핑을 서버(/api/ai/briefing)에서 Claude 생성+캐시로 가져온다.
-  // 로딩/실패/키 없음 시 정적 mock 폴백.
-  const [aiBrief, setAiBrief] = useState<BriefingDay | null>(null);
+  const addDays = (iso: string, n: number) => {
+    const [y, m, d] = iso.split('-').map(Number);
+    const t = new Date(y, m - 1, d + n);
+    return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
+  };
+  const canNext = !todayStr || bd < todayStr; // 미래로는 못 감
+
+  // 데일리 브리핑을 서버(/api/ai/briefing)에서 가져온다. cron이 하루 2~3회 미리 생성·저장하므로
+  // 보통은 최신 슬롯을 즉시 읽는다. 로딩 동안은 스켈레톤을 보여 정적 샘플이 잠깐 비치지 않게 한다.
+  const SLOT_TEXT: Record<string, string> = { am: '오전 6시 생성분', pm: '오후 5시 생성분', ny: '오후 10시 생성분' };
+  const [aiBrief, setAiBrief] = useState<(BriefingDay & { _slot?: string }) | null>(null);
+  const [loaded, setLoaded] = useState(false);
   useEffect(() => {
     let cancelled = false;
     setAiBrief(null);
+    setLoaded(false);
     fetch('/api/ai/briefing', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -47,18 +58,23 @@ export function Daily() {
     })
       .then((r) => (r.ok ? r.json() : null))
       .then((j) => {
-        if (!cancelled && j?.headline) setAiBrief(j as BriefingDay);
+        if (!cancelled && j?.headline) setAiBrief(j as BriefingDay & { _slot?: string });
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setLoaded(true);
+      });
     return () => {
       cancelled = true;
     };
   }, [bd]);
-  const data = aiBrief ?? mock;
+  const fallback = BRIEFING[bd] ?? BRIEFING[mockDates[mockDates.length - 1]];
+  const data = aiBrief ?? fallback;
+  const loading = !loaded;
+  const slotText = aiBrief?._slot ? SLOT_TEXT[aiBrief._slot] : '';
 
-  const day = parseInt(bd.slice(8, 10), 10);
-  const mo = parseInt(bd.slice(5, 7), 10);
-  const dow = WEEKDAYS[new Date(2026, mo - 1, day).getDay()];
+  const [yy, mm, dd] = bd.split('-').map(Number);
+  const dow = WEEKDAYS[new Date(yy, mm - 1, dd).getDay()];
   const dateText = bd.replace(/-/g, '.') + ' (' + dow + ')';
 
   return (
@@ -72,16 +88,25 @@ export function Daily() {
           <p style={{ margin: '8px 0 0', fontSize: 14, color: '#7E8AA0' }}>의견·전망 없이 사실·수치·인과만 정리한 하루 단위 시장 요약입니다.</p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <button onClick={() => idx > 0 && actions.setBriefDate(dates[idx - 1])} style={navBtn(idx <= 0)}>‹</button>
+          <button onClick={() => actions.setBriefDate(addDays(bd, -1))} style={navBtn(false)}>‹</button>
           <span style={{ fontSize: 14, fontWeight: 700, color: '#EAF2FF', whiteSpace: 'nowrap', minWidth: 148, textAlign: 'center' }}>{dateText}</span>
-          <button onClick={() => idx < dates.length - 1 && actions.setBriefDate(dates[idx + 1])} style={navBtn(idx >= dates.length - 1)}>›</button>
+          <button onClick={() => canNext && actions.setBriefDate(addDays(bd, 1))} style={navBtn(!canNext)}>›</button>
         </div>
       </div>
 
       {/* Hero */}
       <div style={{ background: 'linear-gradient(135deg, rgba(0,199,217,0.10), rgba(64,120,255,0.06))', border: '1px solid rgba(0,199,217,0.22)', borderRadius: 24, padding: 32, marginBottom: 20 }}>
-        <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.16em', color: '#5fd9e6', marginBottom: 14 }}>오늘의 한 줄</div>
-        <div style={{ fontSize: 26, fontWeight: 800, lineHeight: 1.4, letterSpacing: '-0.01em', color: '#F4F7FB' }}>{data.headline}</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.16em', color: '#5fd9e6' }}>오늘의 한 줄</span>
+          {!loading && slotText && (
+            <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 6, background: 'rgba(255,255,255,0.06)', color: '#9AA6BC', whiteSpace: 'nowrap' }}>{slotText}</span>
+          )}
+        </div>
+        {loading ? (
+          <div style={{ height: 34, borderRadius: 8, background: 'rgba(255,255,255,0.06)', maxWidth: 480 }} className="skeleton-pulse" />
+        ) : (
+          <div style={{ fontSize: 26, fontWeight: 800, lineHeight: 1.4, letterSpacing: '-0.01em', color: '#F4F7FB' }}>{data.headline}</div>
+        )}
       </div>
 
       {/* Facts + causes */}
@@ -151,7 +176,14 @@ export function Daily() {
         <SourceNote text={SRC.calendar} style={{ marginTop: 12 }} />
       </div>
 
-      <SourceNote text={aiBrief ? SRC.ai : 'AI 생성 — Claude (Anthropic) · 현재 정적 샘플 표시 중'} style={{ marginTop: 24 }} />
+      <SourceNote
+        text={
+          aiBrief
+            ? 'AI 생성 — Claude (Anthropic) · 실시장 데이터로 하루 3회(오전 6시·오후 5시·뉴욕장 개장 전) 자동 생성해 서버에 저장'
+            : 'AI 생성 — Claude (Anthropic) · 현재 정적 샘플 표시 중'
+        }
+        style={{ marginTop: 24 }}
+      />
     </div>
   );
 }

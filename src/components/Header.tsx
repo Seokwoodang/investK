@@ -119,7 +119,7 @@ export function Header() {
           </div>
           {layout.showBrand && (
             <div style={{ fontSize: 16, fontWeight: 700, letterSpacing: '-0.01em', whiteSpace: 'nowrap' }}>
-              파라메타 인베스트
+              InvestKang
             </div>
           )}
         </Link>
@@ -198,6 +198,22 @@ export function Header() {
             )}
           </div>
         )}
+
+        <button
+          onClick={actions.toggleLargeFont}
+          title={state.largeFont ? '기본 글씨 크기로' : '큰글씨(어르신) 버전으로'}
+          aria-pressed={state.largeFont}
+          style={{
+            flexShrink: 0, cursor: 'pointer', fontFamily: 'inherit', lineHeight: 1,
+            display: 'flex', alignItems: 'center', gap: 5, padding: '7px 11px', borderRadius: 10,
+            border: `1px solid ${state.largeFont ? 'rgba(0,199,217,0.45)' : 'rgba(255,255,255,0.10)'}`,
+            background: state.largeFont ? 'rgba(0,199,217,0.16)' : 'rgba(255,255,255,0.05)',
+            color: state.largeFont ? '#5fd9e6' : '#9AA6BC', whiteSpace: 'nowrap',
+          }}
+        >
+          <span style={{ fontSize: 16, fontWeight: 800 }}>가</span>
+          <span style={{ fontSize: 11, fontWeight: 700 }}>큰글씨</span>
+        </button>
 
         {layout.showStatus && (
           <div style={{ textAlign: 'right', flexShrink: 0 }}>

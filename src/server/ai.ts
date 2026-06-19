@@ -75,22 +75,42 @@ interface GenerateJSONArgs<T> {
   // 문자열 또는 thunk. thunk는 캐시 미스 시에만 실행돼 무거운 컨텍스트 조립을 아낀다.
   prompt: string | (() => Promise<string>);
   fallback: T;
+  // true면 캐시를 무시하고 무조건 새로 생성·저장(cron 강제 갱신용).
+  force?: boolean;
 }
 
 const memJson = new Map<string, unknown>();
 
-// 구조화(JSON) 버전. 캐시 계층은 동일(메모리 → Supabase → Claude). Claude가 JSON만
-// 반환하도록 지시하고 파싱; 실패/키없음 시 fallback 객체를 그대로 반환한다.
-export async function getOrGenerateJSON<T>({ cacheKey, kind, system, prompt, fallback }: GenerateJSONArgs<T>): Promise<T> {
+// 생성 없이 캐시(메모리 → Supabase)만 조회. 없으면 null. (브리핑 슬롯이 미리 만들어져 있는지 확인용)
+export async function readJSONCache<T>(cacheKey: string): Promise<T | null> {
   const cached = memJson.get(cacheKey);
   if (cached !== undefined) return cached as T;
-
   const sb = getSupabase();
   if (sb) {
     const { data } = await sb.from('ai_cache').select('payload').eq('cache_key', cacheKey).maybeSingle();
     if (data?.payload) {
       memJson.set(cacheKey, data.payload);
       return data.payload as T;
+    }
+  }
+  return null;
+}
+
+// 구조화(JSON) 버전. 캐시 계층은 동일(메모리 → Supabase → Claude). Claude가 JSON만
+// 반환하도록 지시하고 파싱; 실패/키없음 시 fallback 객체를 그대로 반환한다.
+export async function getOrGenerateJSON<T>({ cacheKey, kind, system, prompt, fallback, force }: GenerateJSONArgs<T>): Promise<T> {
+  const sb = getSupabase();
+
+  if (!force) {
+    const cached = memJson.get(cacheKey);
+    if (cached !== undefined) return cached as T;
+
+    if (sb) {
+      const { data } = await sb.from('ai_cache').select('payload').eq('cache_key', cacheKey).maybeSingle();
+      if (data?.payload) {
+        memJson.set(cacheKey, data.payload);
+        return data.payload as T;
+      }
     }
   }
 
