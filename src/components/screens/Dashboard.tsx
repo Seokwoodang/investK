@@ -114,7 +114,12 @@ export function Dashboard() {
               const today = da === 15 && mo === 6;
               const g = glossDef(e.name);
               return (
-                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '14px 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                <div
+                  key={i}
+                  className="event-row"
+                  onClick={() => actions.openEventModal(da)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '14px 8px', margin: '0 -8px', borderRadius: 10, borderBottom: '1px solid rgba(255,255,255,0.05)', cursor: 'pointer' }}
+                >
                   <div style={{ width: 60, flexShrink: 0 }}>
                     <div style={{ fontSize: 14, fontWeight: 700, color: today ? '#00C7D9' : '#EAF2FF' }}>
                       {mo}/{da} <span style={{ fontSize: 11, fontWeight: 500, color: '#6E7A90' }}>({dow})</span>

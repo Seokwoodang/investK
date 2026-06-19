@@ -139,3 +139,10 @@ input::placeholder {
   visibility: visible;
   transform: none;
 }
+
+.event-row {
+  transition: background 140ms;
+}
+.event-row:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
