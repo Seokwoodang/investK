@@ -15,12 +15,28 @@ import type {
   DashboardData,
   DetailTab,
   EventView,
+  MacroEvent,
   Page,
   Period,
   SortDir,
   SortKey,
   TabId,
 } from '../types';
+
+// 모달에 띄울 일정: 클릭 시점의 (연·월·일)과 그 달의 이벤트 목록을 함께 저장 → 달 이동/목록 어디서 열어도 정확.
+export interface EventModalPayload {
+  year: number;
+  month: number; // 0-indexed
+  day: number;
+  events: MacroEvent[];
+}
+
+// 달력이 보여주는 "기본(현재) 달" = 다가오는 일정(macro.events)이 속한 달.
+function homeYM(data: DashboardData): { y: number; m: number } {
+  const d = data.macro.events[0]?.date;
+  if (d) return { y: parseInt(d.slice(0, 4), 10), m: parseInt(d.slice(5, 7), 10) - 1 };
+  return { y: 2026, m: 5 };
+}
 
 // 페이지(라우트)는 이제 URL이 소스 오브 트루스. page→경로 매핑.
 const PATH: Record<Exclude<Page, 'detail'>, string> = {
@@ -41,7 +57,12 @@ export interface DashboardState {
   sortDir: SortDir;
   watchlist: string[];
   eventView: EventView;
-  eventModalDay: number | null;
+  eventModal: EventModalPayload | null;
+  calYear: number;
+  calMonth: number; // 0-indexed, 달력이 현재 보여주는 달
+  calEvents: MacroEvent[]; // calYear/calMonth 달의 일정
+  calLoading: boolean;
+  today: { y: number; m: number; d: number } | null; // 클라이언트 마운트 후 실제 오늘(서버/UTC 불일치 방지)
   query: string;
   gQuery: string;
   briefDate: string;
@@ -49,21 +70,29 @@ export interface DashboardState {
   alerts: Record<string, string[]>;
 }
 
-const initialState: DashboardState = {
-  activeTab: 'kr_stock',
-  detailTab: 'chart',
-  period: '일봉',
-  sortKey: 'vol',
-  sortDir: 'desc',
-  watchlist: [],
-  eventView: 'calendar',
-  eventModalDay: null,
+const baseState = {
+  activeTab: 'kr_stock' as TabId,
+  detailTab: 'chart' as DetailTab,
+  period: '일봉' as Period,
+  sortKey: 'vol' as SortKey,
+  sortDir: 'desc' as SortDir,
+  watchlist: [] as string[],
+  eventView: 'calendar' as EventView,
+  eventModal: null as EventModalPayload | null,
+  calLoading: false,
+  today: null as { y: number; m: number; d: number } | null,
   query: '',
   gQuery: '',
   briefDate: '2026-06-15',
   watchOnly: false,
-  alerts: {},
+  alerts: {} as Record<string, string[]>,
 };
+
+// 달력 기본 달·이벤트는 서버 payload(data)에서 결정 → SSR/CSR 동일(하이드레이션 안전).
+function makeInitial(data: DashboardData): DashboardState {
+  const h = homeYM(data);
+  return { ...baseState, calYear: h.y, calMonth: h.m, calEvents: data.macro.events };
+}
 
 export interface DashboardActions {
   navigate: (page: Page) => void;
@@ -81,8 +110,9 @@ export interface DashboardActions {
   setPeriod: (p: Period) => void;
   setDetailTab: (t: DetailTab) => void;
   setEventView: (v: EventView) => void;
-  openEventModal: (day: number) => void;
+  openEventModal: (payload: EventModalPayload) => void;
   closeEventModal: () => void;
+  gotoCalMonth: (delta: number) => void;
   setBriefDate: (d: string) => void;
 }
 
@@ -106,28 +136,52 @@ function load<T>(key: string, fallback: T, guard: (v: unknown) => boolean): T {
 
 export function DashboardProvider({ data, children }: { data: DashboardData; children: ReactNode }) {
   const router = useRouter();
-  const [state, setState] = useState<DashboardState>(initialState);
+  const [state, setState] = useState<DashboardState>(() => makeInitial(data));
 
-  // Hydrate persisted watchlist + alerts on mount.
+  // Hydrate persisted watchlist + alerts + 실제 오늘 날짜(클라이언트 기준) on mount.
   useEffect(() => {
+    const n = new Date();
     setState((s) => ({
       ...s,
       watchlist: load<string[]>(WATCH_KEY, [], Array.isArray),
       alerts: load<Record<string, string[]>>(ALERTS_KEY, {}, (v) => typeof v === 'object'),
+      today: { y: n.getFullYear(), m: n.getMonth(), d: n.getDate() },
     }));
   }, []);
+
+  // 달력이 보는 달이 바뀌면 해당 달 일정을 가져온다. 기본(현재) 달이면 이미 받은 data.macro.events 사용(요청 없음).
+  useEffect(() => {
+    const h = homeYM(data);
+    if (state.calYear === h.y && state.calMonth === h.m) {
+      setState((s) => ({ ...s, calEvents: data.macro.events, calLoading: false }));
+      return;
+    }
+    let cancelled = false;
+    setState((s) => ({ ...s, calLoading: true }));
+    fetch(`/api/calendar?year=${state.calYear}&month=${state.calMonth}`)
+      .then((r) => (r.ok ? r.json() : { events: [] }))
+      .then((j) => {
+        if (!cancelled) setState((s) => ({ ...s, calEvents: (j?.events as MacroEvent[]) ?? [], calLoading: false }));
+      })
+      .catch(() => {
+        if (!cancelled) setState((s) => ({ ...s, calEvents: [], calLoading: false }));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [state.calYear, state.calMonth, data]);
 
   const patch = useCallback((p: Partial<DashboardState>) => setState((s) => ({ ...s, ...p })), []);
 
   const actions = useMemo<DashboardActions>(() => ({
     navigate: (page) => {
-      patch({ eventModalDay: null });
+      patch({ eventModal: null });
       if (page !== 'detail') router.push(PATH[page]);
     },
     goDashboard: () => router.push('/'),
     goBack: () => router.back(),
     openStock: (id, tab) => {
-      setState((s) => ({ ...s, activeTab: tab ?? s.activeTab, detailTab: 'chart', period: '일봉', eventModalDay: null, gQuery: '' }));
+      setState((s) => ({ ...s, activeTab: tab ?? s.activeTab, detailTab: 'chart', period: '일봉', eventModal: null, gQuery: '' }));
       router.push(`/instrument/${id}`);
     },
     setTab: (tab) => patch({ activeTab: tab }),
@@ -170,8 +224,16 @@ export function DashboardProvider({ data, children }: { data: DashboardData; chi
     setPeriod: (period) => patch({ period }),
     setDetailTab: (detailTab) => patch({ detailTab }),
     setEventView: (eventView) => patch({ eventView }),
-    openEventModal: (eventModalDay) => patch({ eventModalDay }),
-    closeEventModal: () => patch({ eventModalDay: null }),
+    openEventModal: (eventModal) => patch({ eventModal }),
+    closeEventModal: () => patch({ eventModal: null }),
+    gotoCalMonth: (delta) =>
+      setState((s) => {
+        let m = s.calMonth + delta;
+        let y = s.calYear;
+        while (m < 0) { m += 12; y -= 1; }
+        while (m > 11) { m -= 12; y += 1; }
+        return { ...s, calYear: y, calMonth: m };
+      }),
     setBriefDate: (briefDate) => patch({ briefDate }),
   }), [patch, router]);
 

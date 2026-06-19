@@ -5,24 +5,25 @@ import { useDashboard } from '../store/DashboardContext';
 import { GlossaryTip, ImpactTag } from './GlossaryTip';
 
 export function EventModal() {
-  const { state, actions, data } = useDashboard();
-  const day = state.eventModalDay;
+  const { state, actions } = useDashboard();
+  const modal = state.eventModal;
 
   // 모달 열리면 뒷배경 스크롤 잠금(닫으면 복원).
   useEffect(() => {
-    if (day == null) return;
+    if (modal == null) return;
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     return () => {
       document.body.style.overflow = prev;
     };
-  }, [day]);
+  }, [modal]);
 
-  if (day == null) return null;
+  if (modal == null) return null;
 
-  const dow = WEEKDAYS[new Date(2026, 5, day).getDay()];
-  const title = `6월 ${day}일 (${dow})`;
-  const events = data.macro.events.filter((e) => parseInt(e.date.slice(8, 10), 10) === day);
+  const { year, month, day } = modal;
+  const dow = WEEKDAYS[new Date(year, month, day).getDay()];
+  const title = `${month + 1}월 ${day}일 (${dow})`;
+  const events = modal.events.filter((e) => parseInt(e.date.slice(8, 10), 10) === day);
 
   return (
     <div

@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { genCandles } from '../../lib/chart';
 import { fetchCoinCandles } from '../../lib/coinCandles';
-import { GEN_TIME } from '../../lib/constants';
 import { fmtPrice, fmtPct, riskMeta, scoreColor, upColor } from '../../lib/format';
 import { SRC, SRC_CANDLE } from '../../lib/sources';
 import { useViewportLayout } from '../DashboardChrome';
@@ -339,7 +338,7 @@ export function Detail({ id }: { id: string }) {
           <div style={{ background: 'linear-gradient(135deg, rgba(0,199,217,0.07), rgba(64,120,255,0.05))', border: '1px solid rgba(0,199,217,0.18)', borderRadius: 20, padding: 24 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
               <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.06em', padding: '3px 9px', borderRadius: 6, background: 'rgba(0,199,217,0.18)', color: '#5fd9e6' }}>AI 차트 분석</span>
-              <span style={{ fontSize: 12, color: '#6E7A90' }}>{state.period} 기준 · {GEN_TIME}</span>
+              <span style={{ fontSize: 12, color: '#6E7A90' }}>{state.period} 기준</span>
             </div>
             <p style={{ margin: 0, fontSize: 15, lineHeight: 1.7, color: '#D4DCE8' }}>{aiAnalysis || chartAnalysis}</p>
             <SourceNote text={aiAnalysis ? SRC.ai : 'AI 생성 — Claude (Anthropic) · 현재 정적 샘플 표시 중'} style={{ marginTop: 14 }} />
@@ -401,7 +400,7 @@ export function Detail({ id }: { id: string }) {
         <>
           <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 14, fontSize: 12, color: '#6E7A90' }}>
             <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.06em', padding: '3px 8px', borderRadius: 6, background: 'rgba(0,199,217,0.16)', color: '#5fd9e6' }}>AI 생성</span>
-            AI가 데이터를 종합해 생성한 의견입니다. 투자 판단의 참고용이며, {GEN_TIME} 기준입니다.
+            AI가 데이터를 종합해 생성한 의견입니다. 투자 판단의 참고용입니다.
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: layout.aiCols, gap: 16, alignItems: 'start' }}>
             {([

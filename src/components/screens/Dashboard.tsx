@@ -16,6 +16,11 @@ const CARD: React.CSSProperties = {
   borderRadius: 20, backdropFilter: 'blur(18px)', WebkitBackdropFilter: 'blur(18px)',
 };
 
+const calNavBtn: React.CSSProperties = {
+  cursor: 'pointer', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.10)',
+  borderRadius: 8, width: 28, height: 28, color: '#C4CDDC', fontSize: 15, lineHeight: 1, fontFamily: 'inherit',
+};
+
 const segBtn = (active: boolean): React.CSSProperties => ({
   cursor: 'pointer', border: 'none', padding: '7px 16px', borderRadius: 9, fontSize: 13,
   fontWeight: 600, fontFamily: 'inherit', whiteSpace: 'nowrap', transition: 'all 180ms',
@@ -44,7 +49,8 @@ export function Dashboard() {
   const { vw, layout } = useViewportLayout();
   const { state, actions, data } = useDashboard();
   const { macro, stocks } = data;
-  const weeks = buildCalendar(macro.events, vw);
+  const weeks = buildCalendar(state.calEvents, vw, state.calYear, state.calMonth, state.today);
+  const monthLabel = `${state.calYear}년 ${state.calMonth + 1}월`;
 
   return (
     <div>
@@ -108,16 +114,17 @@ export function Dashboard() {
         {state.eventView === 'list' ? (
           <div style={{ ...CARD, padding: '6px 24px' }}>
             {macro.events.map((e, i) => {
+              const yr = parseInt(e.date.slice(0, 4), 10);
               const da = parseInt(e.date.slice(8, 10), 10);
               const mo = parseInt(e.date.slice(5, 7), 10);
-              const dow = WEEKDAYS[new Date(2026, mo - 1, da).getDay()];
-              const today = da === 15 && mo === 6;
+              const dow = WEEKDAYS[new Date(yr, mo - 1, da).getDay()];
+              const today = !!state.today && state.today.y === yr && state.today.m === mo - 1 && state.today.d === da;
               const g = glossDef(e.name);
               return (
                 <div
                   key={i}
                   className="event-row"
-                  onClick={() => actions.openEventModal(da)}
+                  onClick={() => actions.openEventModal({ year: yr, month: mo - 1, day: da, events: macro.events })}
                   style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '14px 8px', margin: '0 -8px', borderRadius: 10, borderBottom: '1px solid rgba(255,255,255,0.05)', cursor: 'pointer' }}
                 >
                   <div style={{ width: 60, flexShrink: 0 }}>
@@ -138,7 +145,12 @@ export function Dashboard() {
         ) : (
           <div style={{ ...CARD, padding: 20 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
-              <div style={{ fontSize: 15, fontWeight: 700, color: '#EAF2FF', whiteSpace: 'nowrap' }}>2026년 6월</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <button onClick={() => actions.gotoCalMonth(-1)} aria-label="이전 달" style={calNavBtn}>‹</button>
+                <div style={{ fontSize: 15, fontWeight: 700, color: '#EAF2FF', whiteSpace: 'nowrap', minWidth: 96, textAlign: 'center' }}>{monthLabel}</div>
+                <button onClick={() => actions.gotoCalMonth(1)} aria-label="다음 달" style={calNavBtn}>›</button>
+                {state.calLoading && <span style={{ fontSize: 11, color: '#6E7A90' }}>불러오는 중…</span>}
+              </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
                 <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#9AA6BC' }}>
                   <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#f6685e' }} />고영향
@@ -162,7 +174,7 @@ export function Dashboard() {
                       <div
                         key={ci}
                         className={`cal-cell${clickable ? ' clickable' : ''}`}
-                        onClick={clickable ? () => actions.openEventModal(c.day as number) : undefined}
+                        onClick={clickable ? () => actions.openEventModal({ year: state.calYear, month: state.calMonth, day: c.day as number, events: state.calEvents }) : undefined}
                         style={{
                           minHeight: c.minHeight, borderRadius: 10, overflow: 'hidden',
                           padding: c.show ? 8 : 0,

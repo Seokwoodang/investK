@@ -29,10 +29,15 @@ export interface CalWeek {
 const chipBg = (t: string) => (t === '고영향' ? 'rgba(246,104,94,0.16)' : 'rgba(245,181,68,0.16)');
 const chipCol = (t: string) => (t === '고영향' ? '#f6968d' : '#f5c46a');
 
-// Builds the June-2026 month grid (today = the 15th). Ported from buildCalendar().
-export function buildCalendar(events: MacroEvent[], vw: number): CalWeek[] {
-  const year = 2026;
-  const month = 5; // June (0-indexed)
+// 임의 (year, month) 달의 그리드를 만든다. today가 그 달에 속할 때만 오늘 칸을 강조.
+export function buildCalendar(
+  events: MacroEvent[],
+  vw: number,
+  year: number,
+  month: number,
+  today: { y: number; m: number; d: number } | null,
+): CalWeek[] {
+  const todayDay = today && today.y === year && today.m === month ? today.d : -1;
   const startDay = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const showLabels = vw >= 720;
@@ -54,7 +59,7 @@ export function buildCalendar(events: MacroEvent[], vw: number): CalWeek[] {
   for (let day = 1; day <= daysInMonth; day++) {
     const evs = byDate[day] || [];
     const wd = (startDay + day - 1) % 7;
-    const today = day === 15;
+    const today = day === todayDay;
     const hasHigh = evs.some((e) => e.tag === '고영향');
     const dayColor = today ? '#00C7D9' : wd === 0 ? '#e88a82' : wd === 6 ? '#73BFF9' : '#C4CDDC';
     const chips = (showLabels ? evs.slice(0, 2) : []).map((e) => ({ name: e.name, bg: chipBg(e.tag), color: chipCol(e.tag) }));

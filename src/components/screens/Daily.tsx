@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { GEN_TIME, WEEKDAYS } from '../../lib/constants';
+import { WEEKDAYS } from '../../lib/constants';
 import { glossDef } from '../../lib/glossary';
 import { SRC } from '../../lib/sources';
 import { useDashboard } from '../../store/DashboardContext';
@@ -69,7 +69,7 @@ export function Daily() {
             <h1 style={{ margin: 0, fontSize: 28, fontWeight: 800, letterSpacing: '-0.02em' }}>데일리 브리핑</h1>
             <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.06em', padding: '4px 10px', borderRadius: 6, whiteSpace: 'nowrap', background: 'rgba(0,199,217,0.16)', color: '#5fd9e6' }}>팩트 브리핑</span>
           </div>
-          <p style={{ margin: '8px 0 0', fontSize: 14, color: '#7E8AA0' }}>의견·전망 없이 사실·수치·인과만 정리한 하루 단위 시장 요약입니다. · AI {GEN_TIME}</p>
+          <p style={{ margin: '8px 0 0', fontSize: 14, color: '#7E8AA0' }}>의견·전망 없이 사실·수치·인과만 정리한 하루 단위 시장 요약입니다.</p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <button onClick={() => idx > 0 && actions.setBriefDate(dates[idx - 1])} style={navBtn(idx <= 0)}>‹</button>

@@ -50,62 +50,71 @@ function toKst(gmt: string): string {
   return `${pad(h)}:${m[2]}`;
 }
 
-let cache: { at: number; data: MacroEvent[] } | null = null;
+const cache = new Map<string, { at: number; data: MacroEvent[] }>();
 const CACHE_MS = 3600 * 1000; // 1시간
 
-export async function getEconomicCalendar(days = 12): Promise<MacroEvent[]> {
-  if (cache && Date.now() - cache.at < CACHE_MS) return cache.data;
+// 날짜 하루치 Nasdaq 경제지표를 가져와 화이트리스트 매핑된 MacroEvent 배열로 변환.
+async function fetchDay(date: string): Promise<MacroEvent[]> {
+  try {
+    const r = await fetch(`https://api.nasdaq.com/api/calendar/economicevents?date=${date}`, { headers: UA });
+    if (!r.ok) return [];
+    const j = (await r.json()) as { data?: { rows?: Row[] } };
+    const rows = j?.data?.rows ?? [];
+    const out: MacroEvent[] = [];
+    const seen = new Set<string>();
+    for (const row of rows) {
+      const hit = MAP.find((m) => m.re.test(row.eventName || ''));
+      if (!hit) continue;
+      const prefix = COUNTRY[row.country];
+      if (!prefix) continue; // 주요국만
+      const name = `${prefix} ${hit.ko}`;
+      if (seen.has(name)) continue;
+      seen.add(name);
+      // 직전치·예상치 정리(&nbsp;·빈값 제외)
+      const num = (s?: string) => {
+        const v = (s ?? '').replace(/&nbsp;|&#160;/g, '').trim();
+        return v || undefined;
+      };
+      const previous = num(row.previous);
+      const consensus = num(row.consensus);
+      const nums = previous || consensus ? ` (직전 ${previous ?? '–'} · 시장 예상 ${consensus ?? '–'})` : '';
+      out.push({
+        date,
+        time: toKst(row.gmt) || '미정',
+        name,
+        tag: hit.high ? '고영향' : '중간',
+        rel: { title: row.eventName, src: 'Nasdaq' },
+        desc: `${hit.what}${nums}`,
+        interpret: hit.read,
+        previous,
+        consensus,
+      });
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
 
+async function fetchDates(key: string, dates: string[]): Promise<MacroEvent[]> {
+  const hit = cache.get(key);
+  if (hit && Date.now() - hit.at < CACHE_MS) return hit.data;
+  const all = (await Promise.all(dates.map(fetchDay))).flat();
+  all.sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
+  if (all.length) cache.set(key, { at: Date.now(), data: all });
+  return all;
+}
+
+// 오늘부터 N일치(대시보드 기본 일정 목록·달력의 "현재 달" 근방).
+export async function getEconomicCalendar(days = 12): Promise<MacroEvent[]> {
   const base = new Date();
   const dates = Array.from({ length: days }, (_, i) => ymd(new Date(base.getTime() + i * 86400000)));
+  return fetchDates(`next:${days}`, dates);
+}
 
-  const perDay = await Promise.all(
-    dates.map(async (date) => {
-      try {
-        const r = await fetch(`https://api.nasdaq.com/api/calendar/economicevents?date=${date}`, { headers: UA });
-        if (!r.ok) return [];
-        const j = (await r.json()) as { data?: { rows?: Row[] } };
-        const rows = j?.data?.rows ?? [];
-        const out: MacroEvent[] = [];
-        const seen = new Set<string>();
-        for (const row of rows) {
-          const hit = MAP.find((m) => m.re.test(row.eventName || ''));
-          if (!hit) continue;
-          const prefix = COUNTRY[row.country];
-          if (!prefix) continue; // 주요국만
-          const name = `${prefix} ${hit.ko}`;
-          if (seen.has(name)) continue;
-          seen.add(name);
-          // 직전치·예상치 정리(&nbsp;·빈값 제외)
-          const num = (s?: string) => {
-            const v = (s ?? '').replace(/&nbsp;|&#160;/g, '').trim();
-            return v || undefined;
-          };
-          const previous = num(row.previous);
-          const consensus = num(row.consensus);
-          const nums = previous || consensus ? ` (직전 ${previous ?? '–'} · 시장 예상 ${consensus ?? '–'})` : '';
-          out.push({
-            date,
-            time: toKst(row.gmt) || '미정',
-            name,
-            tag: hit.high ? '고영향' : '중간',
-            rel: { title: row.eventName, src: 'Nasdaq' },
-            desc: `${hit.what}${nums}`,
-            interpret: hit.read,
-            previous,
-            consensus,
-          });
-        }
-        return out;
-      } catch {
-        return [];
-      }
-    }),
-  );
-
-  const all = perDay.flat();
-  // 고영향 우선 + 날짜/시간 정렬, 너무 많으면 상위로 제한.
-  all.sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
-  if (all.length) cache = { at: Date.now(), data: all };
-  return all;
+// 임의 월 전체(달력 월 이동 시 on-demand). month는 0-indexed.
+export async function getMonthCalendar(year: number, month: number): Promise<MacroEvent[]> {
+  const daysInMonth = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+  const dates = Array.from({ length: daysInMonth }, (_, i) => `${year}-${pad(month + 1)}-${pad(i + 1)}`);
+  return fetchDates(`month:${year}-${pad(month + 1)}`, dates);
 }
