@@ -191,13 +191,23 @@ export function Detail({ id }: { id: string }) {
   // 로딩/실패/키 없음 시 정적 sel.ai 폴백.
   const [aiPerspective, setAiPerspective] = useState<Stock['ai'] | null>(null);
   useEffect(() => {
-    if (state.detailTab !== 'ai' || !selId) return;
+    if (state.detailTab !== 'ai' || !sel) return;
     let cancelled = false;
     setAiPerspective(null);
     fetch('/api/ai/perspective', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ id: selId }),
+      body: JSON.stringify({
+        id: selId,
+        name: sel.name,
+        ticker: sel.ticker,
+        cur: sel.cur,
+        pct: sel.pct,
+        risk: sel.risk,
+        issue: sel.issue,
+        chartNote: sel.chartNote,
+        newsTitles: sel.news.map((n) => n.title),
+      }),
     })
       .then((r) => (r.ok ? r.json() : null))
       .then((j) => {
