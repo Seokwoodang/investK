@@ -1,0 +1,141 @@
+/* Pretendard via npm (replaces the prototype's CDN @import).
+   Variable font = single dynamic-subset file instead of 18 static weights. */
+@import 'pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css';
+
+:root {
+  /* Borrowed from the Parameta design system. */
+  --point-cyan: #00c7d9;
+  --point-blue: #73bff9;
+  --font-sans: 'Pretendard', 'Pretendard Variable', 'Noto Sans KR', -apple-system,
+    BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Segoe UI', Roboto, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: #05080f;
+  font-family: var(--font-sans);
+  color: #e7ecf5;
+}
+
+#root {
+  font-variant-numeric: tabular-nums;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::selection {
+  background: rgba(0, 199, 217, 0.3);
+}
+input::placeholder {
+  color: #5e6b82;
+}
+
+/* 종목 리스트 내부 스크롤: 세로만, 가로 숨김, 얇고 은은한 스크롤바. */
+.list-scroll {
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+}
+.list-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+.list-scroll::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+.list-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.22);
+  background-clip: content-box;
+}
+.list-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Hover/focus behaviors the prototype expressed via style-hover / style-focus. */
+.search-input {
+  transition: border-color 180ms;
+}
+.search-input:focus {
+  border-color: rgba(0, 199, 217, 0.45);
+}
+
+.card-hover {
+  transition: border-color 180ms, background 180ms, transform 180ms;
+}
+.card-hover:hover {
+  border-color: rgba(0, 199, 217, 0.4);
+  background: rgba(0, 199, 217, 0.05);
+  transform: translateY(-2px);
+}
+
+.stock-row {
+  transition: background 160ms;
+}
+.stock-row:hover {
+  background: rgba(0, 199, 217, 0.06);
+}
+
+.gsearch-result {
+  transition: background 150ms;
+}
+.gsearch-result:hover {
+  background: rgba(0, 199, 217, 0.08);
+}
+
+.cal-cell.clickable {
+  transition: border-color 150ms;
+}
+.cal-cell.clickable:hover {
+  border-color: rgba(0, 199, 217, 0.3);
+}
+
+.back-btn {
+  transition: background 180ms;
+}
+.back-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* Tooltip / popover reveal-on-hover */
+.risk-cell .risk-tip,
+.gloss .gloss-pop {
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-4px);
+  transition: opacity 150ms, transform 150ms;
+  pointer-events: none;
+}
+.risk-cell:hover .risk-tip,
+.gloss:hover .gloss-pop {
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+}
