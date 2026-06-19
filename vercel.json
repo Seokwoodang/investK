@@ -1,6 +1,5 @@
 {
   "crons": [
-    { "path": "/api/cron/kis-token", "schedule": "0 21 * * *" },
-    { "path": "/api/cron/news", "schedule": "0 * * * *" }
+    { "path": "/api/cron/kis-token", "schedule": "0 21 * * *" }
   ]
 }

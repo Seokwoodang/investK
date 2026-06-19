@@ -1,7 +1,7 @@
 import 'server-only';
 import { getCategoryNews } from './providers/rssNews';
 import type { NewsArticle } from './providers/naverNews';
-import { getCachedRankedNews, generateRankedNews, type RankedNews } from './aiNews';
+import { getCachedEntry, generateRankedNews, type RankedNews } from './aiNews';
 import type { TabId } from '../types';
 
 // 뉴스 탭(시장 뉴스)용 — 후보 수집 + AI 판별을 한곳에서. 사용자 경로는 캐시만 읽고(즉시),
@@ -21,14 +21,18 @@ async function buildCandidates(tab: TabId): Promise<NewsArticle[]> {
   return getCategoryNews(tab, 30); // 전 탭 RSS (us_stock=CNBC)
 }
 
-// 사용자 경로: 캐시 우선(즉시, AI 호출 없음). 캐시 없으면(콜드) 1회만 생성.
+const FRESH_MS = 60 * 60 * 1000; // 1시간 — 이보다 오래된 캐시는 요청 시 재생성(시간당 cron이 없는 Hobby 대비)
+
+// 사용자 경로: 신선한 캐시면 즉시 반환(AI 호출 없음). 캐시가 없거나 1시간 넘게 묵었으면 새로 생성.
 export async function getTabNews(tab: TabId): Promise<{ news: (RankedNews | NewsArticle)[]; ranked: boolean }> {
-  const cached = await getCachedRankedNews(scopeOf(tab));
-  if (cached) return { news: cached, ranked: true };
+  const entry = await getCachedEntry(scopeOf(tab));
+  if (entry && Date.now() - entry.at < FRESH_MS) return { news: entry.news, ranked: true };
+  // 없음(콜드) 또는 오래됨(stale) → 재생성. 실패 시 묵은 캐시라도 반환(빈 화면 방지).
   const candidates = await buildCandidates(tab);
-  if (!candidates.length) return { news: [], ranked: false };
+  if (!candidates.length) return entry ? { news: entry.news, ranked: true } : { news: [], ranked: false };
   const ranked = await generateRankedNews(scopeOf(tab), candidates, focusOf(tab));
-  return ranked && ranked.length ? { news: ranked, ranked: true } : { news: candidates.slice(0, 21), ranked: false };
+  if (ranked && ranked.length) return { news: ranked, ranked: true };
+  return entry ? { news: entry.news, ranked: true } : { news: candidates.slice(0, 21), ranked: false };
 }
 
 // cron 경로: 항상 새로 생성해 저장(덮어쓰기).

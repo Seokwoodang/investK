@@ -19,7 +19,7 @@ export interface RankedNews extends NewsArticle {
 }
 
 const IMP: Record<RankedNews['importance'], number> = { 상: 0, 중: 1, 하: 2 };
-const mem = new Map<string, RankedNews[]>();
+const mem = new Map<string, { news: RankedNews[]; at: number }>();
 
 interface Scored {
   i: number;
@@ -32,8 +32,8 @@ interface Scored {
 
 const keyOf = (scope: string) => `news:v6:${scope}`; // v6: 상한 20개(더 보기)
 
-// 캐시만 읽기(즉시). AI 호출 안 함 → 사용자 요청 경로용. 없으면 null.
-export async function getCachedRankedNews(scope: string): Promise<RankedNews[] | null> {
+// 캐시 엔트리(뉴스 + 생성시각). AI 호출 안 함. 없으면 null.
+export async function getCachedEntry(scope: string): Promise<{ news: RankedNews[]; at: number } | null> {
   const key = keyOf(scope);
   const hit = mem.get(key);
   if (hit) return hit;
@@ -41,12 +41,17 @@ export async function getCachedRankedNews(scope: string): Promise<RankedNews[] |
   if (sb) {
     const { data } = await sb.from('ai_cache').select('payload').eq('cache_key', key).maybeSingle();
     if (data?.payload?.news) {
-      const cached = data.payload.news as RankedNews[];
-      mem.set(key, cached);
-      return cached;
+      const entry = { news: data.payload.news as RankedNews[], at: (data.payload.at as number) ?? 0 };
+      mem.set(key, entry);
+      return entry;
     }
   }
   return null;
+}
+
+// 캐시 뉴스만(즉시). 없으면 null.
+export async function getCachedRankedNews(scope: string): Promise<RankedNews[] | null> {
+  return (await getCachedEntry(scope))?.news ?? null;
 }
 
 // 캐시 있으면 그대로, 없으면 1회 생성. (상세 페이지 등 지연 경로). focus=도메인 한정 지시.
@@ -105,9 +110,10 @@ export async function generateRankedNews(scope: string, candidates: NewsArticle[
       .sort((a, b) => IMP[a.importance] - IMP[b.importance]);
 
     if (ranked.length) {
-      mem.set(key, ranked);
-      if (mem.size > 60) for (const k of [...mem.keys()].slice(0, 30)) mem.delete(k); // 오래된 버킷 정리
-      if (sb) await sb.from('ai_cache').upsert({ cache_key: key, kind: 'news', payload: { news: ranked }, model: NEWS_MODEL });
+      const at = Date.now();
+      mem.set(key, { news: ranked, at });
+      if (mem.size > 60) for (const k of [...mem.keys()].slice(0, 30)) mem.delete(k); // 오래된 키 정리
+      if (sb) await sb.from('ai_cache').upsert({ cache_key: key, kind: 'news', payload: { news: ranked, at }, model: NEWS_MODEL });
     }
     return ranked.length ? ranked : null;
   } catch (e) {
