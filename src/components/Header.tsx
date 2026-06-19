@@ -30,13 +30,14 @@ export function Header() {
   // 실시간 KST 시계 + 시장별 장 상태(코스피·뉴욕). 타임존으로 계산해 미국 DST 자동 반영.
   // SSR 불일치 방지 위해 마운트 후 설정.
   const [now, setNow] = useState<Date | null>(null);
+  const [hoverMkt, setHoverMkt] = useState<string | null>(null);
   useEffect(() => {
     setNow(new Date());
     const t = setInterval(() => setNow(new Date()), 20000);
     return () => clearInterval(t);
   }, []);
   const clock = useMemo(() => {
-    if (!now) return { date: '', time: '--:--', markets: [] as { name: string; label: string; color: string }[] };
+    if (!now) return { date: '', time: '--:--', markets: [] as { name: string; label: string; color: string; hours: string }[] };
     // 해당 타임존의 요일/분 단위 시각 + 정규장 시간으로 상태 산출.
     const status = (tz: string, openMin: number, closeMin: number) => {
       const p = Object.fromEntries(
@@ -59,8 +60,8 @@ export function Header() {
       date: `${k.year}.${k.month}.${k.day}`,
       time: `${k.hour}:${k.minute}`,
       markets: [
-        { name: '코스피', ...status('Asia/Seoul', 540, 930) }, // 09:00~15:30
-        { name: '뉴욕', ...status('America/New_York', 570, 960) }, // 09:30~16:00 ET
+        { name: '코스피', ...status('Asia/Seoul', 540, 930), hours: '정규장 09:00 ~ 15:30 (KST) · 평일' }, // 09:00~15:30
+        { name: '뉴욕', ...status('America/New_York', 570, 960), hours: '정규장 09:30 ~ 16:00 (현지) · 한국시간 약 22:30 ~ 05:00 · 평일 (서머타임 자동 반영)' }, // 09:30~16:00 ET
       ],
     };
   }, [now]);
@@ -203,10 +204,29 @@ export function Header() {
             <div style={{ fontSize: 12, color: '#9AA6BC', whiteSpace: 'nowrap' }} suppressHydrationWarning>{clock.date ? `${clock.date} · KST ${clock.time}` : 'KST --:--'}</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, justifyContent: 'flex-end', marginTop: 3, whiteSpace: 'nowrap' }}>
               {clock.markets.map((m) => (
-                <span key={m.name} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                <span
+                  key={m.name}
+                  onMouseEnter={() => setHoverMkt(m.name)}
+                  onMouseLeave={() => setHoverMkt(null)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 5, position: 'relative', cursor: 'default' }}
+                >
                   <span style={{ width: 6, height: 6, borderRadius: '50%', background: m.color, boxShadow: `0 0 8px ${m.color}` }} />
                   <span style={{ fontSize: 11, fontWeight: 600, color: '#9AA6BC' }}>{m.name}</span>
                   <span style={{ fontSize: 11, fontWeight: 700, color: m.color }}>{m.label}</span>
+                  {hoverMkt === m.name && (
+                    <span
+                      style={{
+                        position: 'absolute', top: 'calc(100% + 8px)', right: 0, zIndex: 50,
+                        width: 'max-content', maxWidth: 260, textAlign: 'left', whiteSpace: 'normal',
+                        background: 'rgba(18,24,38,0.98)', border: '1px solid rgba(255,255,255,0.12)',
+                        borderRadius: 10, padding: '9px 12px', boxShadow: '0 14px 36px rgba(0,0,0,0.5)',
+                        fontSize: 11, fontWeight: 500, lineHeight: 1.5, color: '#C4CDDC',
+                      }}
+                    >
+                      <span style={{ display: 'block', fontWeight: 700, color: '#EAF2FF', marginBottom: 3 }}>{m.name} · {m.label}</span>
+                      {m.hours}
+                    </span>
+                  )}
                 </span>
               ))}
             </div>

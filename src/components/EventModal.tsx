@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { WEEKDAYS } from '../lib/constants';
 import { glossDef } from '../lib/glossary';
 import { useDashboard } from '../store/DashboardContext';
@@ -6,6 +7,17 @@ import { GlossaryTip, ImpactTag } from './GlossaryTip';
 export function EventModal() {
   const { state, actions, data } = useDashboard();
   const day = state.eventModalDay;
+
+  // 모달 열리면 뒷배경 스크롤 잠금(닫으면 복원).
+  useEffect(() => {
+    if (day == null) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [day]);
+
   if (day == null) return null;
 
   const dow = WEEKDAYS[new Date(2026, 5, day).getDay()];
@@ -42,32 +54,32 @@ export function EventModal() {
           {events.map((e, i) => {
             const g = glossDef(e.name);
             return (
-              <a
-                key={i}
-                href={`https://search.naver.com/search.naver?where=news&query=${encodeURIComponent(e.name)}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{ display: 'block', textDecoration: 'none', padding: '18px 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}
-              >
+              <div key={i} style={{ padding: '18px 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 9 }}>
                   <span style={{ fontSize: 12, fontWeight: 600, color: '#9AA6BC', whiteSpace: 'nowrap' }}>{e.time}</span>
                   <ImpactTag tag={e.tag} />
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 11 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: g ? 11 : 0 }}>
                   <span style={{ fontSize: 16, fontWeight: 700, color: '#EEF2F8', lineHeight: 1.4 }}>{e.name}</span>
                   {g && <GlossaryTip hit={g} zIndex={55} />}
                 </div>
-                <div style={{ background: 'rgba(0,199,217,0.06)', border: '1px solid rgba(0,199,217,0.16)', borderRadius: 12, padding: '12px 14px' }}>
-                  <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', color: '#5fd9e6', marginBottom: 6 }}>관련 뉴스</div>
-                  <div style={{ fontSize: 13, color: '#D4DCE8', lineHeight: 1.55, marginBottom: 9 }}>{e.rel.title}</div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ fontSize: 11, color: '#6E7A90' }}>{e.rel.src}</span>
-                    <span style={{ fontSize: 12, fontWeight: 600, color: '#73BFF9', marginLeft: 'auto' }}>원문 보기 ↗</span>
+                {/* 경제 일정은 예정 지표라 기사 원문이 없음 → 이벤트 설명(무엇·왜 중요·직전/예상치). 없으면 용어 뜻풀이로 폴백 */}
+                {(e.desc || g) && (
+                  <div style={{ background: 'rgba(0,199,217,0.06)', border: '1px solid rgba(0,199,217,0.16)', borderRadius: 12, padding: '12px 14px' }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', color: '#5fd9e6', marginBottom: 6 }}>이 일정이란?</div>
+                    <div style={{ fontSize: 13, color: '#D4DCE8', lineHeight: 1.55 }}>{e.desc || g?.def}</div>
+                    {e.interpret && (
+                      <div style={{ display: 'flex', gap: 7, alignItems: 'flex-start', marginTop: 10, paddingTop: 10, borderTop: '1px solid rgba(255,255,255,0.07)' }}>
+                        <span style={{ fontSize: 10, fontWeight: 800, color: '#f5b544', flexShrink: 0, marginTop: 2 }}>해석</span>
+                        <span style={{ fontSize: 13, color: '#D4DCE8', lineHeight: 1.55 }}>{e.interpret}</span>
+                      </div>
+                    )}
                   </div>
-                </div>
-              </a>
+                )}
+              </div>
             );
           })}
+          <div style={{ fontSize: 11, color: '#6E7A90', paddingTop: 14 }}>출처 · Nasdaq 경제지표 캘린더 (예정 일정)</div>
         </div>
       </div>
     </div>

@@ -32,6 +32,10 @@ export interface MacroEvent {
   name: string;
   tag: Impact;
   rel: { title: string; src: string };
+  desc?: string; // 이 일정이 무엇인지·왜 중요한지 (이벤트 설명)
+  interpret?: string; // 결과가 어떻게 나오면 호재/악재인지 방향 해석
+  previous?: string; // 직전 발표치
+  consensus?: string; // 시장 예상치(컨센서스)
 }
 
 export interface Macro {
