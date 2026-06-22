@@ -10,6 +10,7 @@ const NAV: { href: string; label: string }[] = [
   { href: '/', label: '대시보드' },
   { href: '/daily', label: '데일리' },
   { href: '/stocks', label: '종목' },
+  { href: '/portfolio', label: '내자산' },
   { href: '/news', label: '뉴스' },
 ];
 

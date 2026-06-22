@@ -43,6 +43,7 @@ const PATH: Record<Exclude<Page, 'detail'>, string> = {
   dashboard: '/',
   daily: '/daily',
   stocks: '/stocks',
+  portfolio: '/portfolio',
   news: '/news',
 };
 

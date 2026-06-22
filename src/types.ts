@@ -1,7 +1,7 @@
 // Domain types for the investment monitoring dashboard.
 
 export type TabId = 'kr_stock' | 'us_stock' | 'kr_coin' | 'global_coin';
-export type Page = 'dashboard' | 'daily' | 'stocks' | 'news' | 'detail';
+export type Page = 'dashboard' | 'daily' | 'stocks' | 'portfolio' | 'news' | 'detail';
 export type DetailTab = 'chart' | 'news' | 'ai' | 'risk';
 // 봉(캔들) 단위. 코인은 4종 전부, 주식(KIS)은 일/주/월 지원(1시간 선택 시 일봉으로 대체).
 export type Period = '1시간' | '일봉' | '주봉' | '월봉';
