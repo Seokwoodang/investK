@@ -179,12 +179,11 @@ export function Portfolio() {
           <details style={{ marginBottom: 10, background: 'var(--c-w04)', border: '1px solid var(--c-w08)', borderRadius: 12, padding: '10px 14px' }}>
             <summary style={{ cursor: 'pointer', fontSize: 13, fontWeight: 700, color: 'var(--c-accyan)', listStyle: 'none' }}>📒 미래에셋 m.Stock에서 보유종목 가져오는 법</summary>
             <div style={{ marginTop: 10, fontSize: 13, lineHeight: 1.7, color: 'var(--c-tx3)' }}>
-              <div style={{ fontWeight: 700, color: 'var(--c-tx2)', marginBottom: 4 }}>① 주식 (미래에셋 m.Stock 앱)</div>
-              <ol style={{ margin: '0 0 12px', paddingLeft: 18 }}>
-                <li>m.Stock 앱 → 하단 <b style={{ color: 'var(--c-tx2)' }}>[계좌]</b>(자산) → <b style={{ color: 'var(--c-tx2)' }}>[잔고 / 보유종목]</b> 화면 열기</li>
-                <li>종목마다 <b style={{ color: 'var(--c-tx2)' }}>종목명 · 보유수량 · 매입평균가(평단)</b> 3가지 확인</li>
-                <li>아래 칸에 한 줄씩 <code style={{ color: 'var(--c-accyanbr)' }}>종목명, 수량, 평단</code> 으로 입력 (앱은 내보내기가 없어 직접 입력)</li>
-              </ol>
+              <div style={{ fontWeight: 700, color: 'var(--c-tx2)', marginBottom: 4 }}>① 주식 (미래에셋)</div>
+              <ul style={{ margin: '0 0 12px', paddingLeft: 18 }}>
+                <li><b style={{ color: 'var(--c-tx2)' }}>PC HTS(카이로스) — 가장 깔끔</b>: 잔고/보유종목 화면 → 우클릭/저장으로 <b style={{ color: 'var(--c-tx2)' }}>엑셀·CSV 내보내기</b> → 그 표에서 <b style={{ color: 'var(--c-tx2)' }}>종목명·수량·평단 3열만</b> 아래 칸에 붙여넣기</li>
+                <li><b style={{ color: 'var(--c-tx2)' }}>모바일 m.Stock 앱</b>: [계좌/자산] → [잔고·보유종목]에서 <b style={{ color: 'var(--c-tx2)' }}>종목명·보유수량·매입평균가</b>를 보고 한 줄씩 <code style={{ color: 'var(--c-accyanbr)' }}>종목명, 수량, 평단</code> 직접 입력 (모바일은 내보내기가 마땅치 않음)</li>
+              </ul>
               <div style={{ fontWeight: 700, color: 'var(--c-tx2)', marginBottom: 4 }}>② 코인 (거래소 앱 — 미래에셋엔 없음)</div>
               <ul style={{ margin: '0 0 12px', paddingLeft: 18 }}>
                 <li>업비트 등 <b style={{ color: 'var(--c-tx2)' }}>원화 거래소</b> 보유분 → <b style={{ color: 'var(--c-tx2)' }}>한글 이름</b>으로: <code style={{ color: 'var(--c-accyanbr)' }}>비트코인, 0.3, 95000000</code></li>
