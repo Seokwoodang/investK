@@ -229,6 +229,21 @@ export function Header() {
           <span style={{ fontSize: 11, fontWeight: 700 }}>큰글씨</span>
         </button>
 
+        <button
+          onClick={async () => {
+            await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
+            window.location.href = '/login';
+          }}
+          title="로그아웃"
+          style={{
+            flexShrink: 0, cursor: 'pointer', fontFamily: 'inherit', lineHeight: 1, fontSize: 11, fontWeight: 700,
+            padding: '7px 11px', borderRadius: 10, border: '1px solid var(--c-w10)', background: 'var(--c-w05)',
+            color: 'var(--c-tx4)', whiteSpace: 'nowrap',
+          }}
+        >
+          로그아웃
+        </button>
+
         {layout.showStatus && (
           <div style={{ textAlign: 'right', flexShrink: 0 }}>
             <div style={{ fontSize: 12, color: 'var(--c-tx4)', whiteSpace: 'nowrap' }} suppressHydrationWarning>{clock.date ? `${clock.date} · KST ${clock.time}` : 'KST --:--'}</div>
