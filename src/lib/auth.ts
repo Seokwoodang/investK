@@ -2,8 +2,10 @@
 // 쿠키값 = "<만료ms>.<HMAC-SHA256(secret, 만료ms)>". 위조 방지 + 만료 체크.
 
 export const COOKIE = 'ik_session';
-// ⚠️ 공개 레포이므로 실제 배포에선 반드시 Vercel 환경변수 AUTH_SECRET 를 설정할 것(미설정 시 아래 기본값=게이트 우회 가능).
-const SECRET = process.env.AUTH_SECRET || 'investkang-dev-secret-change-me';
+// 서명키는 환경변수로만. 운영(prod)에서 미설정이면 SECRET=''  → 세션 생성/검증 모두 실패(fail-closed).
+// 이렇게 해야 "공개 레포의 기본키로 쿠키 위조" 가 원천적으로 불가능하다. 로컬 개발에서만 임시 키 사용.
+const SECRET = process.env.AUTH_SECRET || (process.env.NODE_ENV === 'production' ? '' : 'dev-only-insecure-secret');
+export const AUTH_CONFIGURED = SECRET.length > 0;
 const enc = new TextEncoder();
 
 async function hmacHex(msg: string): Promise<string> {
@@ -13,12 +15,13 @@ async function hmacHex(msg: string): Promise<string> {
 }
 
 export async function createSession(days = 30): Promise<string> {
+  if (!AUTH_CONFIGURED) return '';
   const exp = Date.now() + days * 86400000;
   return `${exp}.${await hmacHex(String(exp))}`;
 }
 
 export async function verifySession(token?: string): Promise<boolean> {
-  if (!token) return false;
+  if (!AUTH_CONFIGURED || !token) return false;
   const [expStr, sig] = token.split('.');
   if (!expStr || !sig) return false;
   const exp = Number(expStr);
