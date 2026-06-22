@@ -44,6 +44,7 @@ const PATH: Record<Exclude<Page, 'detail'>, string> = {
   daily: '/daily',
   stocks: '/stocks',
   portfolio: '/portfolio',
+  report: '/report',
   news: '/news',
 };
 

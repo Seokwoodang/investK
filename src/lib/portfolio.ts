@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { Currency, Stock, Stocks, TabId } from '../types';
+import { TAB_MAP, type Currency, type FxRow, type RiskLevel, type Stock, type Stocks, type TabId } from '../types';
 
 // 내 보유종목(포트폴리오). 증권사 연동 없이 직접 입력/CSV로 채운다. 개인 데이터라 localStorage에만 저장.
 export interface Holding {
@@ -114,4 +114,65 @@ export function parseHoldingsText(
     }
   }
   return { matched, unmatched };
+}
+
+// USD/KRW 환율(원화 환산용). 없으면 1350 폴백.
+export function usdKrwFromFx(fx: FxRow[]): number {
+  const r = fx.find((f) => f.pair === 'USD/KRW');
+  const n = r ? Number(r.val.replace(/[^0-9.]/g, '')) : NaN;
+  return Number.isFinite(n) && n > 0 ? n : 1350;
+}
+
+export interface ValuedRow extends Holding {
+  price: number;
+  tab?: TabId;
+  group: string; // 자산군 라벨
+  value: number; // 평가액(해당 통화)
+  cost: number; // 매입액(해당 통화)
+  valueKrw: number;
+  costKrw: number;
+  pl: number; // 평가손익(해당 통화)
+  plPct: number;
+  matched: boolean; // 유니버스 매칭(현재가 반영) 여부
+  risk?: RiskLevel;
+}
+
+export interface PortfolioValuation {
+  rows: ValuedRow[];
+  totalKrw: number;
+  costTotalKrw: number;
+  totalPlKrw: number;
+  totalPlPct: number;
+  groupWeights: { group: string; weight: number }[];
+}
+
+// 보유종목을 유니버스 시세로 평가(원화 환산 총계·자산군 비중 포함). 자산 페이지·보고서 공용.
+export function valuePortfolio(holdings: Holding[], stocks: Stocks, usdkrw: number): PortfolioValuation {
+  const byId = new Map(
+    (Object.keys(stocks) as TabId[]).flatMap((tb) => stocks[tb].map((s) => [s.id, { s, tab: tb }] as const)),
+  );
+  const rows: ValuedRow[] = holdings.map((h) => {
+    const u = byId.get(h.id);
+    const price = u ? u.s.price : h.manualPrice ?? h.avg;
+    const cur = u ? u.s.cur : h.cur;
+    const tab = u ? u.tab : h.tab;
+    const value = h.qty * price;
+    const cost = h.qty * h.avg;
+    const toKrw = (v: number) => (cur === '$' ? v * usdkrw : v);
+    const plPct = h.avg > 0 ? ((price - h.avg) / h.avg) * 100 : 0;
+    return {
+      ...h, cur, price, tab, value, cost, valueKrw: toKrw(value), costKrw: toKrw(cost),
+      pl: value - cost, plPct, group: tab ? TAB_MAP[tab] : '기타', matched: !!u, risk: u?.s.risk,
+    };
+  });
+  const totalKrw = rows.reduce((s, r) => s + r.valueKrw, 0);
+  const costTotalKrw = rows.reduce((s, r) => s + r.costKrw, 0);
+  const totalPlKrw = totalKrw - costTotalKrw;
+  const totalPlPct = costTotalKrw > 0 ? (totalPlKrw / costTotalKrw) * 100 : 0;
+  const gm = new Map<string, number>();
+  rows.forEach((r) => gm.set(r.group, (gm.get(r.group) || 0) + r.valueKrw));
+  const groupWeights = [...gm.entries()]
+    .map(([group, v]) => ({ group, weight: totalKrw > 0 ? (v / totalKrw) * 100 : 0 }))
+    .sort((a, b) => b.weight - a.weight);
+  return { rows, totalKrw, costTotalKrw, totalPlKrw, totalPlPct, groupWeights };
 }
