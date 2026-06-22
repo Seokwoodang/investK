@@ -266,7 +266,8 @@ const dateMs = (s: string | undefined): number | undefined => {
 };
 
 // 국내주식 일봉 (FHKST03010100). output2: stck_oprc/hgpr/lwpr/clpr, 최신순.
-export async function getDomesticCandles(code: string, period: Period): Promise<Candle[]> {
+// opts.from/to('YYYYMMDD') 주어지면 그 구간 조회(사용자 지정 기간), 없으면 기본 CANDLE_BACK.
+export async function getDomesticCandles(code: string, period: Period, opts?: { from?: string; to?: string }): Promise<Candle[]> {
   return kisThrottle(async () => {
     const token = await getToken();
     const now = new Date();
@@ -275,8 +276,8 @@ export async function getDomesticCandles(code: string, period: Period): Promise<
     const u = new URL(`${env.KIS_BASE}/uapi/domestic-stock/v1/quotations/inquire-daily-itemchartprice`);
     u.searchParams.set('FID_COND_MRKT_DIV_CODE', 'J');
     u.searchParams.set('FID_INPUT_ISCD', code);
-    u.searchParams.set('FID_INPUT_DATE_1', ymd(start));
-    u.searchParams.set('FID_INPUT_DATE_2', ymd(now));
+    u.searchParams.set('FID_INPUT_DATE_1', opts?.from ?? ymd(start));
+    u.searchParams.set('FID_INPUT_DATE_2', opts?.to ?? ymd(now));
     u.searchParams.set('FID_PERIOD_DIV_CODE', PERIOD_DIV[period]);
     u.searchParams.set('FID_ORG_ADJ_PRC', '0');
     const res = await fetch(u, {
@@ -294,7 +295,7 @@ export async function getDomesticCandles(code: string, period: Period): Promise<
 
 // 해외주식 일봉 (FHKST03030100, MRKT_DIV='N' — 지수와 동일 엔드포인트).
 // output2: ovrs_nmix_oprc/hgpr/lwpr/prpr, 최신순.
-export async function getOverseasCandles(symb: string, period: Period): Promise<Candle[]> {
+export async function getOverseasCandles(symb: string, period: Period, opts?: { from?: string; to?: string }): Promise<Candle[]> {
   return kisThrottle(async () => {
     const token = await getToken();
     const now = new Date();
@@ -303,8 +304,8 @@ export async function getOverseasCandles(symb: string, period: Period): Promise<
     const u = new URL(`${env.KIS_BASE}/uapi/overseas-price/v1/quotations/inquire-daily-chartprice`);
     u.searchParams.set('FID_COND_MRKT_DIV_CODE', 'N');
     u.searchParams.set('FID_INPUT_ISCD', symb);
-    u.searchParams.set('FID_INPUT_DATE_1', ymd(start));
-    u.searchParams.set('FID_INPUT_DATE_2', ymd(now));
+    u.searchParams.set('FID_INPUT_DATE_1', opts?.from ?? ymd(start));
+    u.searchParams.set('FID_INPUT_DATE_2', opts?.to ?? ymd(now));
     u.searchParams.set('FID_PERIOD_DIV_CODE', PERIOD_DIV[period]);
     const res = await fetch(u, {
       headers: { authorization: `Bearer ${token}`, appkey: env.KIS_APP_KEY, appsecret: env.KIS_APP_SECRET, tr_id: 'FHKST03030100', custtype: 'P' },

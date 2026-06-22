@@ -72,6 +72,21 @@ function findStock(stocks: Stocks, id: string, tab: TabId): Stock | null {
   return null;
 }
 
+const pad2 = (n: number) => String(n).padStart(2, '0');
+const isoDate = (d: Date) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+const RANGE_PRESETS = ['1주', '1개월', '3개월', '6개월', '1년'] as const;
+type RangePreset = (typeof RANGE_PRESETS)[number];
+// 종료일(오늘) 기준으로 프리셋만큼 뺀 시작일.
+function presetStart(end: Date, kind: RangePreset): Date {
+  const s = new Date(end);
+  if (kind === '1주') s.setDate(s.getDate() - 7);
+  else if (kind === '1개월') s.setMonth(s.getMonth() - 1);
+  else if (kind === '3개월') s.setMonth(s.getMonth() - 3);
+  else if (kind === '6개월') s.setMonth(s.getMonth() - 6);
+  else s.setFullYear(s.getFullYear() - 1);
+  return s;
+}
+
 export function Detail({ id }: { id: string }) {
   const { layout } = useViewportLayout();
   const { state, actions, data } = useDashboard();
@@ -88,22 +103,33 @@ export function Detail({ id }: { id: string }) {
   const mockCandles = useMemo(() => (sel ? genCandles(sel, state.period) : []), [sel, state.period]);
   const [realCandles, setRealCandles] = useState<Candle[] | null>(null);
   const selTicker = sel?.ticker;
+
+  // 기간 수익률·차트 구간 = 사용자가 명시한 시작/종료일(기본 최근 6개월). 마운트 후 설정(SSR 안전).
+  const [range, setRange] = useState<{ start: string; end: string } | null>(null);
+  const [presetSel, setPresetSel] = useState<RangePreset | '직접'>('6개월');
   useEffect(() => {
-    if (!selId || !selTicker) return;
+    const end = new Date();
+    setRange({ start: isoDate(presetStart(end, '6개월')), end: isoDate(end) });
+  }, []);
+
+  useEffect(() => {
+    if (!selId || !selTicker || !range) return;
     const tab = state.activeTab;
     const isCoin = tab === 'kr_coin' || tab === 'global_coin';
+    const fromMs = Date.parse(range.start + 'T00:00:00');
+    const toMs = Date.parse(range.end + 'T23:59:59');
     let cancelled = false;
     setRealCandles(null);
     const got = (c: Candle[] | null) => {
       if (!cancelled && c && c.length) setRealCandles(c);
     };
     if (isCoin) {
-      fetchCoinCandles(tab, selTicker, state.period).then(got).catch(() => {});
+      fetchCoinCandles(tab, selTicker, state.period, { fromMs, toMs }).then(got).catch(() => {});
     } else {
       fetch('/api/candles', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ tab, ticker: selTicker, period: state.period }),
+        body: JSON.stringify({ tab, ticker: selTicker, period: state.period, from: range.start.replace(/-/g, ''), to: range.end.replace(/-/g, '') }),
       })
         .then((r) => (r.ok ? r.json() : null))
         .then((j) => got(j?.candles ?? null))
@@ -112,8 +138,14 @@ export function Detail({ id }: { id: string }) {
     return () => {
       cancelled = true;
     };
-  }, [selId, selTicker, state.activeTab, state.period]);
-  const candles = realCandles ?? mockCandles;
+  }, [selId, selTicker, state.activeTab, state.period, range?.start, range?.end]);
+
+  // 실데이터는 선택 구간으로 필터(거래소가 구간을 약간 넘겨 줄 수 있음). 실패 시 mock 폴백(필터 안 함).
+  const fromMs = range ? Date.parse(range.start + 'T00:00:00') : -Infinity;
+  const toMs = range ? Date.parse(range.end + 'T23:59:59') : Infinity;
+  const candles = realCandles
+    ? realCandles.filter((c) => c.t == null || (c.t >= fromMs && c.t <= toMs))
+    : mockCandles;
   const ret = candles.length ? ((candles[candles.length - 1].c - candles[0].o) / candles[0].o) * 100 : 0;
 
   // 상세 종목 실시간 구독: 국내주식=KIS SSE, 코인=거래소 ws.
@@ -252,6 +284,45 @@ export function Detail({ id }: { id: string }) {
     fontWeight: 600, fontFamily: 'inherit', whiteSpace: 'nowrap', transition: 'all 180ms',
     ...(active ? { background: 'var(--c-cy18)', color: 'var(--c-accyanbr)' } : { background: 'transparent', color: 'var(--c-tx4)' }),
   });
+  const chipStyle = (active: boolean): React.CSSProperties => ({
+    cursor: 'pointer', border: 'none', padding: '6px 11px', borderRadius: 8, fontSize: 12,
+    fontWeight: 600, fontFamily: 'inherit', whiteSpace: 'nowrap', transition: 'all 160ms',
+    ...(active ? { background: 'var(--c-cy18)', color: 'var(--c-accyanbr)' } : { background: 'transparent', color: 'var(--c-tx4)' }),
+  });
+  const miniBtn: React.CSSProperties = {
+    cursor: 'pointer', background: 'var(--c-w05)', border: '1px solid var(--c-w10)', borderRadius: 8,
+    width: 30, height: 30, color: 'var(--c-tx3)', fontSize: 12, lineHeight: 1, fontFamily: 'inherit',
+  };
+  const dateInput: React.CSSProperties = {
+    background: 'var(--c-w04)', border: '1px solid var(--c-w10)', borderRadius: 8, padding: '6px 9px',
+    color: 'var(--c-tx2)', fontSize: 12, fontFamily: 'inherit', outline: 'none', colorScheme: 'inherit',
+  };
+  const todayIso = isoDate(new Date());
+  const applyPreset = (kind: RangePreset) => {
+    const end = new Date();
+    setPresetSel(kind);
+    setRange({ start: isoDate(presetStart(end, kind)), end: isoDate(end) });
+  };
+  // ◀ ▶ : 구간을 통째로 과거/미래로 이동(미래는 오늘까지만).
+  const shiftRange = (dir: -1 | 1) => {
+    if (!range) return;
+    const s = Date.parse(range.start + 'T00:00:00');
+    const e = Date.parse(range.end + 'T00:00:00');
+    const span = Math.max(86400000, e - s);
+    let ns = s + dir * span;
+    let ne = e + dir * span;
+    const today = Date.parse(todayIso + 'T00:00:00');
+    if (ne > today) { ne = today; ns = today - span; }
+    setPresetSel('직접');
+    setRange({ start: isoDate(new Date(ns)), end: isoDate(new Date(ne)) });
+  };
+  const fmtDay = (ms?: number) => {
+    if (!ms) return '';
+    const d = new Date(ms);
+    return `${d.getFullYear()}.${pad2(d.getMonth() + 1)}.${pad2(d.getDate())}`;
+  };
+  const spanText = candles.length && candles[0].t ? `${fmtDay(candles[0].t)} ~ ${fmtDay(candles[candles.length - 1].t)}` : '';
+  const isCoinTab = state.activeTab === 'kr_coin' || state.activeTab === 'global_coin';
 
   return (
     <div>
@@ -334,17 +405,47 @@ export function Detail({ id }: { id: string }) {
       {detailTab === 'chart' && (
         <div>
           <div style={{ ...CARD, borderRadius: 24, padding: 24, marginBottom: 20 }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 8, flexWrap: 'wrap' }}>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 12, flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
                 <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--c-tx4)' }}>기간 수익률</span>
                 <span style={{ fontSize: 22, fontWeight: 800, color: upColor(ret) }}>{fmtPct(ret)}</span>
+                {spanText && <span style={{ fontSize: 12, color: 'var(--c-tx6)' }}>{spanText}</span>}
               </div>
               <div style={{ display: 'flex', gap: 4, padding: 4, background: 'var(--c-w04)', borderRadius: 12 }}>
-                {(state.activeTab === 'kr_coin' || state.activeTab === 'global_coin' ? PERIODS_COIN : PERIODS_STOCK).map((p) => (
+                {(isCoinTab ? PERIODS_COIN : PERIODS_STOCK).map((p) => (
                   <button key={p} onClick={() => actions.setPeriod(p)} style={segStyle(state.period === p)}>{p}</button>
                 ))}
               </div>
             </div>
+
+            {/* 기간 직접 지정: 빠른 칩 · ◀▶ 이동 · 시작/종료일 입력. 차트와 수익률이 이 구간을 따른다. */}
+            {range && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 4 }}>
+                <div style={{ display: 'flex', gap: 4, padding: 4, background: 'var(--c-w04)', borderRadius: 10 }}>
+                  {RANGE_PRESETS.map((k) => (
+                    <button key={k} onClick={() => applyPreset(k)} style={chipStyle(presetSel === k)}>{k}</button>
+                  ))}
+                </div>
+                <button onClick={() => shiftRange(-1)} title="이전 구간" style={miniBtn}>◀</button>
+                <button onClick={() => shiftRange(1)} title="다음 구간" style={miniBtn}>▶</button>
+                <input
+                  type="date"
+                  value={range.start}
+                  max={range.end}
+                  onChange={(e) => e.target.value && (setPresetSel('직접'), setRange({ start: e.target.value, end: range.end }))}
+                  style={dateInput}
+                />
+                <span style={{ color: 'var(--c-tx6)', fontSize: 12 }}>~</span>
+                <input
+                  type="date"
+                  value={range.end}
+                  min={range.start}
+                  max={todayIso}
+                  onChange={(e) => e.target.value && (setPresetSel('직접'), setRange({ start: range.start, end: e.target.value }))}
+                  style={dateInput}
+                />
+              </div>
+            )}
             <div style={{ margin: '8px -4px 0' }}>
               <CandleChart candles={candles} markers={markers} period={state.period} cur={sel.cur} />
             </div>
