@@ -1,100 +1,147 @@
-import type { Candle, ChartMarker, Currency, Period } from '../types';
+'use client';
 
-// 캔들차트 SVG(840×320 viewBox, 가로 100% 반응형). 캔들·격자는 SVG로, 축 라벨(가격·날짜)은
-// HTML 오버레이로 그린다(SVG는 가로로 늘어나 텍스트가 왜곡되므로). 높이 320px 고정 → 세로 px 직접 매핑.
-const W = 840, H = 320, padT = 14, padB = 24, padL = 6, padR = 58;
-const innerH = H - padT - padB;
-const innerW = W - padL - padR;
+import { createChart, CandlestickSeries, ColorType, CrosshairMode } from 'lightweight-charts';
+import type { IChartApi, ISeriesApi, UTCTimestamp } from 'lightweight-charts';
+import { useEffect, useRef } from 'react';
+import type { Candle, Currency, Period } from '../types';
 
-function fmtPrice(v: number): string {
-  if (v >= 1000) return Math.round(v).toLocaleString('ko-KR');
-  if (v >= 1) return v.toFixed(2);
-  return v.toFixed(4);
+// TradingView Lightweight Charts 기반 인터랙티브 캔들차트(드래그 이동·휠 확대축소·크로스헤어).
+// 데이터는 우리 KIS·업비트·바이낸스 실데이터를 그대로 먹인다. 캔버스라 색은 CSS 토큰을 읽어 직접 적용.
+
+const H = 360;
+
+// 보이는 구간의 수익률·기간을 부모에 알린다(기간 수익률 readout이 화면에 보이는 구간을 따름).
+export interface VisibleRange {
+  ret: number; // (구간 첫 시가 → 마지막 종가) %
+  fromMs: number;
+  toMs: number;
 }
 
-// 봉 단위에 따라 X축 라벨 포맷.
-function fmtTime(ms: number, period: Period): string {
-  const d = new Date(ms);
-  const mo = d.getMonth() + 1, da = d.getDate();
-  if (period === '1시간') return `${mo}/${da} ${String(d.getHours()).padStart(2, '0')}시`;
-  if (period === '월봉') return `${String(d.getFullYear()).slice(2)}.${String(mo).padStart(2, '0')}`;
-  return `${mo}/${da}`;
+function tok(name: string): string {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || '#888';
 }
 
-export function CandleChart({ candles, markers, period = '일봉', cur }: { candles: Candle[]; markers: ChartMarker[]; period?: Period; cur?: Currency }) {
-  if (!candles.length)
+export function CandleChart({
+  candles,
+  cur,
+  theme,
+  onVisible,
+}: {
+  candles: Candle[];
+  period?: Period;
+  cur?: Currency;
+  theme?: string; // 테마 변경 시 색 재적용 트리거
+  onVisible?: (v: VisibleRange) => void;
+}) {
+  const elRef = useRef<HTMLDivElement>(null);
+  const chartRef = useRef<IChartApi | null>(null);
+  const seriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
+  const candlesRef = useRef<Candle[]>(candles);
+  const onVisibleRef = useRef(onVisible);
+  candlesRef.current = candles;
+  onVisibleRef.current = onVisible;
+
+  // 캔버스 색을 현재 테마 토큰으로 적용.
+  const applyTheme = () => {
+    const chart = chartRef.current;
+    const series = seriesRef.current;
+    if (!chart || !series) return;
+    chart.applyOptions({
+      layout: { background: { type: ColorType.Solid, color: 'transparent' }, textColor: tok('--c-tx5') },
+      grid: { vertLines: { color: tok('--c-w05') }, horzLines: { color: tok('--c-w05') } },
+      rightPriceScale: { borderColor: tok('--c-w08') },
+      timeScale: { borderColor: tok('--c-w08') },
+      crosshair: { mode: CrosshairMode.Normal },
+    });
+    const up = tok('--c-up');
+    const down = tok('--c-down');
+    series.applyOptions({
+      upColor: up, downColor: down, borderUpColor: up, borderDownColor: down, wickUpColor: up, wickDownColor: down,
+    });
+  };
+
+  // 생성(1회).
+  useEffect(() => {
+    const el = elRef.current;
+    if (!el) return;
+    const chart = createChart(el, {
+      height: H,
+      width: el.clientWidth,
+      autoSize: false,
+      layout: { background: { type: ColorType.Solid, color: 'transparent' }, textColor: tok('--c-tx5'), attributionLogo: true },
+      grid: { vertLines: { color: tok('--c-w05') }, horzLines: { color: tok('--c-w05') } },
+      rightPriceScale: { borderColor: tok('--c-w08') },
+      timeScale: { borderColor: tok('--c-w08'), timeVisible: true, secondsVisible: false },
+      crosshair: { mode: CrosshairMode.Normal },
+      handleScroll: true,
+      handleScale: true,
+    });
+    const up = tok('--c-up');
+    const down = tok('--c-down');
+    const series = chart.addSeries(CandlestickSeries, {
+      upColor: up, downColor: down, borderUpColor: up, borderDownColor: down, wickUpColor: up, wickDownColor: down,
+    });
+    chartRef.current = chart;
+    seriesRef.current = series;
+
+    // 보이는 구간이 바뀔 때마다(드래그·줌·초기 표시) 그 구간 수익률을 계산해 부모에 전달.
+    const report = () => {
+      const cb = onVisibleRef.current;
+      if (!cb) return;
+      const vr = chart.timeScale().getVisibleRange();
+      const cs = candlesRef.current.filter((c) => c.t != null);
+      if (!cs.length) return;
+      let inView = cs;
+      if (vr) {
+        const from = (vr.from as number) * 1000;
+        const to = (vr.to as number) * 1000;
+        const f = cs.filter((c) => (c.t as number) >= from && (c.t as number) <= to);
+        if (f.length) inView = f;
+      }
+      const first = inView[0];
+      const last = inView[inView.length - 1];
+      cb({ ret: ((last.c - first.o) / first.o) * 100, fromMs: first.t as number, toMs: last.t as number });
+    };
+    chart.timeScale().subscribeVisibleTimeRangeChange(report);
+
+    const ro = new ResizeObserver(() => chart.applyOptions({ width: el.clientWidth }));
+    ro.observe(el);
+    return () => {
+      ro.disconnect();
+      chart.remove();
+      chartRef.current = null;
+      seriesRef.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // 데이터 갱신.
+  useEffect(() => {
+    const series = seriesRef.current;
+    if (!series) return;
+    // LW는 time 오름차순·중복 없음을 요구 → 초 단위로 변환 후 dedupe.
+    const byTime = new Map<number, Candle>();
+    for (const c of candles) if (c.t != null) byTime.set(Math.floor((c.t as number) / 1000), c);
+    const data = [...byTime.entries()]
+      .sort((a, b) => a[0] - b[0])
+      .map(([t, c]) => ({ time: t as UTCTimestamp, open: c.o, high: c.h, low: c.l, close: c.c }));
+    series.setData(data);
+    chartRef.current?.timeScale().fitContent();
+  }, [candles]);
+
+  // 테마 변경 시 색 재적용(클래스 토글) + OS 설정 변경 구독.
+  useEffect(() => {
+    applyTheme();
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    const h = () => applyTheme();
+    mq.addEventListener('change', h);
+    return () => mq.removeEventListener('change', h);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [theme]);
+
+  if (!candles.length) {
     return <div style={{ height: H, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--c-tx6)', fontSize: 13 }}>차트 데이터 없음</div>;
+  }
 
-  const min = Math.min(...candles.map((c) => c.l));
-  const max = Math.max(...candles.map((c) => c.h));
-  const range = max - min || 1;
-  const step = innerW / candles.length;
-  const y = (v: number) => padT + ((max - v) / range) * innerH;
-  const cw = Math.max(2.5, step * 0.62);
-
-  const gridded = [0, 1, 2, 3, 4];
-  const hasTime = candles.some((c) => c.t);
-  const xLabels = hasTime
-    ? Array.from({ length: 6 }, (_, k) => Math.round((candles.length - 1) * (k / 5)))
-        .filter((idx, k, arr) => arr.indexOf(idx) === k)
-        .map((idx) => ({ idx, leftFrac: (padL + step * idx + step / 2) / W, label: fmtTime(candles[idx].t as number, period) }))
-    : [];
-
-  return (
-    <div style={{ position: 'relative', width: '100%' }}>
-      <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" style={{ width: '100%', height: H, display: 'block' }}>
-        {gridded.map((i) => {
-          const gy = padT + (innerH * i) / 4;
-          return <line key={`g${i}`} x1={padL} x2={W - padR} y1={gy} y2={gy} style={{ stroke: 'var(--c-w05)' }} strokeWidth={1} />;
-        })}
-        {candles.map((c, i) => {
-          const cx = padL + step * i + step / 2;
-          const up = c.c >= c.o;
-          const col = up ? 'var(--c-up)' : 'var(--c-down)';
-          const ry = y(Math.max(c.o, c.c));
-          const rh = Math.max(1.5, Math.abs(y(c.o) - y(c.c)));
-          return (
-            <g key={i}>
-              <line x1={cx} x2={cx} y1={y(c.h)} y2={y(c.l)} style={{ stroke: col }} strokeWidth={1.2} opacity={0.85} />
-              <rect x={cx - cw / 2} y={ry} width={cw} height={rh} style={{ fill: col }} rx={1} opacity={0.95} />
-            </g>
-          );
-        })}
-        {markers.map((m, i) => {
-          const mx = padL + innerW * m.xFrac;
-          return <line key={`mk${i}`} x1={mx} x2={mx} y1={padT} y2={H - padB} stroke={m.color} strokeWidth={1} strokeDasharray="3 4" opacity={0.65} />;
-        })}
-      </svg>
-
-      {/* Y축 가격 라벨 (우측) — 세로 px 직접 매핑(높이 320 고정) */}
-      {gridded.map((i) => {
-        const topPx = padT + (innerH * i) / 4;
-        const price = max - (range * i) / 4;
-        return (
-          <div key={`pl${i}`} style={{ position: 'absolute', top: topPx - 7, right: 2, fontSize: 10, color: 'var(--c-tx6)', whiteSpace: 'nowrap', pointerEvents: 'none' }}>
-            {fmtPrice(price)}
-          </div>
-        );
-      })}
-
-      {/* X축 날짜/시간 라벨 (하단) */}
-      {xLabels.map((x) => (
-        <div key={`xl${x.idx}`} style={{ position: 'absolute', bottom: 2, left: `${x.leftFrac * 100}%`, transform: 'translateX(-50%)', fontSize: 10, color: 'var(--c-tx6)', whiteSpace: 'nowrap', pointerEvents: 'none' }}>
-          {x.label}
-        </div>
-      ))}
-
-      {markers.map((m, i) => (
-        <div
-          key={`mt${i}`}
-          style={{
-            position: 'absolute', top: 4, left: `${m.xFrac * 100}%`, transform: 'translateX(3px)',
-            fontSize: 11, fontWeight: 700, color: m.color, whiteSpace: 'nowrap', pointerEvents: 'none',
-          }}
-        >
-          {m.label}
-        </div>
-      ))}
-    </div>
-  );
+  return <div ref={elRef} style={{ width: '100%', height: H }} />;
 }

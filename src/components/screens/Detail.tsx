@@ -8,8 +8,8 @@ import { SRC, SRC_CANDLE } from '../../lib/sources';
 import { useViewportLayout } from '../DashboardChrome';
 import { useDashboard } from '../../store/DashboardContext';
 import { useRealtime, useSubscribeStocks, useSubscribeCoins, useSubscribeUs } from '../../store/RealtimeContext';
-import type { AlertKey, Candle, ChartMarker, DetailTab, Period, Stock, Stocks, TabId } from '../../types';
-import { CandleChart } from '../CandleChart';
+import type { AlertKey, Candle, DetailTab, Period, Stock, Stocks, TabId } from '../../types';
+import { CandleChart, type VisibleRange } from '../CandleChart';
 import { SourceNote } from '../SourceNote';
 
 const CARD: React.CSSProperties = {
@@ -58,10 +58,6 @@ const RISK_DIMS: { key: keyof Stock['risk4']; label: string; tail: string }[] = 
   { key: 'sent', label: '뉴스 감성', tail: '최근 뉴스 톤의 부정 정도' },
 ];
 
-function shortLabel(n: string): string {
-  return /CPI/.test(n) ? 'CPI' : /FOMC/.test(n) ? 'FOMC' : /PCE/.test(n) ? 'PCE' : /GDP/.test(n) ? 'GDP' : /ECB/.test(n) ? 'ECB' : n.slice(0, 4);
-}
-
 function findStock(stocks: Stocks, id: string, tab: TabId): Stock | null {
   const inTab = stocks[tab].find((s) => s.id === id);
   if (inTab) return inTab;
@@ -106,7 +102,9 @@ export function Detail({ id }: { id: string }) {
 
   // 기간 수익률·차트 구간 = 사용자가 명시한 시작/종료일(기본 최근 6개월). 마운트 후 설정(SSR 안전).
   const [range, setRange] = useState<{ start: string; end: string } | null>(null);
-  const [presetSel, setPresetSel] = useState<RangePreset | '직접'>('6개월');
+  const [presetSel, setPresetSel] = useState<RangePreset>('6개월');
+  // 차트에서 현재 보이는 구간(드래그·줌에 따라 갱신) → 기간 수익률 readout이 이걸 따른다.
+  const [visible, setVisible] = useState<VisibleRange | null>(null);
   useEffect(() => {
     const end = new Date();
     setRange({ start: isoDate(presetStart(end, '6개월')), end: isoDate(end) });
@@ -120,6 +118,7 @@ export function Detail({ id }: { id: string }) {
     const toMs = Date.parse(range.end + 'T23:59:59');
     let cancelled = false;
     setRealCandles(null);
+    setVisible(null);
     const got = (c: Candle[] | null) => {
       if (!cancelled && c && c.length) setRealCandles(c);
     };
@@ -270,10 +269,6 @@ export function Detail({ id }: { id: string }) {
   // 실제 뉴스 우선, 없으면 정적(sel.news) 폴백.
   const relatedList: RelatedNewsItem[] = relatedNews && relatedNews.length ? relatedNews : sel.news;
 
-  const hiEvents = data.macro.events.filter((e) => e.tag === '고영향');
-  const markerFracs = [0.5, 0.8];
-  const markers: ChartMarker[] = hiEvents.slice(0, 2).map((e, i) => ({ xFrac: markerFracs[i], label: shortLabel(e.name), color: 'var(--c-warn)' }));
-
   const overall = Math.round((sel.risk4.vol + sel.risk4.liq + sel.risk4.evt + sel.risk4.sent) / 4);
   const aCur = state.alerts[sel.id] || [];
 
@@ -289,40 +284,24 @@ export function Detail({ id }: { id: string }) {
     fontWeight: 600, fontFamily: 'inherit', whiteSpace: 'nowrap', transition: 'all 160ms',
     ...(active ? { background: 'var(--c-cy18)', color: 'var(--c-accyanbr)' } : { background: 'transparent', color: 'var(--c-tx4)' }),
   });
-  const miniBtn: React.CSSProperties = {
-    cursor: 'pointer', background: 'var(--c-w05)', border: '1px solid var(--c-w10)', borderRadius: 8,
-    width: 30, height: 30, color: 'var(--c-tx3)', fontSize: 12, lineHeight: 1, fontFamily: 'inherit',
-  };
-  const dateInput: React.CSSProperties = {
-    background: 'var(--c-w04)', border: '1px solid var(--c-w10)', borderRadius: 8, padding: '6px 9px',
-    color: 'var(--c-tx2)', fontSize: 12, fontFamily: 'inherit', outline: 'none', colorScheme: 'inherit',
-  };
-  const todayIso = isoDate(new Date());
   const applyPreset = (kind: RangePreset) => {
     const end = new Date();
     setPresetSel(kind);
     setRange({ start: isoDate(presetStart(end, kind)), end: isoDate(end) });
-  };
-  // ◀ ▶ : 구간을 통째로 과거/미래로 이동(미래는 오늘까지만).
-  const shiftRange = (dir: -1 | 1) => {
-    if (!range) return;
-    const s = Date.parse(range.start + 'T00:00:00');
-    const e = Date.parse(range.end + 'T00:00:00');
-    const span = Math.max(86400000, e - s);
-    let ns = s + dir * span;
-    let ne = e + dir * span;
-    const today = Date.parse(todayIso + 'T00:00:00');
-    if (ne > today) { ne = today; ns = today - span; }
-    setPresetSel('직접');
-    setRange({ start: isoDate(new Date(ns)), end: isoDate(new Date(ne)) });
   };
   const fmtDay = (ms?: number) => {
     if (!ms) return '';
     const d = new Date(ms);
     return `${d.getFullYear()}.${pad2(d.getMonth() + 1)}.${pad2(d.getDate())}`;
   };
-  const spanText = candles.length && candles[0].t ? `${fmtDay(candles[0].t)} ~ ${fmtDay(candles[candles.length - 1].t)}` : '';
   const isCoinTab = state.activeTab === 'kr_coin' || state.activeTab === 'global_coin';
+  // 기간 수익률 readout = 차트에 보이는 구간(드래그·줌) 기준. 아직 콜백 전이면 로드 구간 전체 기준.
+  const shownRet = visible ? visible.ret : ret;
+  const shownSpan = visible
+    ? `${fmtDay(visible.fromMs)} ~ ${fmtDay(visible.toMs)}`
+    : candles.length && candles[0].t
+      ? `${fmtDay(candles[0].t)} ~ ${fmtDay(candles[candles.length - 1].t)}`
+      : '';
 
   return (
     <div>
@@ -408,8 +387,8 @@ export function Detail({ id }: { id: string }) {
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 12, flexWrap: 'wrap' }}>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
                 <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--c-tx4)' }}>기간 수익률</span>
-                <span style={{ fontSize: 22, fontWeight: 800, color: upColor(ret) }}>{fmtPct(ret)}</span>
-                {spanText && <span style={{ fontSize: 12, color: 'var(--c-tx6)' }}>{spanText}</span>}
+                <span style={{ fontSize: 22, fontWeight: 800, color: upColor(shownRet) }}>{fmtPct(shownRet)}</span>
+                {shownSpan && <span style={{ fontSize: 12, color: 'var(--c-tx6)' }}>{shownSpan}</span>}
               </div>
               <div style={{ display: 'flex', gap: 4, padding: 4, background: 'var(--c-w04)', borderRadius: 12 }}>
                 {(isCoinTab ? PERIODS_COIN : PERIODS_STOCK).map((p) => (
@@ -418,36 +397,17 @@ export function Detail({ id }: { id: string }) {
               </div>
             </div>
 
-            {/* 기간 직접 지정: 빠른 칩 · ◀▶ 이동 · 시작/종료일 입력. 차트와 수익률이 이 구간을 따른다. */}
-            {range && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 4 }}>
-                <div style={{ display: 'flex', gap: 4, padding: 4, background: 'var(--c-w04)', borderRadius: 10 }}>
-                  {RANGE_PRESETS.map((k) => (
-                    <button key={k} onClick={() => applyPreset(k)} style={chipStyle(presetSel === k)}>{k}</button>
-                  ))}
-                </div>
-                <button onClick={() => shiftRange(-1)} title="이전 구간" style={miniBtn}>◀</button>
-                <button onClick={() => shiftRange(1)} title="다음 구간" style={miniBtn}>▶</button>
-                <input
-                  type="date"
-                  value={range.start}
-                  max={range.end}
-                  onChange={(e) => e.target.value && (setPresetSel('직접'), setRange({ start: e.target.value, end: range.end }))}
-                  style={dateInput}
-                />
-                <span style={{ color: 'var(--c-tx6)', fontSize: 12 }}>~</span>
-                <input
-                  type="date"
-                  value={range.end}
-                  min={range.start}
-                  max={todayIso}
-                  onChange={(e) => e.target.value && (setPresetSel('직접'), setRange({ start: range.start, end: e.target.value }))}
-                  style={dateInput}
-                />
+            {/* 빠른 기간 = 불러올 데이터 범위. 차트는 드래그로 좌우 이동·휠로 확대축소(수익률은 보이는 구간 기준). */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 4 }}>
+              <div style={{ display: 'flex', gap: 4, padding: 4, background: 'var(--c-w04)', borderRadius: 10 }}>
+                {RANGE_PRESETS.map((k) => (
+                  <button key={k} onClick={() => applyPreset(k)} style={chipStyle(presetSel === k)}>{k}</button>
+                ))}
               </div>
-            )}
-            <div style={{ margin: '8px -4px 0' }}>
-              <CandleChart candles={candles} markers={markers} period={state.period} cur={sel.cur} />
+              <span style={{ fontSize: 11, color: 'var(--c-tx6)' }}>드래그로 이동 · 휠로 확대/축소</span>
+            </div>
+            <div style={{ margin: '8px 0 0' }}>
+              <CandleChart candles={candles} period={state.period} cur={sel.cur} theme={state.theme} onVisible={setVisible} />
             </div>
             <SourceNote text={`차트 — ${SRC_CANDLE[state.activeTab]}`} style={{ marginTop: 14 }} />
           </div>
