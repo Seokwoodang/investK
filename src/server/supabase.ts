@@ -26,4 +26,13 @@ export function getSupabase(): SupabaseClient | null {
     model       text,
     created_at  timestamptz not null default now()
   );
+
+  -- 로그인 계정(회원가입 없음 — 여기에 직접 insert). pass_hash = "scrypt$<saltHex>$<hashHex>".
+  -- 서버(service-role)만 접근. RLS 켜고 정책 없음(anon 접근 차단) 권장.
+  create table if not exists app_users (
+    username    text primary key,
+    pass_hash   text not null,
+    created_at  timestamptz not null default now()
+  );
+  alter table app_users enable row level security;
 */
