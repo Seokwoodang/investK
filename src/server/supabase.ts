@@ -35,4 +35,12 @@ export function getSupabase(): SupabaseClient | null {
     created_at  timestamptz not null default now()
   );
   alter table app_users enable row level security;
+
+  -- 유저별 포트폴리오(계정 연동). 서버(service-role)만 접근.
+  create table if not exists portfolios (
+    username    text primary key,
+    holdings    jsonb not null default '[]'::jsonb,
+    updated_at  timestamptz not null default now()
+  );
+  alter table portfolios enable row level security;
 */

@@ -15,36 +15,53 @@ export interface Holding {
   manualPrice?: number; // 유니버스 미매칭 시 사용자가 적은 현재가(선택)
 }
 
-const KEY = 'dash_portfolio';
+const LEGACY_KEY = 'dash_portfolio'; // 예전 localStorage 저장분 → 서버로 1회 마이그레이션용
 
+// 포트폴리오를 로그인 계정에 연동: 서버(Supabase, /api/portfolio)에 유저별로 저장·조회.
+// 어느 기기서든 같은 아이디로 로그인하면 같은 포폴이 보인다.
 export function usePortfolio() {
   const [holdings, setHoldings] = useState<Holding[]>([]);
+  const [loaded, setLoaded] = useState(false);
   // 최신 holdings를 콜백에서 안전하게 참조.
   const holdingsRef = useRef(holdings);
   holdingsRef.current = holdings;
 
+  const persist = useCallback((h: Holding[]) => {
+    fetch('/api/portfolio', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ holdings: h }) }).catch(() => {});
+  }, []);
+  const save = useCallback((h: Holding[]) => { setHoldings(h); persist(h); }, [persist]);
+
   useEffect(() => {
-    try {
-      const r = JSON.parse(localStorage.getItem(KEY) || '[]');
-      if (Array.isArray(r)) setHoldings(r);
-    } catch {
-      /* ignore */
-    }
-  }, []);
-  const save = useCallback((h: Holding[]) => {
-    setHoldings(h);
-    try {
-      localStorage.setItem(KEY, JSON.stringify(h));
-    } catch {
-      /* ignore */
-    }
-  }, []);
+    let cancelled = false;
+    fetch('/api/portfolio')
+      .then((r) => (r.ok ? r.json() : { holdings: [] }))
+      .then((j) => {
+        if (cancelled) return;
+        const server: Holding[] = Array.isArray(j.holdings) ? j.holdings : [];
+        if (server.length) { setHoldings(server); setLoaded(true); return; }
+        // 서버 비었고 예전 localStorage 데이터가 있으면 한 번 올려준다.
+        try {
+          const legacy = JSON.parse(localStorage.getItem(LEGACY_KEY) || '[]');
+          if (Array.isArray(legacy) && legacy.length) {
+            setHoldings(legacy);
+            persist(legacy);
+            localStorage.removeItem(LEGACY_KEY);
+          }
+        } catch {
+          /* ignore */
+        }
+        setLoaded(true);
+      })
+      .catch(() => { if (!cancelled) setLoaded(true); });
+    return () => { cancelled = true; };
+  }, [persist]);
+
   // 같은 id면 합치지 않고 대체(중복 입력 방지).
   const upsert = useCallback((x: Holding) => save([...holdingsRef.current.filter((p) => p.id !== x.id), x]), [save]);
   const remove = useCallback((id: string) => save(holdingsRef.current.filter((p) => p.id !== id)), [save]);
   const clear = useCallback(() => save([]), [save]);
 
-  return { holdings, upsert, remove, clear, setAll: save };
+  return { holdings, loaded, upsert, remove, clear, setAll: save };
 }
 
 // 유니버스에서 이름/티커로 종목 찾기: 티커 정확 → 이름 정확 → 포함.

@@ -36,7 +36,7 @@ export async function POST(req: Request) {
   }
 
   const res = NextResponse.json({ ok: true });
-  res.cookies.set(COOKIE, await createSession(30), {
+  res.cookies.set(COOKIE, await createSession(id, 30), {
     httpOnly: true,
     sameSite: 'lax',
     secure: process.env.NODE_ENV === 'production',
