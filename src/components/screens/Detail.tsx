@@ -226,13 +226,16 @@ export function Detail({ id }: { id: string }) {
   // 로딩/실패/키 없음 시에는 아래 chartAnalysis 템플릿으로 폴백.
   const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
   useEffect(() => {
-    if (state.detailTab !== 'chart' || !selId) return;
+    if (state.detailTab !== 'chart' || !sel) return;
     let cancelled = false;
     setAiAnalysis(null);
     fetch('/api/ai/analysis', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ id: selId, period: state.period, ret }),
+      body: JSON.stringify({
+        id: sel.id, period: state.period, ret,
+        name: sel.name, ticker: sel.ticker, issue: sel.issue, chartNote: sel.chartNote, risk: sel.risk,
+      }),
     })
       .then((r) => (r.ok ? r.json() : null))
       .then((j) => {

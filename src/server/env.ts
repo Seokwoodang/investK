@@ -22,8 +22,9 @@ export const env = {
 
   // Anthropic (daily AI generation)
   ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY ?? '',
-  // 기본: 비용/품질 균형의 Sonnet. 최고 품질은 claude-opus-4-8.
-  ANTHROPIC_MODEL: process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-6',
+  // 분석 5종(브리핑·관점·차트분석·포폴·보고서) 기본 모델. 최고 품질 Opus 4.8.
+  // (뉴스 호재/악재 판별만 비용·빈도 때문에 Haiku 별도 — aiNews.ts)
+  ANTHROPIC_MODEL: process.env.ANTHROPIC_MODEL || 'claude-opus-4-8',
 } as const;
 
 export const has = {
