@@ -13,11 +13,11 @@ const NAV: { href: string; label: string }[] = [
   { href: '/news', label: '뉴스' },
 ];
 
-function SearchIcon({ size, stroke = '#6E7A90' }: { size: number; stroke?: string }) {
+function SearchIcon({ size, stroke = 'var(--c-tx6)' }: { size: number; stroke?: string }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <circle cx="11" cy="11" r="7" stroke={stroke} strokeWidth="2" />
-      <line x1="16.5" y1="16.5" x2="21" y2="21" stroke={stroke} strokeWidth="2" strokeLinecap="round" />
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={{ color: stroke }}>
+      <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="2" />
+      <line x1="16.5" y1="16.5" x2="21" y2="21" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
     </svg>
   );
 }
@@ -46,10 +46,10 @@ export function Header() {
           .map((x) => [x.type, x.value]),
       ) as Record<string, string>;
       const mins = +p.hour * 60 + +p.minute;
-      if (p.weekday === 'Sat' || p.weekday === 'Sun') return { label: '휴장', color: '#6E7A90' };
-      if (mins < openMin) return { label: '장 시작 전', color: '#f5b544' };
-      if (mins >= closeMin) return { label: '장 마감', color: '#6E7A90' };
-      return { label: '정규장', color: '#34d39a' };
+      if (p.weekday === 'Sat' || p.weekday === 'Sun') return { label: '휴장', color: 'var(--c-tx6)' };
+      if (mins < openMin) return { label: '장 시작 전', color: 'var(--c-warn)' };
+      if (mins >= closeMin) return { label: '장 마감', color: 'var(--c-tx6)' };
+      return { label: '정규장', color: 'var(--c-up)' };
     };
     const k = Object.fromEntries(
       new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false })
@@ -93,9 +93,9 @@ export function Header() {
   return (
     <header
       style={{
-        position: 'sticky', top: 0, zIndex: 40, background: 'rgba(7,11,20,0.82)',
+        position: 'sticky', top: 0, zIndex: 40, background: 'var(--c-headerbg)',
         backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)',
-        borderBottom: '1px solid rgba(255,255,255,0.07)',
+        borderBottom: '1px solid var(--c-w07)',
       }}
     >
       <div
@@ -110,12 +110,12 @@ export function Header() {
         >
           <div
             style={{
-              width: 34, height: 34, borderRadius: 10, background: 'linear-gradient(135deg,#00C7D9,#4078FF)',
+              width: 34, height: 34, borderRadius: 10, background: 'linear-gradient(135deg,var(--c-accyan),var(--c-blue))',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              boxShadow: '0 6px 18px rgba(0,199,217,0.22)',
+              boxShadow: '0 6px 18px var(--c-cy22)',
             }}
           >
-            <div style={{ width: 12, height: 12, borderRadius: 4, background: '#05080f' }} />
+            <div style={{ width: 12, height: 12, borderRadius: 4, background: 'var(--c-bg)' }} />
           </div>
           {layout.showBrand && (
             <div style={{ fontSize: 16, fontWeight: 700, letterSpacing: '-0.01em', whiteSpace: 'nowrap' }}>
@@ -134,8 +134,8 @@ export function Header() {
                 style={{
                   textDecoration: 'none',
                   fontSize: 15, fontWeight: 600, padding: '6px 2px', whiteSpace: 'nowrap',
-                  borderBottom: `2px solid ${active ? '#00C7D9' : 'transparent'}`,
-                  color: active ? '#EAF2FF' : '#7E8AA0', transition: 'color 180ms',
+                  borderBottom: `2px solid ${active ? 'var(--c-accyan)' : 'transparent'}`,
+                  color: active ? 'var(--c-tx1c)' : 'var(--c-tx5)', transition: 'color 180ms',
                 }}
               >
                 {n.label}
@@ -155,17 +155,17 @@ export function Header() {
               onChange={(e) => actions.setGQuery(e.target.value)}
               placeholder="종목 검색"
               style={{
-                width: 170, boxSizing: 'border-box', background: 'rgba(255,255,255,0.05)',
-                border: '1px solid rgba(255,255,255,0.10)', borderRadius: 10, padding: '8px 12px 8px 32px',
-                color: '#E7ECF5', fontSize: 13, fontFamily: 'inherit', outline: 'none',
+                width: 170, boxSizing: 'border-box', background: 'var(--c-w05)',
+                border: '1px solid var(--c-w10)', borderRadius: 10, padding: '8px 12px 8px 32px',
+                color: 'var(--c-tx1d)', fontSize: 13, fontFamily: 'inherit', outline: 'none',
               }}
             />
             {gq.length > 0 && (
               <div
                 style={{
                   position: 'absolute', top: 'calc(100% + 8px)', right: 0, width: 340,
-                  background: 'rgba(18,24,38,0.98)', border: '1px solid rgba(255,255,255,0.12)',
-                  borderRadius: 14, boxShadow: '0 18px 48px rgba(0,0,0,0.5)', maxHeight: 380,
+                  background: 'var(--c-panel)', border: '1px solid var(--c-w12)',
+                  borderRadius: 14, boxShadow: '0 18px 48px var(--c-shadow)', maxHeight: 380,
                   overflowY: 'auto', zIndex: 60, padding: 6,
                 }}
               >
@@ -178,19 +178,19 @@ export function Header() {
                   >
                     <div style={{ minWidth: 0, flex: 1 }}>
                       <div style={{ display: 'flex', alignItems: 'baseline', gap: 7 }}>
-                        <span style={{ fontSize: 14, fontWeight: 700, color: '#EEF2F8', whiteSpace: 'nowrap' }}>{g.name}</span>
-                        <span style={{ fontSize: 10, fontWeight: 600, color: '#5fd9e6', whiteSpace: 'nowrap' }}>{g.tabLabel}</span>
+                        <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--c-tx1b)', whiteSpace: 'nowrap' }}>{g.name}</span>
+                        <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--c-accyanbr)', whiteSpace: 'nowrap' }}>{g.tabLabel}</span>
                       </div>
-                      <div style={{ fontSize: 11, color: '#6E7A90', marginTop: 2 }}>{g.ticker}</div>
+                      <div style={{ fontSize: 11, color: 'var(--c-tx6)', marginTop: 2 }}>{g.ticker}</div>
                     </div>
                     <div style={{ textAlign: 'right' }}>
-                      <div style={{ fontSize: 14, fontWeight: 700, color: '#F4F7FB' }}>{g.priceText}</div>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--c-tx1)' }}>{g.priceText}</div>
                       <div style={{ fontSize: 12, fontWeight: 700, color: g.pctColor }}>{g.pctText}</div>
                     </div>
                   </div>
                 ))}
                 {gResults.length === 0 && (
-                  <div style={{ padding: 20, textAlign: 'center', fontSize: 13, color: '#6E7A90' }}>
+                  <div style={{ padding: 20, textAlign: 'center', fontSize: 13, color: 'var(--c-tx6)' }}>
                     검색 결과가 없습니다.
                   </div>
                 )}
@@ -206,9 +206,9 @@ export function Header() {
           style={{
             flexShrink: 0, cursor: 'pointer', fontFamily: 'inherit', lineHeight: 1,
             display: 'flex', alignItems: 'center', gap: 5, padding: '7px 11px', borderRadius: 10,
-            border: `1px solid ${state.largeFont ? 'rgba(0,199,217,0.45)' : 'rgba(255,255,255,0.10)'}`,
-            background: state.largeFont ? 'rgba(0,199,217,0.16)' : 'rgba(255,255,255,0.05)',
-            color: state.largeFont ? '#5fd9e6' : '#9AA6BC', whiteSpace: 'nowrap',
+            border: `1px solid ${state.largeFont ? 'var(--c-cy45)' : 'var(--c-w10)'}`,
+            background: state.largeFont ? 'var(--c-cy16)' : 'var(--c-w05)',
+            color: state.largeFont ? 'var(--c-accyanbr)' : 'var(--c-tx4)', whiteSpace: 'nowrap',
           }}
         >
           <span style={{ fontSize: 16, fontWeight: 800 }}>가</span>
@@ -217,7 +217,7 @@ export function Header() {
 
         {layout.showStatus && (
           <div style={{ textAlign: 'right', flexShrink: 0 }}>
-            <div style={{ fontSize: 12, color: '#9AA6BC', whiteSpace: 'nowrap' }} suppressHydrationWarning>{clock.date ? `${clock.date} · KST ${clock.time}` : 'KST --:--'}</div>
+            <div style={{ fontSize: 12, color: 'var(--c-tx4)', whiteSpace: 'nowrap' }} suppressHydrationWarning>{clock.date ? `${clock.date} · KST ${clock.time}` : 'KST --:--'}</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, justifyContent: 'flex-end', marginTop: 3, whiteSpace: 'nowrap' }}>
               {clock.markets.map((m) => (
                 <span
@@ -227,19 +227,19 @@ export function Header() {
                   style={{ display: 'flex', alignItems: 'center', gap: 5, position: 'relative', cursor: 'default' }}
                 >
                   <span style={{ width: 6, height: 6, borderRadius: '50%', background: m.color, boxShadow: `0 0 8px ${m.color}` }} />
-                  <span style={{ fontSize: 11, fontWeight: 600, color: '#9AA6BC' }}>{m.name}</span>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--c-tx4)' }}>{m.name}</span>
                   <span style={{ fontSize: 11, fontWeight: 700, color: m.color }}>{m.label}</span>
                   {hoverMkt === m.name && (
                     <span
                       style={{
                         position: 'absolute', top: 'calc(100% + 8px)', right: 0, zIndex: 50,
                         width: 'max-content', maxWidth: 260, textAlign: 'left', whiteSpace: 'normal',
-                        background: 'rgba(18,24,38,0.98)', border: '1px solid rgba(255,255,255,0.12)',
-                        borderRadius: 10, padding: '9px 12px', boxShadow: '0 14px 36px rgba(0,0,0,0.5)',
-                        fontSize: 11, fontWeight: 500, lineHeight: 1.5, color: '#C4CDDC',
+                        background: 'var(--c-panel)', border: '1px solid var(--c-w12)',
+                        borderRadius: 10, padding: '9px 12px', boxShadow: '0 14px 36px var(--c-shadow)',
+                        fontSize: 11, fontWeight: 500, lineHeight: 1.5, color: 'var(--c-tx3)',
                       }}
                     >
-                      <span style={{ display: 'block', fontWeight: 700, color: '#EAF2FF', marginBottom: 3 }}>{m.name} · {m.label}</span>
+                      <span style={{ display: 'block', fontWeight: 700, color: 'var(--c-tx1c)', marginBottom: 3 }}>{m.name} · {m.label}</span>
                       {m.hours}
                     </span>
                   )}

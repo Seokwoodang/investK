@@ -5,8 +5,8 @@ const tabStyle = (active: boolean): React.CSSProperties => ({
   cursor: 'pointer', border: 'none', padding: '10px 20px', borderRadius: 11,
   fontSize: 14, fontWeight: 600, fontFamily: 'inherit', whiteSpace: 'nowrap', transition: 'all 180ms',
   ...(active
-    ? { background: 'linear-gradient(135deg,#00C7D9,#4078FF)', color: '#05080f', boxShadow: '0 6px 18px rgba(0,199,217,0.25)' }
-    : { background: 'transparent', color: '#9AA6BC' }),
+    ? { background: 'linear-gradient(135deg,var(--c-accyan),var(--c-blue))', color: 'var(--c-bg)', boxShadow: '0 6px 18px var(--c-cy25)' }
+    : { background: 'transparent', color: 'var(--c-tx4)' }),
 });
 
 // coinsMerged: 뉴스처럼 코인을 국내/해외로 나눌 필요 없는 화면에서 코인 1개 탭으로 표시.
@@ -26,8 +26,8 @@ export function TabBar({ marginBottom, coinsMerged = false }: { marginBottom: nu
   return (
     <div
       style={{
-        display: 'flex', gap: 8, padding: 6, background: 'rgba(255,255,255,0.03)',
-        border: '1px solid rgba(255,255,255,0.07)', borderRadius: 16,
+        display: 'flex', gap: 8, padding: 6, background: 'var(--c-w03)',
+        border: '1px solid var(--c-w07)', borderRadius: 16,
         backdropFilter: 'blur(18px)', WebkitBackdropFilter: 'blur(18px)',
         marginBottom, width: 'fit-content', maxWidth: '100%', overflowX: 'auto',
       }}

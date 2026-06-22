@@ -32,8 +32,8 @@ export function DashboardChrome({ data, children }: { data: DashboardData; child
       <RealtimeProvider>
         <LayoutCtx.Provider value={{ vw, layout }}>
           <div style={{ position: 'relative', minHeight: '100vh', overflowX: 'hidden' }}>
-            <div style={{ position: 'fixed', top: -220, left: -160, width: 560, height: 560, borderRadius: '50%', background: 'radial-gradient(circle, rgba(0,199,217,0.14), transparent 62%)', filter: 'blur(40px)', pointerEvents: 'none', zIndex: 0 }} />
-            <div style={{ position: 'fixed', top: 140, right: -220, width: 620, height: 620, borderRadius: '50%', background: 'radial-gradient(circle, rgba(64,120,255,0.12), transparent 62%)', filter: 'blur(40px)', pointerEvents: 'none', zIndex: 0 }} />
+            <div style={{ position: 'fixed', top: -220, left: -160, width: 560, height: 560, borderRadius: '50%', background: 'radial-gradient(circle, var(--c-cy14), transparent 62%)', filter: 'blur(40px)', pointerEvents: 'none', zIndex: 0 }} />
+            <div style={{ position: 'fixed', top: 140, right: -220, width: 620, height: 620, borderRadius: '50%', background: 'radial-gradient(circle, var(--c-bl12), transparent 62%)', filter: 'blur(40px)', pointerEvents: 'none', zIndex: 0 }} />
 
             <Header />
 

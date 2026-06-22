@@ -2,12 +2,179 @@
    Variable font = single dynamic-subset file instead of 18 static weights. */
 @import 'pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css';
 
+/* ── 색 토큰 ──────────────────────────────────────────────────────────────
+   다크 = 기존 값 그대로(다크 모드 픽셀 동일), 라이트는 OS 설정(prefers-color-scheme)에 따라 자동 전환.
+   인라인 px 스타일의 색을 전부 var(--c-*)로 치환해 한 곳에서 테마를 제어한다. */
 :root {
-  /* Borrowed from the Parameta design system. */
+  color-scheme: light dark;
   --point-cyan: #00c7d9;
   --point-blue: #73bff9;
   --font-sans: 'Pretendard', 'Pretendard Variable', 'Noto Sans KR', -apple-system,
     BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Segoe UI', Roboto, sans-serif;
+
+  --c-w02: rgba(255,255,255,0.02);
+  --c-w025: rgba(255,255,255,0.025);
+  --c-w03: rgba(255,255,255,0.03);
+  --c-w04: rgba(255,255,255,0.04);
+  --c-w05: rgba(255,255,255,0.05);
+  --c-w06: rgba(255,255,255,0.06);
+  --c-w07: rgba(255,255,255,0.07);
+  --c-w08: rgba(255,255,255,0.08);
+  --c-w10: rgba(255,255,255,0.10);
+  --c-w12: rgba(255,255,255,0.12);
+  --c-w22: rgba(255,255,255,0.22);
+  --c-cy05: rgba(0,199,217,0.05);
+  --c-cy06: rgba(0,199,217,0.06);
+  --c-cy07: rgba(0,199,217,0.07);
+  --c-cy08: rgba(0,199,217,0.08);
+  --c-cy10: rgba(0,199,217,0.10);
+  --c-cy14: rgba(0,199,217,0.14);
+  --c-cy16: rgba(0,199,217,0.16);
+  --c-cy18: rgba(0,199,217,0.18);
+  --c-cy20: rgba(0,199,217,0.20);
+  --c-cy22: rgba(0,199,217,0.22);
+  --c-cy25: rgba(0,199,217,0.25);
+  --c-cy30: rgba(0,199,217,0.3);
+  --c-cy40: rgba(0,199,217,0.40);
+  --c-cy45: rgba(0,199,217,0.45);
+  --c-bg: #05080f;
+  --c-headerbg: rgba(7,11,20,0.82);
+  --c-panel: rgba(18,24,38,0.98);
+  --c-panel97: rgba(18,24,38,0.97);
+  --c-overlay: rgba(5,8,15,0.72);
+  --c-shadow: rgba(0,0,0,0.5);
+  --c-gy18: rgba(154,166,188,0.18);
+  --c-gy40: rgba(154,166,188,0.4);
+  --c-am06: rgba(245,181,68,0.06);
+  --c-am12: rgba(245,181,68,0.12);
+  --c-am14: rgba(245,181,68,0.14);
+  --c-am16: rgba(245,181,68,0.16);
+  --c-am20: rgba(245,181,68,0.20);
+  --c-rd06: rgba(246,104,94,0.06);
+  --c-rd12: rgba(246,104,94,0.12);
+  --c-rd14: rgba(246,104,94,0.14);
+  --c-rd16: rgba(246,104,94,0.16);
+  --c-rd20: rgba(246,104,94,0.20);
+  --c-rd22: rgba(246,104,94,0.22);
+  --c-rd50: rgba(246,104,94,0.5);
+  --c-gn06: rgba(52,211,154,0.06);
+  --c-gn20: rgba(52,211,154,0.20);
+  --c-gn22: rgba(52,211,154,0.22);
+  --c-gn50: rgba(52,211,154,0.5);
+  --c-tl12: rgba(45,212,191,0.12);
+  --c-bl05: rgba(64,120,255,0.05);
+  --c-bl06: rgba(64,120,255,0.06);
+  --c-bl12: rgba(64,120,255,0.12);
+  --c-tx1: #F4F7FB;
+  --c-tx1b: #EEF2F8;
+  --c-tx1c: #EAF2FF;
+  --c-tx1d: #E7ECF5;
+  --c-tx2: #D4DCE8;
+  --c-tx3: #C4CDDC;
+  --c-tx4: #9AA6BC;
+  --c-tx4b: #aab4c6;
+  --c-tx5: #7E8AA0;
+  --c-tx6: #6E7A90;
+  --c-txph: #5E6B82;
+  --c-txdis: #3A4458;
+  --c-accyan: #00C7D9;
+  --c-accyanbr: #5fd9e6;
+  --c-acblue: #73BFF9;
+  --c-blue: #4078FF;
+  --c-tealx: #2dd4bf;
+  --c-up: #34d39a;
+  --c-upbr: #5ee7b0;
+  --c-down: #f6685e;
+  --c-downbr: #ff8a80;
+  --c-downchip: #f6968d;
+  --c-rdsun: #e88a82;
+  --c-warn: #f5b544;
+  --c-warnchip: #f5c46a;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --point-cyan: #0a90a3;
+    --point-blue: #2f7fcf;
+    --c-w02: rgba(17,24,39,0.035);
+    --c-w025: rgba(17,24,39,0.04);
+    --c-w03: rgba(17,24,39,0.045);
+    --c-w04: rgba(17,24,39,0.05);
+    --c-w05: rgba(17,24,39,0.06);
+    --c-w06: rgba(17,24,39,0.07);
+    --c-w07: rgba(17,24,39,0.09);
+    --c-w08: rgba(17,24,39,0.11);
+    --c-w10: rgba(17,24,39,0.14);
+    --c-w12: rgba(17,24,39,0.17);
+    --c-w22: rgba(17,24,39,0.28);
+    --c-cy05: rgba(0,176,196,0.10);
+    --c-cy06: rgba(0,176,196,0.10);
+    --c-cy07: rgba(0,176,196,0.11);
+    --c-cy08: rgba(0,176,196,0.12);
+    --c-cy10: rgba(0,176,196,0.14);
+    --c-cy14: rgba(0,176,196,0.16);
+    --c-cy16: rgba(0,176,196,0.18);
+    --c-cy18: rgba(0,176,196,0.20);
+    --c-cy20: rgba(0,176,196,0.22);
+    --c-cy22: rgba(0,176,196,0.26);
+    --c-cy25: rgba(0,176,196,0.30);
+    --c-cy30: rgba(0,176,196,0.40);
+    --c-cy40: rgba(0,176,196,0.55);
+    --c-cy45: rgba(0,176,196,0.60);
+    --c-bg: #eef1f6;
+    --c-headerbg: rgba(237,240,246,0.85);
+    --c-panel: rgba(255,255,255,0.98);
+    --c-panel97: rgba(255,255,255,0.97);
+    --c-overlay: rgba(15,23,42,0.40);
+    --c-shadow: rgba(15,23,42,0.18);
+    --c-gy18: rgba(90,101,121,0.18);
+    --c-gy40: rgba(90,101,121,0.40);
+    --c-am06: rgba(214,150,20,0.12);
+    --c-am12: rgba(214,150,20,0.16);
+    --c-am14: rgba(214,150,20,0.18);
+    --c-am16: rgba(214,150,20,0.20);
+    --c-am20: rgba(214,150,20,0.24);
+    --c-rd06: rgba(220,70,60,0.10);
+    --c-rd12: rgba(220,70,60,0.14);
+    --c-rd14: rgba(220,70,60,0.16);
+    --c-rd16: rgba(220,70,60,0.18);
+    --c-rd20: rgba(220,70,60,0.22);
+    --c-rd22: rgba(220,70,60,0.24);
+    --c-rd50: rgba(220,70,60,0.55);
+    --c-gn06: rgba(13,150,94,0.12);
+    --c-gn20: rgba(13,150,94,0.22);
+    --c-gn22: rgba(13,150,94,0.24);
+    --c-gn50: rgba(13,150,94,0.55);
+    --c-tl12: rgba(13,148,136,0.16);
+    --c-bl05: rgba(44,95,222,0.10);
+    --c-bl06: rgba(44,95,222,0.10);
+    --c-bl12: rgba(44,95,222,0.16);
+    --c-tx1: #0f1726;
+    --c-tx1b: #12192a;
+    --c-tx1c: #142036;
+    --c-tx1d: #16203a;
+    --c-tx2: #2b3648;
+    --c-tx3: #394457;
+    --c-tx4: #586679;
+    --c-tx4b: #5d6a7d;
+    --c-tx5: #69768b;
+    --c-tx6: #7a8497;
+    --c-txph: #98a2b3;
+    --c-txdis: #c2cad6;
+    --c-accyan: #0a90a3;
+    --c-accyanbr: #0c8294;
+    --c-acblue: #2f7fcf;
+    --c-blue: #2c5fde;
+    --c-tealx: #0d9488;
+    --c-up: #0a9d62;
+    --c-upbr: #0a9d62;
+    --c-down: #d8433a;
+    --c-downbr: #d8433a;
+    --c-downchip: #c43a31;
+    --c-rdsun: #cf463c;
+    --c-warn: #b87708;
+    --c-warnchip: #a8700a;
+  }
 }
 
 * {
@@ -35,9 +202,9 @@ html.large-font {
 }
 
 body {
-  background: #05080f;
+  background: var(--c-bg);
   font-family: var(--font-sans);
-  color: #e7ecf5;
+  color: var(--c-tx1d);
 }
 
 #root {
@@ -55,7 +222,7 @@ body {
   height: 10px;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--c-w10);
   border-radius: 999px;
   border: 3px solid transparent;
   background-clip: content-box;
@@ -64,10 +231,10 @@ body {
   background: transparent;
 }
 ::selection {
-  background: rgba(0, 199, 217, 0.3);
+  background: var(--c-cy30);
 }
 input::placeholder {
-  color: #5e6b82;
+  color: var(--c-txph);
 }
 
 /* 종목 리스트 내부 스크롤: 세로만, 가로 숨김, 얇고 은은한 스크롤바. */
@@ -80,13 +247,13 @@ input::placeholder {
   width: 8px;
 }
 .list-scroll::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.12);
+  background: var(--c-w12);
   border-radius: 999px;
   border: 2px solid transparent;
   background-clip: content-box;
 }
 .list-scroll::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.22);
+  background: var(--c-w22);
   background-clip: content-box;
 }
 .list-scroll::-webkit-scrollbar-track {
@@ -98,15 +265,15 @@ input::placeholder {
   transition: border-color 180ms;
 }
 .search-input:focus {
-  border-color: rgba(0, 199, 217, 0.45);
+  border-color: var(--c-cy45);
 }
 
 .card-hover {
   transition: border-color 180ms, background 180ms, transform 180ms;
 }
 .card-hover:hover {
-  border-color: rgba(0, 199, 217, 0.4);
-  background: rgba(0, 199, 217, 0.05);
+  border-color: var(--c-cy40);
+  background: var(--c-cy05);
   transform: translateY(-2px);
 }
 
@@ -114,28 +281,28 @@ input::placeholder {
   transition: background 160ms;
 }
 .stock-row:hover {
-  background: rgba(0, 199, 217, 0.06);
+  background: var(--c-cy06);
 }
 
 .gsearch-result {
   transition: background 150ms;
 }
 .gsearch-result:hover {
-  background: rgba(0, 199, 217, 0.08);
+  background: var(--c-cy08);
 }
 
 .cal-cell.clickable {
   transition: border-color 150ms;
 }
 .cal-cell.clickable:hover {
-  border-color: rgba(0, 199, 217, 0.3);
+  border-color: var(--c-cy30);
 }
 
 .back-btn {
   transition: background 180ms;
 }
 .back-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--c-w10);
 }
 
 /* Tooltip / popover reveal-on-hover */
@@ -158,5 +325,5 @@ input::placeholder {
   transition: background 140ms;
 }
 .event-row:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--c-w05);
 }

@@ -26,8 +26,8 @@ export interface CalWeek {
   days: CalCell[];
 }
 
-const chipBg = (t: string) => (t === '고영향' ? 'rgba(246,104,94,0.16)' : 'rgba(245,181,68,0.16)');
-const chipCol = (t: string) => (t === '고영향' ? '#f6968d' : '#f5c46a');
+const chipBg = (t: string) => (t === '고영향' ? 'var(--c-rd16)' : 'var(--c-am16)');
+const chipCol = (t: string) => (t === '고영향' ? 'var(--c-downchip)' : 'var(--c-warnchip)');
 
 // 임의 (year, month) 달의 그리드를 만든다. today가 그 달에 속할 때만 오늘 칸을 강조.
 export function buildCalendar(
@@ -61,15 +61,15 @@ export function buildCalendar(
     const wd = (startDay + day - 1) % 7;
     const today = day === todayDay;
     const hasHigh = evs.some((e) => e.tag === '고영향');
-    const dayColor = today ? '#00C7D9' : wd === 0 ? '#e88a82' : wd === 6 ? '#73BFF9' : '#C4CDDC';
+    const dayColor = today ? 'var(--c-accyan)' : wd === 0 ? 'var(--c-rdsun)' : wd === 6 ? 'var(--c-acblue)' : 'var(--c-tx3)';
     const chips = (showLabels ? evs.slice(0, 2) : []).map((e) => ({ name: e.name, bg: chipBg(e.tag), color: chipCol(e.tag) }));
     const moreN = evs.length - chips.length;
     cells.push({
       show: true, day, today, dayColor,
-      cellBorder: today ? 'rgba(0,199,217,0.45)' : 'rgba(255,255,255,0.05)',
-      cellBg: today ? 'rgba(0,199,217,0.10)' : 'rgba(255,255,255,0.02)',
+      cellBorder: today ? 'var(--c-cy45)' : 'var(--c-w05)',
+      cellBg: today ? 'var(--c-cy10)' : 'var(--c-w02)',
       minHeight: minH,
-      hasDot: evs.length > 0, dotColor: hasHigh ? '#f6685e' : '#f5b544',
+      hasDot: evs.length > 0, dotColor: hasHigh ? 'var(--c-down)' : 'var(--c-warn)',
       showLabels, chips, hasMore: showLabels && moreN > 0, moreText: '+' + moreN + '건',
     });
   }

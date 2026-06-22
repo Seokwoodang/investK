@@ -13,7 +13,7 @@ import { CandleChart } from '../CandleChart';
 import { SourceNote } from '../SourceNote';
 
 const CARD: React.CSSProperties = {
-  background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)',
+  background: 'var(--c-w04)', border: '1px solid var(--c-w08)',
   backdropFilter: 'blur(18px)', WebkitBackdropFilter: 'blur(18px)',
 };
 
@@ -30,9 +30,9 @@ interface RelatedNewsItem {
 }
 
 const IMPACT_STYLE: Record<string, { bg: string; color: string; border: string }> = {
-  호재: { bg: 'rgba(52,211,154,0.22)', color: '#5ee7b0', border: 'rgba(52,211,154,0.5)' },
-  악재: { bg: 'rgba(246,104,94,0.22)', color: '#ff8a80', border: 'rgba(246,104,94,0.5)' },
-  중립: { bg: 'rgba(154,166,188,0.18)', color: '#aab4c6', border: 'rgba(154,166,188,0.4)' },
+  호재: { bg: 'var(--c-gn22)', color: 'var(--c-upbr)', border: 'var(--c-gn50)' },
+  악재: { bg: 'var(--c-rd22)', color: 'var(--c-downbr)', border: 'var(--c-rd50)' },
+  중립: { bg: 'var(--c-gy18)', color: 'var(--c-tx4b)', border: 'var(--c-gy40)' },
 };
 
 const DETAIL_TABS: { id: DetailTab; label: string }[] = [
@@ -240,7 +240,7 @@ export function Detail({ id }: { id: string }) {
 
   const hiEvents = data.macro.events.filter((e) => e.tag === '고영향');
   const markerFracs = [0.5, 0.8];
-  const markers: ChartMarker[] = hiEvents.slice(0, 2).map((e, i) => ({ xFrac: markerFracs[i], label: shortLabel(e.name), color: '#f5b544' }));
+  const markers: ChartMarker[] = hiEvents.slice(0, 2).map((e, i) => ({ xFrac: markerFracs[i], label: shortLabel(e.name), color: 'var(--c-warn)' }));
 
   const overall = Math.round((sel.risk4.vol + sel.risk4.liq + sel.risk4.evt + sel.risk4.sent) / 4);
   const aCur = state.alerts[sel.id] || [];
@@ -250,12 +250,12 @@ export function Detail({ id }: { id: string }) {
   const segStyle = (active: boolean): React.CSSProperties => ({
     cursor: 'pointer', border: 'none', padding: '7px 16px', borderRadius: 9, fontSize: 13,
     fontWeight: 600, fontFamily: 'inherit', whiteSpace: 'nowrap', transition: 'all 180ms',
-    ...(active ? { background: 'rgba(0,199,217,0.18)', color: '#5fd9e6' } : { background: 'transparent', color: '#9AA6BC' }),
+    ...(active ? { background: 'var(--c-cy18)', color: 'var(--c-accyanbr)' } : { background: 'transparent', color: 'var(--c-tx4)' }),
   });
 
   return (
     <div>
-      <button onClick={actions.goBack} className="back-btn" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, cursor: 'pointer', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.10)', borderRadius: 999, padding: '9px 18px 9px 14px', color: '#C4CDDC', fontSize: 13, fontWeight: 600, marginBottom: 24, fontFamily: 'inherit' }}>
+      <button onClick={actions.goBack} className="back-btn" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, cursor: 'pointer', background: 'var(--c-w05)', border: '1px solid var(--c-w10)', borderRadius: 999, padding: '9px 18px 9px 14px', color: 'var(--c-tx3)', fontSize: 13, fontWeight: 600, marginBottom: 24, fontFamily: 'inherit' }}>
         ← 뒤로
       </button>
 
@@ -263,18 +263,18 @@ export function Detail({ id }: { id: string }) {
       <div style={{ display: 'flex', flexDirection: layout.detailHeadDir, alignItems: layout.detailHeadAlign, justifyContent: 'space-between', gap: 16, marginBottom: 28 }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-            <h1 style={{ margin: 0, fontSize: 32, fontWeight: 800, letterSpacing: '-0.02em', color: '#F4F7FB', whiteSpace: 'nowrap' }}>{sel.name}</h1>
-            <span style={{ fontSize: 13, fontWeight: 600, color: '#6E7A90' }}>{sel.ticker}</span>
+            <h1 style={{ margin: 0, fontSize: 32, fontWeight: 800, letterSpacing: '-0.02em', color: 'var(--c-tx1)', whiteSpace: 'nowrap' }}>{sel.name}</h1>
+            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--c-tx6)' }}>{sel.ticker}</span>
             <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.02em', padding: '4px 11px', borderRadius: 999, whiteSpace: 'nowrap', background: rm.bg, color: rm.color }}>위험도 {rm.label}</span>
           </div>
-          <div style={{ fontSize: 14, color: '#7E8AA0', marginTop: 10, lineHeight: 1.5 }}>{sel.issue}</div>
+          <div style={{ fontSize: 14, color: 'var(--c-tx5)', marginTop: 10, lineHeight: 1.5 }}>{sel.issue}</div>
         </div>
         <div style={{ textAlign: layout.detailPriceAlign }}>
           <div style={{ fontSize: 30, fontWeight: 800, letterSpacing: '-0.02em' }}>{fmtPrice(livePrice, sel.cur)}</div>
           <div style={{ fontSize: 16, fontWeight: 700, marginTop: 2, color: upColor(livePct) }}>
-            {fmtPct(livePct)} <span style={{ fontSize: 13, color: '#6E7A90', fontWeight: 500 }}>오늘</span>
+            {fmtPct(livePct)} <span style={{ fontSize: 13, color: 'var(--c-tx6)', fontWeight: 500 }}>오늘</span>
             {state.activeTab === 'us_stock' && (
-              <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 5, marginLeft: 8, background: 'rgba(245,181,68,0.16)', color: '#f5b544' }}>지연</span>
+              <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 5, marginLeft: 8, background: 'var(--c-am16)', color: 'var(--c-warn)' }}>지연</span>
             )}
           </div>
         </div>
@@ -282,10 +282,10 @@ export function Detail({ id }: { id: string }) {
 
       {/* Alerts */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 24 }}>
-        <span style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, fontWeight: 600, color: '#9AA6BC', whiteSpace: 'nowrap' }}>
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0 }}>
-            <path d="M12 3a6 6 0 0 0-6 6c0 5-2 6-2 6h16s-2-1-2-6a6 6 0 0 0-6-6Z" stroke="#9AA6BC" strokeWidth="2" strokeLinejoin="round" />
-            <path d="M10 20a2 2 0 0 0 4 0" stroke="#9AA6BC" strokeWidth="2" strokeLinecap="round" />
+        <span style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, fontWeight: 600, color: 'var(--c-tx4)', whiteSpace: 'nowrap' }}>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0, color: 'var(--c-tx4)' }}>
+            <path d="M12 3a6 6 0 0 0-6 6c0 5-2 6-2 6h16s-2-1-2-6a6 6 0 0 0-6-6Z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
+            <path d="M10 20a2 2 0 0 0 4 0" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
           </svg>
           알림 설정
         </span>
@@ -299,8 +299,8 @@ export function Detail({ id }: { id: string }) {
                 cursor: 'pointer', padding: '7px 14px', borderRadius: 999, fontSize: 12,
                 fontWeight: 600, fontFamily: 'inherit', whiteSpace: 'nowrap', transition: 'all 180ms',
                 ...(active
-                  ? { background: 'rgba(0,199,217,0.18)', border: '1px solid rgba(0,199,217,0.40)', color: '#5fd9e6' }
-                  : { background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.10)', color: '#9AA6BC' }),
+                  ? { background: 'var(--c-cy18)', border: '1px solid var(--c-cy40)', color: 'var(--c-accyanbr)' }
+                  : { background: 'var(--c-w04)', border: '1px solid var(--c-w10)', color: 'var(--c-tx4)' }),
               }}
             >
               {a.label}
@@ -310,7 +310,7 @@ export function Detail({ id }: { id: string }) {
       </div>
 
       {/* Detail tabs */}
-      <div style={{ display: 'flex', gap: 4, borderBottom: '1px solid rgba(255,255,255,0.08)', marginBottom: 28, overflowX: 'auto' }}>
+      <div style={{ display: 'flex', gap: 4, borderBottom: '1px solid var(--c-w08)', marginBottom: 28, overflowX: 'auto' }}>
         {DETAIL_TABS.map((t) => {
           const active = detailTab === t.id;
           return (
@@ -320,8 +320,8 @@ export function Detail({ id }: { id: string }) {
               style={{
                 cursor: 'pointer', border: 'none', background: 'transparent', padding: '12px 20px',
                 fontSize: 15, fontWeight: 600, fontFamily: 'inherit', whiteSpace: 'nowrap',
-                borderBottom: `2px solid ${active ? '#00C7D9' : 'transparent'}`, marginBottom: -1,
-                color: active ? '#00C7D9' : '#6E7A90', transition: 'all 180ms',
+                borderBottom: `2px solid ${active ? 'var(--c-accyan)' : 'transparent'}`, marginBottom: -1,
+                color: active ? 'var(--c-accyan)' : 'var(--c-tx6)', transition: 'all 180ms',
               }}
             >
               {t.label}
@@ -336,10 +336,10 @@ export function Detail({ id }: { id: string }) {
           <div style={{ ...CARD, borderRadius: 24, padding: 24, marginBottom: 20 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 8, flexWrap: 'wrap' }}>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
-                <span style={{ fontSize: 14, fontWeight: 600, color: '#9AA6BC' }}>기간 수익률</span>
+                <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--c-tx4)' }}>기간 수익률</span>
                 <span style={{ fontSize: 22, fontWeight: 800, color: upColor(ret) }}>{fmtPct(ret)}</span>
               </div>
-              <div style={{ display: 'flex', gap: 4, padding: 4, background: 'rgba(255,255,255,0.04)', borderRadius: 12 }}>
+              <div style={{ display: 'flex', gap: 4, padding: 4, background: 'var(--c-w04)', borderRadius: 12 }}>
                 {(state.activeTab === 'kr_coin' || state.activeTab === 'global_coin' ? PERIODS_COIN : PERIODS_STOCK).map((p) => (
                   <button key={p} onClick={() => actions.setPeriod(p)} style={segStyle(state.period === p)}>{p}</button>
                 ))}
@@ -350,12 +350,12 @@ export function Detail({ id }: { id: string }) {
             </div>
             <SourceNote text={`차트 — ${SRC_CANDLE[state.activeTab]}`} style={{ marginTop: 14 }} />
           </div>
-          <div style={{ background: 'linear-gradient(135deg, rgba(0,199,217,0.07), rgba(64,120,255,0.05))', border: '1px solid rgba(0,199,217,0.18)', borderRadius: 20, padding: 24 }}>
+          <div style={{ background: 'linear-gradient(135deg, var(--c-cy07), var(--c-bl05))', border: '1px solid var(--c-cy18)', borderRadius: 20, padding: 24 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-              <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.06em', padding: '3px 9px', borderRadius: 6, background: 'rgba(0,199,217,0.18)', color: '#5fd9e6' }}>AI 차트 분석</span>
-              <span style={{ fontSize: 12, color: '#6E7A90' }}>{state.period} 기준</span>
+              <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.06em', padding: '3px 9px', borderRadius: 6, background: 'var(--c-cy18)', color: 'var(--c-accyanbr)' }}>AI 차트 분석</span>
+              <span style={{ fontSize: 12, color: 'var(--c-tx6)' }}>{state.period} 기준</span>
             </div>
-            <p style={{ margin: 0, fontSize: 15, lineHeight: 1.7, color: '#D4DCE8' }}>{aiAnalysis || chartAnalysis}</p>
+            <p style={{ margin: 0, fontSize: 15, lineHeight: 1.7, color: 'var(--c-tx2)' }}>{aiAnalysis || chartAnalysis}</p>
             <SourceNote text={aiAnalysis ? SRC.ai : 'AI 생성 — Claude (Anthropic) · 현재 정적 샘플 표시 중'} style={{ marginTop: 14 }} />
           </div>
         </div>
@@ -365,11 +365,11 @@ export function Detail({ id }: { id: string }) {
       {detailTab === 'news' && (
         <div>
           <div style={{ ...CARD, borderRadius: 20, padding: 24, marginBottom: 20 }}>
-            <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.06em', color: '#73BFF9', marginBottom: 12 }}>정세 분석 · MACRO CONTEXT</div>
-            <p style={{ margin: 0, fontSize: 15, lineHeight: 1.7, color: '#D4DCE8' }}>{newsContext}</p>
+            <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.06em', color: 'var(--c-acblue)', marginBottom: 12 }}>정세 분석 · MACRO CONTEXT</div>
+            <p style={{ margin: 0, fontSize: 15, lineHeight: 1.7, color: 'var(--c-tx2)' }}>{newsContext}</p>
           </div>
           {relatedNews !== null && relatedList.length === 0 && (
-            <div style={{ ...CARD, borderRadius: 20, padding: 24, textAlign: 'center', color: '#6E7A90', fontSize: 14 }}>관련 뉴스가 없습니다.</div>
+            <div style={{ ...CARD, borderRadius: 20, padding: 24, textAlign: 'center', color: 'var(--c-tx6)', fontSize: 14 }}>관련 뉴스가 없습니다.</div>
           )}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             {relatedList.map((n, i) => (
@@ -381,25 +381,25 @@ export function Detail({ id }: { id: string }) {
                     )}
                     {n.target && <span style={{ fontSize: 15, fontWeight: 800, color: IMPACT_STYLE[n.impact || '중립'].color }}>{n.target}</span>}
                     {n.importance && (
-                      <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 6, background: 'rgba(255,255,255,0.06)', color: '#9AA6BC' }}>중요도 {n.importance}</span>
+                      <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 6, background: 'var(--c-w06)', color: 'var(--c-tx4)' }}>중요도 {n.importance}</span>
                     )}
                   </div>
                 )}
-                <h3 style={{ margin: '0 0 6px', fontSize: 16, fontWeight: 700, lineHeight: 1.4, color: '#EEF2F8' }}>{n.title}</h3>
+                <h3 style={{ margin: '0 0 6px', fontSize: 16, fontWeight: 700, lineHeight: 1.4, color: 'var(--c-tx1b)' }}>{n.title}</h3>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
-                  <span style={{ fontSize: 11, fontWeight: 600, color: '#6E7A90', whiteSpace: 'nowrap' }}>{n.src}</span>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--c-tx6)', whiteSpace: 'nowrap' }}>{n.src}</span>
                   {n.tags.map((tag) => (
-                    <span key={tag} style={{ fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 999, whiteSpace: 'nowrap', background: 'rgba(0,199,217,0.10)', border: '1px solid rgba(0,199,217,0.20)', color: '#5fd9e6' }}>{tag}</span>
+                    <span key={tag} style={{ fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 999, whiteSpace: 'nowrap', background: 'var(--c-cy10)', border: '1px solid var(--c-cy20)', color: 'var(--c-accyanbr)' }}>{tag}</span>
                   ))}
                 </div>
                 {n.why && (
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 12, padding: '10px 12px', borderRadius: 12, background: 'rgba(0,199,217,0.06)', border: '1px solid rgba(0,199,217,0.16)' }}>
-                    <span style={{ fontSize: 10, fontWeight: 800, color: '#5fd9e6', flexShrink: 0, marginTop: 2 }}>왜 중요</span>
-                    <span style={{ fontSize: 13, lineHeight: 1.55, color: '#C4CDDC' }}>{n.why}</span>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 12, padding: '10px 12px', borderRadius: 12, background: 'var(--c-cy06)', border: '1px solid var(--c-cy16)' }}>
+                    <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--c-accyanbr)', flexShrink: 0, marginTop: 2 }}>왜 중요</span>
+                    <span style={{ fontSize: 13, lineHeight: 1.55, color: 'var(--c-tx3)' }}>{n.why}</span>
                   </div>
                 )}
-                <p style={{ margin: '0 0 14px', fontSize: 13, lineHeight: 1.6, color: '#9AA6BC' }}>{n.summary}</p>
-                <span style={{ fontSize: 12, fontWeight: 600, color: '#73BFF9' }}>원문 보기 ↗</span>
+                <p style={{ margin: '0 0 14px', fontSize: 13, lineHeight: 1.6, color: 'var(--c-tx4)' }}>{n.summary}</p>
+                <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--c-acblue)' }}>원문 보기 ↗</span>
               </a>
             ))}
           </div>
@@ -413,21 +413,21 @@ export function Detail({ id }: { id: string }) {
       {/* AI tab */}
       {detailTab === 'ai' && (
         <>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 14, fontSize: 12, color: '#6E7A90', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.06em', padding: '3px 8px', borderRadius: 6, background: 'rgba(0,199,217,0.16)', color: '#5fd9e6' }}>AI 생성</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 14, fontSize: 12, color: 'var(--c-tx6)', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.06em', padding: '3px 8px', borderRadius: 6, background: 'var(--c-cy16)', color: 'var(--c-accyanbr)' }}>AI 생성</span>
             이 탭을 열 때 AI가 해당 종목 데이터로 생성하며, 같은 날에는 저장된 결과를 즉시 보여줍니다. 투자 판단의 참고용입니다.
           </div>
           {aiLoading && ai.pos.length === 0 && ai.neg.length === 0 && ai.caution.length === 0 ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '40px 24px', borderRadius: 20, border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.03)', color: '#9AA6BC', fontSize: 14 }}>
-              <span className="skeleton-pulse" style={{ width: 9, height: 9, borderRadius: '50%', background: '#5fd9e6' }} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '40px 24px', borderRadius: 20, border: '1px solid var(--c-w08)', background: 'var(--c-w03)', color: 'var(--c-tx4)', fontSize: 14 }}>
+              <span className="skeleton-pulse" style={{ width: 9, height: 9, borderRadius: '50%', background: 'var(--c-accyanbr)' }} />
               AI가 이 종목을 분석하는 중입니다… (처음 열 때 몇 초 걸리고, 이후에는 저장된 결과를 바로 보여줍니다)
             </div>
           ) : (
           <div style={{ display: 'grid', gridTemplateColumns: layout.aiCols, gap: 16, alignItems: 'start' }}>
             {([
-              { title: '긍정 요인', color: '#34d39a', bg: 'rgba(52,211,154,0.06)', border: 'rgba(52,211,154,0.20)', items: ai.pos },
-              { title: '부정 요인', color: '#f6685e', bg: 'rgba(246,104,94,0.06)', border: 'rgba(246,104,94,0.20)', items: ai.neg },
-              { title: '주의할 점', color: '#f5b544', bg: 'rgba(245,181,68,0.06)', border: 'rgba(245,181,68,0.20)', items: ai.caution },
+              { title: '긍정 요인', color: 'var(--c-up)', bg: 'var(--c-gn06)', border: 'var(--c-gn20)', items: ai.pos },
+              { title: '부정 요인', color: 'var(--c-down)', bg: 'var(--c-rd06)', border: 'var(--c-rd20)', items: ai.neg },
+              { title: '주의할 점', color: 'var(--c-warn)', bg: 'var(--c-am06)', border: 'var(--c-am20)', items: ai.caution },
             ] as const).map((col) => (
               <div key={col.title} style={{ background: col.bg, border: `1px solid ${col.border}`, borderRadius: 20, padding: 24 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 18 }}>
@@ -437,8 +437,8 @@ export function Detail({ id }: { id: string }) {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
                   {col.items.map((it, i) => (
                     <div key={i}>
-                      <div style={{ fontSize: 14, fontWeight: 700, color: '#E7ECF5', lineHeight: 1.45, marginBottom: 6 }}>{it.p}</div>
-                      <div style={{ fontSize: 13, lineHeight: 1.6, color: '#9AA6BC' }}>{it.r}</div>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--c-tx1d)', lineHeight: 1.45, marginBottom: 6 }}>{it.p}</div>
+                      <div style={{ fontSize: 13, lineHeight: 1.6, color: 'var(--c-tx4)' }}>{it.r}</div>
                     </div>
                   ))}
                 </div>
@@ -463,11 +463,11 @@ export function Detail({ id }: { id: string }) {
           <div style={{ ...CARD, display: 'flex', alignItems: 'center', gap: 24, borderRadius: 20, padding: '24px 28px', marginBottom: 20, flexWrap: 'wrap' }}>
             <div style={{ textAlign: 'center' }}>
               <div style={{ fontSize: 48, fontWeight: 800, lineHeight: 1, color: scoreColor(overall) }}>{overall}</div>
-              <div style={{ fontSize: 12, color: '#6E7A90', marginTop: 6 }}>종합 위험점수</div>
+              <div style={{ fontSize: 12, color: 'var(--c-tx6)', marginTop: 6 }}>종합 위험점수</div>
             </div>
             <div style={{ flex: 1, minWidth: 200 }}>
               <div style={{ fontSize: 16, fontWeight: 700, color: scoreColor(overall), marginBottom: 6 }}>위험도 {rm.label}</div>
-              <p style={{ margin: 0, fontSize: 14, lineHeight: 1.6, color: '#9AA6BC' }}>{sel.riskNote}</p>
+              <p style={{ margin: 0, fontSize: 14, lineHeight: 1.6, color: 'var(--c-tx4)' }}>{sel.riskNote}</p>
             </div>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -476,15 +476,15 @@ export function Detail({ id }: { id: string }) {
               const band = sc < 40 ? '낮은' : sc < 70 ? '보통' : '높은';
               const color = scoreColor(sc);
               return (
-                <div key={dm.key} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 16, padding: '20px 24px' }}>
+                <div key={dm.key} style={{ background: 'var(--c-w03)', border: '1px solid var(--c-w07)', borderRadius: 16, padding: '20px 24px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                    <span style={{ fontSize: 15, fontWeight: 600, color: '#E7ECF5', whiteSpace: 'nowrap' }}>{dm.label}</span>
+                    <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--c-tx1d)', whiteSpace: 'nowrap' }}>{dm.label}</span>
                     <span style={{ fontSize: 16, fontWeight: 800, color }}>{sc}</span>
                   </div>
-                  <div style={{ height: 8, borderRadius: 999, background: 'rgba(255,255,255,0.06)', overflow: 'hidden', marginBottom: 12 }}>
+                  <div style={{ height: 8, borderRadius: 999, background: 'var(--c-w06)', overflow: 'hidden', marginBottom: 12 }}>
                     <div style={{ height: '100%', borderRadius: 999, width: `${sc}%`, background: color }} />
                   </div>
-                  <div style={{ fontSize: 13, lineHeight: 1.6, color: '#9AA6BC' }}>{dm.tail} · 현재 {band} 수준입니다.</div>
+                  <div style={{ fontSize: 13, lineHeight: 1.6, color: 'var(--c-tx4)' }}>{dm.tail} · 현재 {band} 수준입니다.</div>
                 </div>
               );
             })}

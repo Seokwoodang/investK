@@ -20,9 +20,9 @@ const SORTS: { key: SortKey; label: string }[] = [
 
 function SearchIcon() {
   return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-      <circle cx="11" cy="11" r="7" stroke="#6E7A90" strokeWidth="2" />
-      <line x1="16.5" y1="16.5" x2="21" y2="21" stroke="#6E7A90" strokeWidth="2" strokeLinecap="round" />
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style={{ color: 'var(--c-tx6)' }}>
+      <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="2" />
+      <line x1="16.5" y1="16.5" x2="21" y2="21" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
     </svg>
   );
 }
@@ -111,26 +111,26 @@ export function Stocks() {
   const wsAvgPct = showWatchSummary ? rows.reduce((a, x) => a + x.sortVals.pct, 0) / rows.length : 0;
   const wsAvgRisk = showWatchSummary ? Math.round(rows.reduce((a, x) => a + x.riskScore, 0) / rows.length) : 0;
 
-  const headColor = (key: SortKey) => (sortKey === key ? '#5fd9e6' : '#6E7A90');
+  const headColor = (key: SortKey) => (sortKey === key ? 'var(--c-accyanbr)' : 'var(--c-tx6)');
   const arrow = (key: SortKey) => (sortKey === key ? (sortDir === 'desc' ? '↓' : '↑') : '');
 
   const sortBtnStyle = (active: boolean): React.CSSProperties => ({
     cursor: 'pointer', border: 'none', padding: '7px 14px', borderRadius: 8, fontSize: 13,
     fontWeight: 600, fontFamily: 'inherit', whiteSpace: 'nowrap', transition: 'all 180ms',
-    ...(active ? { background: 'rgba(0,199,217,0.18)', color: '#5fd9e6' } : { background: 'transparent', color: '#9AA6BC' }),
+    ...(active ? { background: 'var(--c-cy18)', color: 'var(--c-accyanbr)' } : { background: 'transparent', color: 'var(--c-tx4)' }),
   });
 
   return (
     <div>
       <div style={{ marginBottom: 24 }}>
         <h1 style={{ margin: 0, fontSize: 28, fontWeight: 800, letterSpacing: '-0.02em' }}>종목</h1>
-        <p style={{ margin: '8px 0 0', fontSize: 14, color: '#7E8AA0' }}>자산군을 고르고 거래대금·가격·변동률 기준으로 정렬해 보세요.</p>
+        <p style={{ margin: '8px 0 0', fontSize: 14, color: 'var(--c-tx5)' }}>자산군을 고르고 거래대금·가격·변동률 기준으로 정렬해 보세요.</p>
       </div>
 
       <TabBar marginBottom={activeTab === 'us_stock' ? 12 : 24} />
       {activeTab === 'us_stock' && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 16, fontSize: 12, color: '#9AA6BC' }}>
-          <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 5, background: 'rgba(245,181,68,0.16)', color: '#f5b544' }}>지연</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 16, fontSize: 12, color: 'var(--c-tx4)' }}>
+          <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 5, background: 'var(--c-am16)', color: 'var(--c-warn)' }}>지연</span>
           해외주식은 약 15분 지연시세입니다.
         </div>
       )}
@@ -146,9 +146,9 @@ export function Stocks() {
             onChange={(e) => actions.setQuery(e.target.value)}
             placeholder="종목명 · 티커 검색"
             style={{
-              width: '100%', boxSizing: 'border-box', background: 'rgba(255,255,255,0.04)',
-              border: '1px solid rgba(255,255,255,0.10)', borderRadius: 11, padding: '11px 14px 11px 40px',
-              color: '#E7ECF5', fontSize: 14, fontFamily: 'inherit', outline: 'none',
+              width: '100%', boxSizing: 'border-box', background: 'var(--c-w04)',
+              border: '1px solid var(--c-w10)', borderRadius: 11, padding: '11px 14px 11px 40px',
+              color: 'var(--c-tx1d)', fontSize: 14, fontFamily: 'inherit', outline: 'none',
             }}
           />
         </div>
@@ -160,14 +160,14 @@ export function Stocks() {
               borderRadius: 11, fontSize: 13, fontWeight: 700, fontFamily: 'inherit', whiteSpace: 'nowrap',
               transition: 'all 180ms',
               ...(watchOnly
-                ? { background: 'rgba(0,199,217,0.18)', border: '1px solid rgba(0,199,217,0.40)', color: '#5fd9e6' }
-                : { background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.10)', color: '#9AA6BC' }),
+                ? { background: 'var(--c-cy18)', border: '1px solid var(--c-cy40)', color: 'var(--c-accyanbr)' }
+                : { background: 'var(--c-w04)', border: '1px solid var(--c-w10)', color: 'var(--c-tx4)' }),
             }}
           >
             ★ 관심종목
           </button>
-          <span style={{ fontSize: 12, color: '#6E7A90' }}>정렬</span>
-          <div style={{ display: 'flex', gap: 4, padding: 4, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 11 }}>
+          <span style={{ fontSize: 12, color: 'var(--c-tx6)' }}>정렬</span>
+          <div style={{ display: 'flex', gap: 4, padding: 4, background: 'var(--c-w04)', border: '1px solid var(--c-w07)', borderRadius: 11 }}>
             {SORTS.map((s) => (
               <button key={s.key} onClick={() => actions.setSort(s.key)} style={sortBtnStyle(sortKey === s.key)}>
                 {s.label}
@@ -178,27 +178,27 @@ export function Stocks() {
       </div>
 
       {showWatchSummary && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 28, flexWrap: 'wrap', background: 'rgba(0,199,217,0.06)', border: '1px solid rgba(0,199,217,0.16)', borderRadius: 14, padding: '14px 22px', marginBottom: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 28, flexWrap: 'wrap', background: 'var(--c-cy06)', border: '1px solid var(--c-cy16)', borderRadius: 14, padding: '14px 22px', marginBottom: 16 }}>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-            <span style={{ fontSize: 12, color: '#6E7A90' }}>관심 종목</span>
-            <span style={{ fontSize: 17, fontWeight: 800, color: '#EAF2FF' }}>{rows.length}</span>
-            <span style={{ fontSize: 12, color: '#6E7A90' }}>종목</span>
+            <span style={{ fontSize: 12, color: 'var(--c-tx6)' }}>관심 종목</span>
+            <span style={{ fontSize: 17, fontWeight: 800, color: 'var(--c-tx1c)' }}>{rows.length}</span>
+            <span style={{ fontSize: 12, color: 'var(--c-tx6)' }}>종목</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-            <span style={{ fontSize: 12, color: '#6E7A90' }}>평균 등락</span>
+            <span style={{ fontSize: 12, color: 'var(--c-tx6)' }}>평균 등락</span>
             <span style={{ fontSize: 17, fontWeight: 800, color: upColor(wsAvgPct) }}>{fmtPct(wsAvgPct)}</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-            <span style={{ fontSize: 12, color: '#6E7A90' }}>평균 위험점수</span>
-            <span style={{ fontSize: 17, fontWeight: 800, color: '#EAF2FF' }}>{wsAvgRisk}</span>
+            <span style={{ fontSize: 12, color: 'var(--c-tx6)' }}>평균 위험점수</span>
+            <span style={{ fontSize: 17, fontWeight: 800, color: 'var(--c-tx1c)' }}>{wsAvgRisk}</span>
           </div>
         </div>
       )}
 
       {/* Header row */}
-      <div style={{ display: 'grid', gridTemplateColumns: layout.rowCols, alignItems: 'center', gap: 12, padding: '0 18px 12px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: layout.rowCols, alignItems: 'center', gap: 12, padding: '0 18px 12px', borderBottom: '1px solid var(--c-w08)' }}>
         <span />
-        <span style={{ fontSize: 12, fontWeight: 600, color: '#6E7A90' }}>종목</span>
+        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--c-tx6)' }}>종목</span>
         {layout.showVol && (
           <span onClick={() => actions.setSort('vol')} style={{ fontSize: 12, fontWeight: 600, textAlign: 'right', color: headColor('vol'), cursor: 'pointer' }}>거래대금 {arrow('vol')}</span>
         )}
@@ -217,37 +217,37 @@ export function Stocks() {
             setLimit((n) => (n < rows.length ? n + PAGE : n));
           }
         }}
-        style={{ display: 'flex', flexDirection: 'column', background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.06)', borderTop: 'none', borderRadius: '0 0 18px 18px', maxHeight: '60vh' }}
+        style={{ display: 'flex', flexDirection: 'column', background: 'var(--c-w025)', border: '1px solid var(--c-w06)', borderTop: 'none', borderRadius: '0 0 18px 18px', maxHeight: '60vh' }}
       >
         {visible.map((s) => (
           <div
             key={s.id}
             className="stock-row"
             onClick={() => actions.openStock(s.id, activeTab)}
-            style={{ display: 'grid', gridTemplateColumns: layout.rowCols, alignItems: 'center', gap: 12, padding: '16px 18px', borderBottom: '1px solid rgba(255,255,255,0.05)', cursor: 'pointer' }}
+            style={{ display: 'grid', gridTemplateColumns: layout.rowCols, alignItems: 'center', gap: 12, padding: '16px 18px', borderBottom: '1px solid var(--c-w05)', cursor: 'pointer' }}
           >
             <button
               onClick={(e) => { e.stopPropagation(); actions.toggleWatch(s.id); }}
               title="관심 종목"
-              style={{ cursor: 'pointer', background: 'none', border: 'none', padding: 0, fontSize: 18, lineHeight: 1, color: s.starred ? '#00C7D9' : '#5E6B82', fontFamily: 'inherit' }}
+              style={{ cursor: 'pointer', background: 'none', border: 'none', padding: 0, fontSize: 18, lineHeight: 1, color: s.starred ? 'var(--c-accyan)' : 'var(--c-txph)', fontFamily: 'inherit' }}
             >
               {s.starred ? '★' : '☆'}
             </button>
             <div style={{ minWidth: 0, display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
-              <span style={{ fontSize: 16, fontWeight: 700, color: '#EEF2F8', whiteSpace: 'nowrap' }}>{s.name}</span>
-              <span style={{ fontSize: 11, fontWeight: 600, color: '#6E7A90', whiteSpace: 'nowrap' }}>{s.ticker}</span>
+              <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--c-tx1b)', whiteSpace: 'nowrap' }}>{s.name}</span>
+              <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--c-tx6)', whiteSpace: 'nowrap' }}>{s.ticker}</span>
             </div>
-            {layout.showVol && <span style={{ fontSize: 14, fontWeight: 600, color: '#C4CDDC', textAlign: 'right' }}>{s.volText}</span>}
-            <span style={{ fontSize: 16, fontWeight: 700, color: '#F4F7FB', textAlign: 'right' }}>{s.priceText}</span>
+            {layout.showVol && <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--c-tx3)', textAlign: 'right' }}>{s.volText}</span>}
+            <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--c-tx1)', textAlign: 'right' }}>{s.priceText}</span>
             <span style={{ fontSize: 14, fontWeight: 700, textAlign: 'right', color: s.pctColor }}>{s.pctText}</span>
             {layout.showRisk && (
               <div className="risk-cell" style={{ justifySelf: 'end', position: 'relative', textAlign: 'right', whiteSpace: 'nowrap' }}>
                 <div style={{ fontSize: 16, fontWeight: 800, lineHeight: 1, color: s.riskColor }}>{s.riskScore}</div>
                 <div style={{ fontSize: 10, fontWeight: 600, marginTop: 3, color: s.riskColor }}>{s.riskLabel}</div>
-                <div className="risk-tip" style={{ position: 'absolute', top: 'calc(100% + 8px)', right: 0, width: 250, textAlign: 'left', background: 'rgba(18,24,38,0.98)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 12, padding: '13px 15px', boxShadow: '0 14px 36px rgba(0,0,0,0.5)', zIndex: 30 }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: '#5fd9e6', marginBottom: 7 }}>정량 위험점수</div>
-                  <div style={{ fontSize: 12, lineHeight: 1.6, color: '#C4CDDC' }}>
-                    변동성 · 유동성 · 이벤트 리스크를 시세 데이터로 자동 산출한 점수입니다. 뉴스 감성까지 반영한 정확한 <span style={{ color: '#73BFF9', fontWeight: 600 }}>AI 종합 위험도</span>는 상세 페이지에서 확인하세요.
+                <div className="risk-tip" style={{ position: 'absolute', top: 'calc(100% + 8px)', right: 0, width: 250, textAlign: 'left', background: 'var(--c-panel)', border: '1px solid var(--c-w12)', borderRadius: 12, padding: '13px 15px', boxShadow: '0 14px 36px var(--c-shadow)', zIndex: 30 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--c-accyanbr)', marginBottom: 7 }}>정량 위험점수</div>
+                  <div style={{ fontSize: 12, lineHeight: 1.6, color: 'var(--c-tx3)' }}>
+                    변동성 · 유동성 · 이벤트 리스크를 시세 데이터로 자동 산출한 점수입니다. 뉴스 감성까지 반영한 정확한 <span style={{ color: 'var(--c-acblue)', fontWeight: 600 }}>AI 종합 위험도</span>는 상세 페이지에서 확인하세요.
                   </div>
                 </div>
               </div>
@@ -258,14 +258,14 @@ export function Stocks() {
       {!noResults && (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '12px 2px 0', flexWrap: 'wrap' }}>
           <SourceNote text={SRC_QUOTE[activeTab]} />
-          <span style={{ fontSize: 12, color: '#6E7A90' }}>
+          <span style={{ fontSize: 12, color: 'var(--c-tx6)' }}>
             {visible.length.toLocaleString('ko-KR')} / {rows.length.toLocaleString('ko-KR')}종목
             {limit < rows.length ? ' · 스크롤하면 더 불러옵니다' : ''}
           </span>
         </div>
       )}
       {noResults && (
-        <div style={{ padding: 48, textAlign: 'center', color: '#6E7A90', fontSize: 14, border: '1px solid rgba(255,255,255,0.06)', borderTop: 'none', borderRadius: '0 0 18px 18px' }}>
+        <div style={{ padding: 48, textAlign: 'center', color: 'var(--c-tx6)', fontSize: 14, border: '1px solid var(--c-w06)', borderTop: 'none', borderRadius: '0 0 18px 18px' }}>
           {emptyMsg}
         </div>
       )}

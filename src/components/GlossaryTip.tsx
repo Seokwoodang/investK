@@ -7,8 +7,8 @@ export function GlossaryTip({ hit, zIndex = 45 }: { hit: GlossHit; zIndex?: numb
       <span
         style={{
           display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-          width: 16, height: 16, borderRadius: '50%', border: '1px solid rgba(255,255,255,0.22)',
-          color: '#9AA6BC', fontSize: 10, fontWeight: 700, cursor: 'help', flexShrink: 0,
+          width: 16, height: 16, borderRadius: '50%', border: '1px solid var(--c-w22)',
+          color: 'var(--c-tx4)', fontSize: 10, fontWeight: 700, cursor: 'help', flexShrink: 0,
         }}
       >
         i
@@ -17,15 +17,15 @@ export function GlossaryTip({ hit, zIndex = 45 }: { hit: GlossHit; zIndex?: numb
         className="gloss-pop"
         style={{
           position: 'absolute', top: 'calc(100% + 8px)', left: 0, width: 250,
-          background: 'rgba(18,24,38,0.98)', border: '1px solid rgba(255,255,255,0.12)',
-          borderRadius: 12, padding: '12px 14px', boxShadow: '0 14px 36px rgba(0,0,0,0.5)',
+          background: 'var(--c-panel)', border: '1px solid var(--c-w12)',
+          borderRadius: 12, padding: '12px 14px', boxShadow: '0 14px 36px var(--c-shadow)',
           zIndex, textAlign: 'left',
         }}
       >
-        <span style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#5fd9e6', marginBottom: 5 }}>
+        <span style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--c-accyanbr)', marginBottom: 5 }}>
           {hit.term}
         </span>
-        <span style={{ display: 'block', fontSize: 12, lineHeight: 1.55, color: '#C4CDDC' }}>{hit.def}</span>
+        <span style={{ display: 'block', fontSize: 12, lineHeight: 1.55, color: 'var(--c-tx3)' }}>{hit.def}</span>
       </span>
     </span>
   );
@@ -35,8 +35,8 @@ export function GlossaryTip({ hit, zIndex = 45 }: { hit: GlossHit; zIndex?: numb
 export function ImpactTag({ tag }: { tag: string }) {
   const colors =
     tag === '고영향'
-      ? { bg: 'rgba(246,104,94,0.14)', color: '#f6685e' }
-      : { bg: 'rgba(245,181,68,0.14)', color: '#f5b544' };
+      ? { bg: 'var(--c-rd14)', color: 'var(--c-down)' }
+      : { bg: 'var(--c-am14)', color: 'var(--c-warn)' };
   return (
     <span
       style={{

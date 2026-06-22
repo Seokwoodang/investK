@@ -23,7 +23,7 @@ function fmtTime(ms: number, period: Period): string {
 
 export function CandleChart({ candles, markers, period = '일봉', cur }: { candles: Candle[]; markers: ChartMarker[]; period?: Period; cur?: Currency }) {
   if (!candles.length)
-    return <div style={{ height: H, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6E7A90', fontSize: 13 }}>차트 데이터 없음</div>;
+    return <div style={{ height: H, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--c-tx6)', fontSize: 13 }}>차트 데이터 없음</div>;
 
   const min = Math.min(...candles.map((c) => c.l));
   const max = Math.max(...candles.map((c) => c.h));
@@ -45,18 +45,18 @@ export function CandleChart({ candles, markers, period = '일봉', cur }: { cand
       <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" style={{ width: '100%', height: H, display: 'block' }}>
         {gridded.map((i) => {
           const gy = padT + (innerH * i) / 4;
-          return <line key={`g${i}`} x1={padL} x2={W - padR} y1={gy} y2={gy} stroke="rgba(255,255,255,0.05)" strokeWidth={1} />;
+          return <line key={`g${i}`} x1={padL} x2={W - padR} y1={gy} y2={gy} style={{ stroke: 'var(--c-w05)' }} strokeWidth={1} />;
         })}
         {candles.map((c, i) => {
           const cx = padL + step * i + step / 2;
           const up = c.c >= c.o;
-          const col = up ? '#34d39a' : '#f6685e';
+          const col = up ? 'var(--c-up)' : 'var(--c-down)';
           const ry = y(Math.max(c.o, c.c));
           const rh = Math.max(1.5, Math.abs(y(c.o) - y(c.c)));
           return (
             <g key={i}>
-              <line x1={cx} x2={cx} y1={y(c.h)} y2={y(c.l)} stroke={col} strokeWidth={1.2} opacity={0.85} />
-              <rect x={cx - cw / 2} y={ry} width={cw} height={rh} fill={col} rx={1} opacity={0.95} />
+              <line x1={cx} x2={cx} y1={y(c.h)} y2={y(c.l)} style={{ stroke: col }} strokeWidth={1.2} opacity={0.85} />
+              <rect x={cx - cw / 2} y={ry} width={cw} height={rh} style={{ fill: col }} rx={1} opacity={0.95} />
             </g>
           );
         })}
@@ -71,7 +71,7 @@ export function CandleChart({ candles, markers, period = '일봉', cur }: { cand
         const topPx = padT + (innerH * i) / 4;
         const price = max - (range * i) / 4;
         return (
-          <div key={`pl${i}`} style={{ position: 'absolute', top: topPx - 7, right: 2, fontSize: 10, color: '#6E7A90', whiteSpace: 'nowrap', pointerEvents: 'none' }}>
+          <div key={`pl${i}`} style={{ position: 'absolute', top: topPx - 7, right: 2, fontSize: 10, color: 'var(--c-tx6)', whiteSpace: 'nowrap', pointerEvents: 'none' }}>
             {fmtPrice(price)}
           </div>
         );
@@ -79,7 +79,7 @@ export function CandleChart({ candles, markers, period = '일봉', cur }: { cand
 
       {/* X축 날짜/시간 라벨 (하단) */}
       {xLabels.map((x) => (
-        <div key={`xl${x.idx}`} style={{ position: 'absolute', bottom: 2, left: `${x.leftFrac * 100}%`, transform: 'translateX(-50%)', fontSize: 10, color: '#6E7A90', whiteSpace: 'nowrap', pointerEvents: 'none' }}>
+        <div key={`xl${x.idx}`} style={{ position: 'absolute', bottom: 2, left: `${x.leftFrac * 100}%`, transform: 'translateX(-50%)', fontSize: 10, color: 'var(--c-tx6)', whiteSpace: 'nowrap', pointerEvents: 'none' }}>
           {x.label}
         </div>
       ))}
