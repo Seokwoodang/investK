@@ -1,10 +1,10 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { fmtPct, fmtPrice, upColor } from '../../lib/format';
-import { parseHoldingsText, resolveStock, usePortfolio } from '../../lib/portfolio';
+import { parseHoldingsText, resolveStock, usdKrwFromFx, usePortfolio, useResolvedPrices, valuePortfolio } from '../../lib/portfolio';
 import { useDashboard } from '../../store/DashboardContext';
-import { TAB_MAP, type TabId } from '../../types';
+import { TAB_MAP, type Currency, type TabId } from '../../types';
 import { SourceNote } from '../SourceNote';
 
 const CARD: React.CSSProperties = {
@@ -40,69 +40,62 @@ export function Portfolio() {
   );
   const byId = useMemo(() => new Map(flat.map((s) => [s.id, s])), [flat]);
 
-  // 원화 환산용 USD/KRW.
-  const usdkrw = useMemo(() => {
-    const r = data.macro.fx.find((f) => f.pair === 'USD/KRW');
-    const n = r ? Number(r.val.replace(/[^0-9.]/g, '')) : NaN;
-    return Number.isFinite(n) && n > 0 ? n : 1350;
-  }, [data.macro.fx]);
-
-  // 보유종목별 평가 계산.
-  const rows = useMemo(() => {
-    return holdings.map((h) => {
-      const u = byId.get(h.id);
-      const price = u ? u.price : h.manualPrice ?? h.avg;
-      const cur = u ? u.cur : h.cur;
-      const tab = (u ? u.tab : h.tab) as TabId | undefined;
-      const value = h.qty * price;
-      const cost = h.qty * h.avg;
-      const toKrw = (v: number) => (cur === '$' ? v * usdkrw : v);
-      const plPct = h.avg > 0 ? ((price - h.avg) / h.avg) * 100 : 0;
-      return {
-        ...h, price, cur, tab, value, cost, valueKrw: toKrw(value), costKrw: toKrw(cost),
-        pl: value - cost, plPct, group: tab ? TAB_MAP[tab] : '기타', matched: !!u,
-        risk: u?.risk,
-      };
-    });
-  }, [holdings, byId, usdkrw]);
-
-  const totalKrw = rows.reduce((s, r) => s + r.valueKrw, 0);
-  const costTotalKrw = rows.reduce((s, r) => s + r.costKrw, 0);
-  const totalPlKrw = totalKrw - costTotalKrw;
-  const totalPlPct = costTotalKrw > 0 ? (totalPlKrw / costTotalKrw) * 100 : 0;
-
-  const groupWeights = useMemo(() => {
-    const m = new Map<string, number>();
-    rows.forEach((r) => m.set(r.group, (m.get(r.group) || 0) + r.valueKrw));
-    return [...m.entries()].map(([group, v]) => ({ group, weight: totalKrw > 0 ? (v / totalKrw) * 100 : 0 })).sort((a, b) => b.weight - a.weight);
-  }, [rows, totalKrw]);
+  // 원화 환산용 USD/KRW + 유니버스에 없는 종목(미국 ETF 등)은 네이버 즉석 시세로 보강.
+  const usdkrw = useMemo(() => usdKrwFromFx(data.macro.fx), [data.macro.fx]);
+  const extra = useResolvedPrices(holdings, data.stocks);
+  const { rows, totalKrw, totalPlKrw, totalPlPct, groupWeights } = useMemo(
+    () => valuePortfolio(holdings, data.stocks, usdkrw, extra),
+    [holdings, data.stocks, usdkrw, extra],
+  );
 
   // ── 입력(검색→수량·평단) ──
   const [q, setQ] = useState('');
   const [qty, setQty] = useState('');
   const [avg, setAvg] = useState('');
-  const matches = useMemo(() => {
+  type Pick = { id: string; name: string; ticker: string; cur?: Currency; tab?: TabId };
+  const [picked, setPicked] = useState<Pick | null>(null);
+
+  const localMatches = useMemo(() => {
     const query = q.trim().toLowerCase();
     if (!query) return [];
     return flat.filter((s) => s.name.toLowerCase().includes(query) || s.ticker.toLowerCase().includes(query)).slice(0, 6);
   }, [q, flat]);
-  const [picked, setPicked] = useState<{ id: string; name: string; ticker: string } | null>(null);
+
+  // 유니버스에 없으면 네이버 자동완성으로 원격 후보 보강(미국 ETF·소형주 등).
+  const [remote, setRemote] = useState<{ ticker: string; name: string; cur: Currency; tab: string; group: string }[]>([]);
+  useEffect(() => {
+    const query = q.trim();
+    if (picked || !query) { setRemote([]); return; }
+    let cancelled = false;
+    const t = setTimeout(() => {
+      fetch(`/api/resolve?q=${encodeURIComponent(query)}`)
+        .then((r) => (r.ok ? r.json() : { items: [] }))
+        .then((j) => { if (!cancelled) setRemote(j.items || []); })
+        .catch(() => {});
+    }, 250);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [q, picked]);
+
+  const localTickers = new Set(localMatches.map((s) => s.ticker.toUpperCase()));
+  const dropdown: (Pick & { sub: string })[] = [
+    ...localMatches.map((s) => ({ id: s.id, name: s.name, ticker: s.ticker, sub: `${TAB_MAP[s.tab]} · ${s.ticker}` })),
+    ...remote.filter((r) => !localTickers.has(r.ticker.toUpperCase())).map((r) => ({ id: 'ext:' + r.ticker, name: r.name, ticker: r.ticker, cur: r.cur, tab: r.tab as TabId, sub: `${r.group} · ${r.ticker}` })),
+  ].slice(0, 8);
 
   const addManual = () => {
     const nQty = Number(qty.replace(/[,\s]/g, ''));
     const nAvg = Number(avg.replace(/[,\s]/g, ''));
     if (!Number.isFinite(nQty) || !Number.isFinite(nAvg) || nQty <= 0) return;
-    const hit = picked ? { stock: byId.get(picked.id), tab: byId.get(picked.id)?.tab } : resolveStock(data.stocks, q);
-    if (picked && byId.get(picked.id)) {
-      const u = byId.get(picked.id)!;
-      upsert({ id: u.id, name: u.name, ticker: u.ticker, qty: nQty, avg: nAvg, cur: u.cur, tab: u.tab as TabId });
-    } else if (hit && 'stock' in hit && hit.stock) {
-      const s = hit.stock;
-      upsert({ id: s.id, name: s.name, ticker: s.ticker, qty: nQty, avg: nAvg, cur: s.cur, tab: hit.tab as TabId });
-    } else if (q.trim()) {
-      upsert({ id: 'manual:' + q.trim(), name: q.trim(), ticker: q.trim(), qty: nQty, avg: nAvg, cur: '₩', manualPrice: nAvg });
+    if (picked) {
+      const u = byId.get(picked.id);
+      if (u) upsert({ id: u.id, name: u.name, ticker: u.ticker, qty: nQty, avg: nAvg, cur: u.cur, tab: u.tab as TabId });
+      else upsert({ id: picked.id, name: picked.name, ticker: picked.ticker, qty: nQty, avg: nAvg, cur: picked.cur ?? '₩', tab: picked.tab }); // 원격 후보 → useResolvedPrices가 현재가 보강
+    } else {
+      const hit = resolveStock(data.stocks, q);
+      if (hit) upsert({ id: hit.stock.id, name: hit.stock.name, ticker: hit.stock.ticker, qty: nQty, avg: nAvg, cur: hit.stock.cur, tab: hit.tab });
+      else if (q.trim()) upsert({ id: 'manual:' + q.trim(), name: q.trim(), ticker: q.trim(), qty: nQty, avg: nAvg, cur: '₩', manualPrice: nAvg });
     }
-    setQ(''); setQty(''); setAvg(''); setPicked(null);
+    setQ(''); setQty(''); setAvg(''); setPicked(null); setRemote([]);
   };
 
   // ── CSV/붙여넣기 ──
@@ -155,13 +148,13 @@ export function Portfolio() {
           <div style={{ position: 'relative', flex: '2 1 220px', minWidth: 200 }}>
             <input style={{ ...inputStyle, width: '100%' }} placeholder="종목명 또는 티커" value={picked ? picked.name : q}
               onChange={(e) => { setQ(e.target.value); setPicked(null); }} />
-            {!picked && matches.length > 0 && (
+            {!picked && dropdown.length > 0 && (
               <div style={{ position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, zIndex: 20, background: 'var(--c-panel)', border: '1px solid var(--c-w12)', borderRadius: 12, padding: 6, boxShadow: '0 18px 48px var(--c-shadow)', maxHeight: 260, overflowY: 'auto' }}>
-                {matches.map((m) => (
-                  <div key={m.id} onClick={() => { setPicked({ id: m.id, name: m.name, ticker: m.ticker }); setQ(m.name); }}
+                {dropdown.map((m) => (
+                  <div key={m.id} onClick={() => { setPicked({ id: m.id, name: m.name, ticker: m.ticker, cur: m.cur, tab: m.tab }); setQ(m.name); setRemote([]); }}
                     className="gsearch-result" style={{ display: 'flex', justifyContent: 'space-between', gap: 10, padding: '9px 10px', borderRadius: 8, cursor: 'pointer' }}>
                     <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--c-tx1)' }}>{m.name}</span>
-                    <span style={{ fontSize: 11, color: 'var(--c-tx6)' }}>{TAB_MAP[m.tab]} · {m.ticker}</span>
+                    <span style={{ fontSize: 11, color: 'var(--c-tx6)' }}>{m.sub}</span>
                   </div>
                 ))}
               </div>

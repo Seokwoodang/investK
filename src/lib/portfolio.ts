@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { TAB_MAP, type Currency, type FxRow, type RiskLevel, type Stock, type Stocks, type TabId } from '../types';
 
 // 내 보유종목(포트폴리오). 증권사 연동 없이 직접 입력/CSV로 채운다. 개인 데이터라 localStorage에만 저장.
@@ -146,23 +146,28 @@ export interface PortfolioValuation {
   groupWeights: { group: string; weight: number }[];
 }
 
-// 보유종목을 유니버스 시세로 평가(원화 환산 총계·자산군 비중 포함). 자산 페이지·보고서 공용.
-export function valuePortfolio(holdings: Holding[], stocks: Stocks, usdkrw: number): PortfolioValuation {
+// 유니버스에 없는 종목을 네이버로 즉석 조회한 시세(holding.id → 시세). useResolvedPrices가 채움.
+export type ResolvedPrices = Map<string, { price: number; cur: Currency; group?: string }>;
+
+// 보유종목을 유니버스(또는 즉석 조회) 시세로 평가(원화 환산 총계·자산군 비중 포함). 자산 페이지·보고서 공용.
+export function valuePortfolio(holdings: Holding[], stocks: Stocks, usdkrw: number, extra?: ResolvedPrices): PortfolioValuation {
   const byId = new Map(
     (Object.keys(stocks) as TabId[]).flatMap((tb) => stocks[tb].map((s) => [s.id, { s, tab: tb }] as const)),
   );
   const rows: ValuedRow[] = holdings.map((h) => {
     const u = byId.get(h.id);
-    const price = u ? u.s.price : h.manualPrice ?? h.avg;
-    const cur = u ? u.s.cur : h.cur;
+    const ex = !u ? extra?.get(h.id) : undefined; // 유니버스에 없으면 즉석 조회 시세 사용
+    const price = u ? u.s.price : ex ? ex.price : h.manualPrice ?? h.avg;
+    const cur = u ? u.s.cur : ex ? ex.cur : h.cur;
     const tab = u ? u.tab : h.tab;
+    const group = u ? TAB_MAP[u.tab] : ex?.group ?? (tab ? TAB_MAP[tab] : '기타');
     const value = h.qty * price;
     const cost = h.qty * h.avg;
     const toKrw = (v: number) => (cur === '$' ? v * usdkrw : v);
     const plPct = h.avg > 0 ? ((price - h.avg) / h.avg) * 100 : 0;
     return {
       ...h, cur, price, tab, value, cost, valueKrw: toKrw(value), costKrw: toKrw(cost),
-      pl: value - cost, plPct, group: tab ? TAB_MAP[tab] : '기타', matched: !!u, risk: u?.s.risk,
+      pl: value - cost, plPct, group, matched: !!u || !!ex, risk: u?.s.risk,
     };
   });
   const totalKrw = rows.reduce((s, r) => s + r.valueKrw, 0);
@@ -175,4 +180,38 @@ export function valuePortfolio(holdings: Holding[], stocks: Stocks, usdkrw: numb
     .map(([group, v]) => ({ group, weight: totalKrw > 0 ? (v / totalKrw) * 100 : 0 }))
     .sort((a, b) => b.weight - a.weight);
   return { rows, totalKrw, costTotalKrw, totalPlKrw, totalPlPct, groupWeights };
+}
+
+// 유니버스에 없는 보유종목(미국 ETF 등)의 현재가를 네이버로 즉석 조회. 페이지 로드/보유 변경 시 갱신.
+export function useResolvedPrices(holdings: Holding[], stocks: Stocks): ResolvedPrices {
+  const [map, setMap] = useState<ResolvedPrices>(new Map());
+  const uniIds = useMemo(
+    () => new Set((Object.keys(stocks) as TabId[]).flatMap((tb) => stocks[tb].map((s) => s.id))),
+    [stocks],
+  );
+  // 유니버스에 없고 티커가 있는(코인 페어 제외) 종목만 조회.
+  const need = holdings.filter((h) => !uniIds.has(h.id) && h.ticker && !h.ticker.includes('/'));
+  const key = need.map((h) => `${h.id}:${h.ticker}`).join('|');
+  useEffect(() => {
+    if (!need.length) {
+      setMap(new Map());
+      return;
+    }
+    let cancelled = false;
+    Promise.all(
+      need.map((h) =>
+        fetch(`/api/resolve?price=${encodeURIComponent(h.ticker)}`)
+          .then((r) => (r.ok ? r.json() : null))
+          .then((j) => (j?.found ? ([h.id, { price: j.price, cur: j.cur, group: j.group }] as const) : null))
+          .catch(() => null),
+      ),
+    ).then((entries) => {
+      if (!cancelled) setMap(new Map(entries.filter(Boolean) as [string, { price: number; cur: Currency; group?: string }][]));
+    });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+  return map;
 }

@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { fmtPct, upColor } from '../../lib/format';
-import { usePortfolio, usdKrwFromFx, valuePortfolio } from '../../lib/portfolio';
+import { usePortfolio, usdKrwFromFx, useResolvedPrices, valuePortfolio } from '../../lib/portfolio';
 import { useDashboard } from '../../store/DashboardContext';
 import { SourceNote } from '../SourceNote';
 
@@ -27,7 +27,8 @@ export function Report() {
   const { holdings } = usePortfolio();
 
   const usdkrw = useMemo(() => usdKrwFromFx(data.macro.fx), [data.macro.fx]);
-  const val = useMemo(() => valuePortfolio(holdings, data.stocks, usdkrw), [holdings, data.stocks, usdkrw]);
+  const extra = useResolvedPrices(holdings, data.stocks);
+  const val = useMemo(() => valuePortfolio(holdings, data.stocks, usdkrw, extra), [holdings, data.stocks, usdkrw, extra]);
   const { rows, totalKrw, totalPlKrw, totalPlPct, groupWeights } = val;
 
   const sorted = useMemo(() => [...rows].sort((a, b) => b.plPct - a.plPct), [rows]);
