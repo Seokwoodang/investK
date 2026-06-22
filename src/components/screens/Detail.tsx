@@ -9,7 +9,7 @@ import { useViewportLayout } from '../DashboardChrome';
 import { useDashboard } from '../../store/DashboardContext';
 import { useRealtime, useSubscribeStocks, useSubscribeCoins, useSubscribeUs } from '../../store/RealtimeContext';
 import type { AlertKey, Candle, DetailTab, Period, Stock, Stocks, TabId } from '../../types';
-import { CandleChart, type VisibleRange } from '../CandleChart';
+import { CandleChart } from '../CandleChart';
 import { SourceNote } from '../SourceNote';
 
 const CARD: React.CSSProperties = {
@@ -72,6 +72,13 @@ const pad2 = (n: number) => String(n).padStart(2, '0');
 const isoDate = (d: Date) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 const RANGE_PRESETS = ['1주', '1개월', '3개월', '6개월', '1년'] as const;
 type RangePreset = (typeof RANGE_PRESETS)[number];
+// 기간 수익률용 봉: 시작가가 1회 호출에 포함되도록 구간 길이에 맞춰 자동 선택(거래소 호출 상한 대응).
+function autoInterval(fromMs: number, toMs: number): Period {
+  const days = (toMs - fromMs) / 86400000;
+  if (days <= 95) return '일봉';
+  if (days <= 550) return '주봉';
+  return '월봉';
+}
 // 종료일(오늘) 기준으로 프리셋만큼 뺀 시작일.
 function presetStart(end: Date, kind: RangePreset): Date {
   const s = new Date(end);
@@ -94,41 +101,27 @@ export function Detail({ id }: { id: string }) {
 
   const selId = sel?.id;
 
-  // 실제 과거 OHLC. 코인은 브라우저에서 거래소 직접 호출, 주식은 서버(/api/candles=KIS).
-  // 로딩/실패 시 mock(genCandles) 폴백.
+  // ── 차트 데이터(독립) — 봉 단위별 기본 구간만 불러온다. 기간 수익률 컨트롤과 무관. ──
+  // 코인은 브라우저에서 거래소 직접 호출, 주식은 서버(/api/candles=KIS). 로딩/실패 시 mock(genCandles) 폴백.
   const mockCandles = useMemo(() => (sel ? genCandles(sel, state.period) : []), [sel, state.period]);
   const [realCandles, setRealCandles] = useState<Candle[] | null>(null);
   const selTicker = sel?.ticker;
-
-  // 기간 수익률·차트 구간 = 사용자가 명시한 시작/종료일(기본 최근 6개월). 마운트 후 설정(SSR 안전).
-  const [range, setRange] = useState<{ start: string; end: string } | null>(null);
-  const [presetSel, setPresetSel] = useState<RangePreset>('6개월');
-  // 차트에서 현재 보이는 구간(드래그·줌에 따라 갱신) → 기간 수익률 readout이 이걸 따른다.
-  const [visible, setVisible] = useState<VisibleRange | null>(null);
   useEffect(() => {
-    const end = new Date();
-    setRange({ start: isoDate(presetStart(end, '6개월')), end: isoDate(end) });
-  }, []);
-
-  useEffect(() => {
-    if (!selId || !selTicker || !range) return;
+    if (!selId || !selTicker) return;
     const tab = state.activeTab;
     const isCoin = tab === 'kr_coin' || tab === 'global_coin';
-    const fromMs = Date.parse(range.start + 'T00:00:00');
-    const toMs = Date.parse(range.end + 'T23:59:59');
     let cancelled = false;
     setRealCandles(null);
-    setVisible(null);
     const got = (c: Candle[] | null) => {
       if (!cancelled && c && c.length) setRealCandles(c);
     };
     if (isCoin) {
-      fetchCoinCandles(tab, selTicker, state.period, { fromMs, toMs }).then(got).catch(() => {});
+      fetchCoinCandles(tab, selTicker, state.period).then(got).catch(() => {});
     } else {
       fetch('/api/candles', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ tab, ticker: selTicker, period: state.period, from: range.start.replace(/-/g, ''), to: range.end.replace(/-/g, '') }),
+        body: JSON.stringify({ tab, ticker: selTicker, period: state.period }),
       })
         .then((r) => (r.ok ? r.json() : null))
         .then((j) => got(j?.candles ?? null))
@@ -137,15 +130,48 @@ export function Detail({ id }: { id: string }) {
     return () => {
       cancelled = true;
     };
-  }, [selId, selTicker, state.activeTab, state.period, range?.start, range?.end]);
-
-  // 실데이터는 선택 구간으로 필터(거래소가 구간을 약간 넘겨 줄 수 있음). 실패 시 mock 폴백(필터 안 함).
-  const fromMs = range ? Date.parse(range.start + 'T00:00:00') : -Infinity;
-  const toMs = range ? Date.parse(range.end + 'T23:59:59') : Infinity;
-  const candles = realCandles
-    ? realCandles.filter((c) => c.t == null || (c.t >= fromMs && c.t <= toMs))
-    : mockCandles;
+  }, [selId, selTicker, state.activeTab, state.period]);
+  // 참조 안정화 → 다른 state 변경으로 리렌더돼도 차트 패닝/줌이 리셋되지 않음.
+  const candles = useMemo(() => realCandles ?? mockCandles, [realCandles, mockCandles]);
   const ret = candles.length ? ((candles[candles.length - 1].c - candles[0].o) / candles[0].o) * 100 : 0;
+
+  // ── 기간 수익률(독립) — 칩으로 고른 기간만 별도 조회해 (시작가→종료가)로 계산. 차트와 무관. ──
+  const [presetSel, setPresetSel] = useState<RangePreset>('6개월');
+  const [retData, setRetData] = useState<{ ret: number; fromMs: number; toMs: number } | null>(null);
+  useEffect(() => {
+    if (!selId || !selTicker) return;
+    const tab = state.activeTab;
+    const isCoin = tab === 'kr_coin' || tab === 'global_coin';
+    const end = new Date();
+    const startD = presetStart(end, presetSel);
+    const fromMs = startD.getTime();
+    const toMs = end.getTime();
+    const per = autoInterval(fromMs, toMs);
+    let cancelled = false;
+    setRetData(null);
+    const calc = (c: Candle[] | null) => {
+      if (cancelled || !c || !c.length) return;
+      const f = c[0];
+      const l = c[c.length - 1];
+      setRetData({ ret: ((l.c - f.o) / f.o) * 100, fromMs: (f.t as number) ?? fromMs, toMs: (l.t as number) ?? toMs });
+    };
+    if (isCoin) {
+      fetchCoinCandles(tab, selTicker, per, { fromMs, toMs }).then(calc).catch(() => {});
+    } else {
+      const ymd = (d: Date) => isoDate(d).replace(/-/g, '');
+      fetch('/api/candles', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ tab, ticker: selTicker, period: per, from: ymd(startD), to: ymd(end) }),
+      })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((j) => calc(j?.candles ?? null))
+        .catch(() => {});
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [selId, selTicker, state.activeTab, presetSel]);
 
   // 상세 종목 실시간 구독: 국내주식=KIS SSE, 코인=거래소 ws.
   useEffect(() => {
@@ -284,24 +310,15 @@ export function Detail({ id }: { id: string }) {
     fontWeight: 600, fontFamily: 'inherit', whiteSpace: 'nowrap', transition: 'all 160ms',
     ...(active ? { background: 'var(--c-cy18)', color: 'var(--c-accyanbr)' } : { background: 'transparent', color: 'var(--c-tx4)' }),
   });
-  const applyPreset = (kind: RangePreset) => {
-    const end = new Date();
-    setPresetSel(kind);
-    setRange({ start: isoDate(presetStart(end, kind)), end: isoDate(end) });
-  };
   const fmtDay = (ms?: number) => {
     if (!ms) return '';
     const d = new Date(ms);
     return `${d.getFullYear()}.${pad2(d.getMonth() + 1)}.${pad2(d.getDate())}`;
   };
   const isCoinTab = state.activeTab === 'kr_coin' || state.activeTab === 'global_coin';
-  // 기간 수익률 readout = 차트에 보이는 구간(드래그·줌) 기준. 아직 콜백 전이면 로드 구간 전체 기준.
-  const shownRet = visible ? visible.ret : ret;
-  const shownSpan = visible
-    ? `${fmtDay(visible.fromMs)} ~ ${fmtDay(visible.toMs)}`
-    : candles.length && candles[0].t
-      ? `${fmtDay(candles[0].t)} ~ ${fmtDay(candles[candles.length - 1].t)}`
-      : '';
+  // 기간 수익률 = 칩으로 고른 기간 기준(차트와 독립). 로딩/실패 시 차트 로드분으로 폴백.
+  const shownRet = retData ? retData.ret : ret;
+  const shownSpan = retData ? `${fmtDay(retData.fromMs)} ~ ${fmtDay(retData.toMs)}` : '';
 
   return (
     <div>
@@ -397,17 +414,17 @@ export function Detail({ id }: { id: string }) {
               </div>
             </div>
 
-            {/* 빠른 기간 = 불러올 데이터 범위. 차트는 드래그로 좌우 이동·휠로 확대축소(수익률은 보이는 구간 기준). */}
+            {/* 기간 수익률 전용 기간 선택(차트와 독립). 차트는 드래그·휠로 자유롭게 보면 됨. */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 4 }}>
+              <span style={{ fontSize: 11, color: 'var(--c-tx6)' }}>수익률 기간</span>
               <div style={{ display: 'flex', gap: 4, padding: 4, background: 'var(--c-w04)', borderRadius: 10 }}>
                 {RANGE_PRESETS.map((k) => (
-                  <button key={k} onClick={() => applyPreset(k)} style={chipStyle(presetSel === k)}>{k}</button>
+                  <button key={k} onClick={() => setPresetSel(k)} style={chipStyle(presetSel === k)}>{k}</button>
                 ))}
               </div>
-              <span style={{ fontSize: 11, color: 'var(--c-tx6)' }}>드래그로 이동 · 휠로 확대/축소</span>
             </div>
             <div style={{ margin: '8px 0 0' }}>
-              <CandleChart candles={candles} period={state.period} cur={sel.cur} theme={state.theme} onVisible={setVisible} />
+              <CandleChart candles={candles} period={state.period} cur={sel.cur} theme={state.theme} />
             </div>
             <SourceNote text={`차트 — ${SRC_CANDLE[state.activeTab]}`} style={{ marginTop: 14 }} />
           </div>
