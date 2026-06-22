@@ -173,8 +173,28 @@ export function Portfolio() {
         </div>
 
         <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--c-w07)' }}>
-          <div style={{ fontSize: 12, color: 'var(--c-tx5)', marginBottom: 8 }}>또는 CSV/표 붙여넣기 — 한 줄에 <b style={{ color: 'var(--c-tx3)' }}>종목명, 수량, 평단</b> (미래에셋 MTS 보유종목 복사 가능)</div>
-          <textarea value={csv} onChange={(e) => setCsv(e.target.value)} placeholder={'삼성전자, 10, 72000\nBTC, 0.5, 95000000'} rows={3}
+          <div style={{ fontSize: 12, color: 'var(--c-tx5)', marginBottom: 8 }}>또는 CSV/표 붙여넣기 — 한 줄에 <b style={{ color: 'var(--c-tx3)' }}>종목명, 수량, 평단</b></div>
+
+          {/* 미래에셋 m.Stock에서 가져오는 법 (펼치기) */}
+          <details style={{ marginBottom: 10, background: 'var(--c-w04)', border: '1px solid var(--c-w08)', borderRadius: 12, padding: '10px 14px' }}>
+            <summary style={{ cursor: 'pointer', fontSize: 13, fontWeight: 700, color: 'var(--c-accyan)', listStyle: 'none' }}>📒 미래에셋 m.Stock에서 보유종목 가져오는 법</summary>
+            <div style={{ marginTop: 10, fontSize: 13, lineHeight: 1.7, color: 'var(--c-tx3)' }}>
+              <div style={{ fontWeight: 700, color: 'var(--c-tx2)', marginBottom: 4 }}>① 주식 (미래에셋 m.Stock 앱)</div>
+              <ol style={{ margin: '0 0 12px', paddingLeft: 18 }}>
+                <li>m.Stock 앱 → 하단 <b style={{ color: 'var(--c-tx2)' }}>[계좌]</b>(자산) → <b style={{ color: 'var(--c-tx2)' }}>[잔고 / 보유종목]</b> 화면 열기</li>
+                <li>종목마다 <b style={{ color: 'var(--c-tx2)' }}>종목명 · 보유수량 · 매입평균가(평단)</b> 3가지 확인</li>
+                <li>아래 칸에 한 줄씩 <code style={{ color: 'var(--c-accyanbr)' }}>종목명, 수량, 평단</code> 으로 입력 (앱은 내보내기가 없어 직접 입력)</li>
+              </ol>
+              <div style={{ fontWeight: 700, color: 'var(--c-tx2)', marginBottom: 4 }}>② 코인 (거래소 앱 — 미래에셋엔 없음)</div>
+              <ul style={{ margin: '0 0 12px', paddingLeft: 18 }}>
+                <li>업비트 등 <b style={{ color: 'var(--c-tx2)' }}>원화 거래소</b> 보유분 → <b style={{ color: 'var(--c-tx2)' }}>한글 이름</b>으로: <code style={{ color: 'var(--c-accyanbr)' }}>비트코인, 0.3, 95000000</code></li>
+                <li>바이낸스 등 <b style={{ color: 'var(--c-tx2)' }}>달러 거래소</b> 보유분 → <b style={{ color: 'var(--c-tx2)' }}>티커</b>로: <code style={{ color: 'var(--c-accyanbr)' }}>BTC, 0.3, 68000</code></li>
+              </ul>
+              <div style={{ color: 'var(--c-tx5)' }}>· 해외주식은 티커로 입력(예: <code style={{ color: 'var(--c-accyanbr)' }}>AAPL, 3, 220</code>) · 숫자 콤마(72,000)·엑셀 탭 복사 모두 인식 · 목록에 없는 종목은 “수동”으로 들어가 현재가 없이 평단만 반영</div>
+            </div>
+          </details>
+
+          <textarea value={csv} onChange={(e) => setCsv(e.target.value)} placeholder={'삼성전자, 10, 72000\n비트코인, 0.3, 95000000\nAAPL, 3, 220'} rows={3}
             style={{ ...inputStyle, width: '100%', resize: 'vertical', fontFamily: 'ui-monospace, monospace', fontSize: 13 }} />
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 8, flexWrap: 'wrap' }}>
             <button style={btn()} onClick={importCsv}>불러오기</button>
