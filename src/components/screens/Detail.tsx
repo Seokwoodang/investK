@@ -377,7 +377,7 @@ export function Detail({ id }: { id: string }) {
       </div>
 
       {/* Detail tabs */}
-      <div style={{ display: 'flex', gap: 4, borderBottom: '1px solid var(--c-w08)', marginBottom: 28, overflowX: 'auto' }}>
+      <div className="no-scrollbar" style={{ display: 'flex', gap: 4, borderBottom: '1px solid var(--c-w08)', marginBottom: 28, overflowX: 'auto' }}>
         {DETAIL_TABS.map((t) => {
           const active = detailTab === t.id;
           return (

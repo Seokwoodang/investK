@@ -124,7 +124,7 @@ export function Header() {
           )}
         </Link>
 
-        <nav style={{ display: 'flex', alignItems: 'center', gap: layout.navGap, flex: 1, overflowX: 'auto' }}>
+        <nav className="no-scrollbar" style={{ display: 'flex', alignItems: 'center', gap: layout.navGap, flex: 1, overflowX: 'auto' }}>
           {NAV.map((n) => {
             const active = activeHref === n.href;
             return (
