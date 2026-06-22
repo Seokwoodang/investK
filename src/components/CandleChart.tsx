@@ -15,6 +15,13 @@ function tok(name: string): string {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || '#888';
 }
 
+// 우측 가격축·크로스헤어 가격 포맷: 천 단위 콤마. 큰 값은 정수, 작은 값(코인 등)은 소수 유지.
+function fmtAxisPrice(p: number): string {
+  if (p >= 1000) return Math.round(p).toLocaleString('en-US');
+  if (p >= 1) return p.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return p.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+}
+
 export function CandleChart({
   candles,
   theme,
@@ -56,6 +63,7 @@ export function CandleChart({
       rightPriceScale: { borderColor: tok('--c-w08') },
       timeScale: { borderColor: tok('--c-w08'), timeVisible: true, secondsVisible: false },
       crosshair: { mode: CrosshairMode.Normal },
+      localization: { priceFormatter: fmtAxisPrice },
     });
     const up = tok('--c-up');
     const down = tok('--c-down');
