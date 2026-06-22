@@ -14,6 +14,15 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="ko">
+      <head>
+        {/* 저장된 테마/큰글씨를 페인트 전에 적용해 깜빡임 방지 */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "(function(){try{var d=document.documentElement;var t=localStorage.getItem('dash_theme');if(t==='light')d.classList.add('theme-light');else if(t==='dark')d.classList.add('theme-dark');if(localStorage.getItem('dash_large_font')==='true')d.classList.add('large-font');}catch(e){}})();",
+          }}
+        />
+      </head>
       <body>{children}</body>
     </html>
   );

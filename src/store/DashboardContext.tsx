@@ -49,6 +49,7 @@ const PATH: Record<Exclude<Page, 'detail'>, string> = {
 const WATCH_KEY = 'dash_watchlist';
 const ALERTS_KEY = 'dash_alerts';
 const LF_KEY = 'dash_large_font';
+const THEME_KEY = 'dash_theme';
 
 export interface DashboardState {
   activeTab: TabId;
@@ -69,8 +70,11 @@ export interface DashboardState {
   briefDate: string;
   watchOnly: boolean;
   largeFont: boolean; // 큰글씨(어르신) 버전
+  theme: Theme; // 'system'(OS 설정 따름) | 'light' | 'dark'
   alerts: Record<string, string[]>;
 }
+
+export type Theme = 'system' | 'light' | 'dark';
 
 const baseState = {
   activeTab: 'kr_stock' as TabId,
@@ -88,6 +92,7 @@ const baseState = {
   briefDate: '', // 빈 값 = 오늘(마운트 후 KST 기준으로 설정)
   watchOnly: false,
   largeFont: false,
+  theme: 'system' as Theme,
   alerts: {} as Record<string, string[]>,
 };
 
@@ -118,6 +123,7 @@ export interface DashboardActions {
   gotoCalMonth: (delta: number) => void;
   setBriefDate: (d: string) => void;
   toggleLargeFont: () => void;
+  cycleTheme: () => void; // 시스템 → 라이트 → 다크 → 시스템
 }
 
 interface Ctx {
@@ -146,11 +152,20 @@ export function DashboardProvider({ data, children }: { data: DashboardData; chi
   useEffect(() => {
     const n = new Date();
     const todayStr = `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`;
+    const savedTheme = (() => {
+      try {
+        const t = localStorage.getItem(THEME_KEY);
+        return t === 'light' || t === 'dark' || t === 'system' ? (t as Theme) : 'system';
+      } catch {
+        return 'system' as Theme;
+      }
+    })();
     setState((s) => ({
       ...s,
       watchlist: load<string[]>(WATCH_KEY, [], Array.isArray),
       alerts: load<Record<string, string[]>>(ALERTS_KEY, {}, (v) => typeof v === 'object'),
       largeFont: load<boolean>(LF_KEY, false, (v) => typeof v === 'boolean'),
+      theme: savedTheme,
       today: { y: n.getFullYear(), m: n.getMonth(), d: n.getDate() },
       briefDate: s.briefDate || todayStr,
     }));
@@ -160,6 +175,13 @@ export function DashboardProvider({ data, children }: { data: DashboardData; chi
   useEffect(() => {
     document.documentElement.classList.toggle('large-font', state.largeFont);
   }, [state.largeFont]);
+
+  // 테마 강제: system이면 클래스 없음(OS 설정 따름), light/dark면 해당 클래스로 강제.
+  useEffect(() => {
+    const d = document.documentElement;
+    d.classList.toggle('theme-light', state.theme === 'light');
+    d.classList.toggle('theme-dark', state.theme === 'dark');
+  }, [state.theme]);
 
   // 달력이 보는 달이 바뀌면 해당 달 일정을 가져온다. 기본(현재) 달이면 이미 받은 data.macro.events 사용(요청 없음).
   useEffect(() => {
@@ -256,6 +278,16 @@ export function DashboardProvider({ data, children }: { data: DashboardData; chi
           /* ignore */
         }
         return { ...s, largeFont };
+      }),
+    cycleTheme: () =>
+      setState((s) => {
+        const next: Theme = s.theme === 'system' ? 'light' : s.theme === 'light' ? 'dark' : 'system';
+        try {
+          localStorage.setItem(THEME_KEY, next);
+        } catch {
+          /* ignore */
+        }
+        return { ...s, theme: next };
       }),
   }), [patch, router]);
 

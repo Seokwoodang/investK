@@ -200,6 +200,19 @@ export function Header() {
         )}
 
         <button
+          onClick={actions.cycleTheme}
+          title="화면 테마 전환 (시스템 → 라이트 → 다크)"
+          style={{
+            flexShrink: 0, cursor: 'pointer', fontFamily: 'inherit', lineHeight: 1,
+            display: 'flex', alignItems: 'center', gap: 5, padding: '7px 11px', borderRadius: 10,
+            border: '1px solid var(--c-w10)', background: 'var(--c-w05)', color: 'var(--c-tx4)', whiteSpace: 'nowrap',
+          }}
+        >
+          <span style={{ fontSize: 14 }}>{state.theme === 'light' ? '☀' : state.theme === 'dark' ? '☾' : '◐'}</span>
+          <span style={{ fontSize: 11, fontWeight: 700 }}>{state.theme === 'light' ? '라이트' : state.theme === 'dark' ? '다크' : '시스템'}</span>
+        </button>
+
+        <button
           onClick={actions.toggleLargeFont}
           title={state.largeFont ? '기본 글씨 크기로' : '큰글씨(어르신) 버전으로'}
           aria-pressed={state.largeFont}
