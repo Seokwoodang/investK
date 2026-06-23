@@ -121,7 +121,7 @@ export async function getOrGenerateJSON<T>({ cacheKey, kind, system, prompt, fal
     const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
     const msg = await client.messages.create({
       model: MODEL,
-      max_tokens: 2000,
+      max_tokens: 4096, // 보고서 등 긴 JSON이 잘려 파싱 실패하지 않도록 충분히
       system,
       messages: [{ role: 'user', content: userPrompt }],
     });

@@ -52,9 +52,9 @@ export function Report() {
     [rows, totalKrw],
   );
 
-  // 현재 시장 맥락(AI 입력 + 표시).
-  const fxText = data.macro.fx.map((r) => `${r.pair} ${r.val}(${r.chg > 0 ? '+' : ''}${r.chg}%)`).join(', ');
-  const idxText = data.macro.indices.map((r) => `${r.name} ${r.val}(${r.chg > 0 ? '+' : ''}${r.chg}%)`).join(', ');
+  // 현재 시장 맥락(AI 입력 + 표시). 등락률은 소수 2자리로 반올림(날것 부동소수 방지).
+  const fxText = data.macro.fx.map((r) => `${r.pair} ${r.val}(${r.chg > 0 ? '+' : ''}${r.chg.toFixed(2)}%)`).join(', ');
+  const idxText = data.macro.indices.map((r) => `${r.name} ${r.val}(${r.chg > 0 ? '+' : ''}${r.chg.toFixed(2)}%)`).join(', ');
   const upcoming = data.macro.events.filter((e) => e.tag === '고영향').slice(0, 5);
   const eventsText = upcoming.map((e) => `${e.date} ${e.name}`).join(', ');
 
@@ -199,6 +199,21 @@ export function Report() {
               </div>
             )}
           </div>
+
+          {/* 보유 종목 상세 (비중순) */}
+          {disp.lines.length > 0 && (
+            <div style={{ ...CARD, padding: '8px 22px', marginBottom: 16 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', color: 'var(--c-accyan)', padding: '12px 0 6px' }}>보유 종목 ({disp.lines.length})</div>
+              {[...disp.lines].sort((a, b) => b.weight - a.weight).map((l, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 0', borderTop: '1px solid var(--c-w05)' }}>
+                  <span style={{ flex: '1 1 auto', minWidth: 0, fontSize: 14, fontWeight: 600, color: 'var(--c-tx2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{l.name}</span>
+                  <span style={{ fontSize: 11, color: 'var(--c-tx6)', whiteSpace: 'nowrap' }}>{l.group}</span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--c-tx3)', width: 52, textAlign: 'right' }}>{l.weight.toFixed(0)}%</span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: upColor(l.plPct), width: 72, textAlign: 'right' }}>{fmtPct(l.plPct)}</span>
+                </div>
+              ))}
+            </div>
+          )}
 
           {/* AI 보고서 */}
           <div style={{ ...CARD, padding: 24, marginBottom: 16 }}>
