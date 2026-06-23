@@ -1,10 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 
 export default function LoginPage() {
-  const router = useRouter();
   const [id, setId] = useState('');
   const [pw, setPw] = useState('');
   const [err, setErr] = useState('');
@@ -21,16 +19,18 @@ export default function LoginPage() {
         body: JSON.stringify({ id, pw }),
       });
       if (r.ok) {
+        // 하드 내비게이션: 응답 즉시 로그인 페이지를 떠나고 '/'를 새로 로드한다.
+        // (dash) 레이아웃이 스트리밍되며 loading.tsx 스켈레톤이 먼저 뜬다.
+        // (router.replace 소프트 내비는 목적지가 다 그려질 때까지 현재 페이지에 머물러 멈춘 것처럼 보였음)
         const next = new URLSearchParams(window.location.search).get('next');
-        router.replace(next || '/');
-        router.refresh();
-      } else {
-        const j = await r.json().catch(() => ({}));
-        setErr(j.error || '로그인에 실패했습니다.');
+        window.location.assign(next && next.startsWith('/') ? next : '/');
+        return; // busy 유지(버튼 '확인 중…') — 페이지가 언로드될 때까지
       }
+      const j = await r.json().catch(() => ({}));
+      setErr(j.error || '로그인에 실패했습니다.');
+      setBusy(false);
     } catch {
       setErr('네트워크 오류가 발생했습니다.');
-    } finally {
       setBusy(false);
     }
   };
