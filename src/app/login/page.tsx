@@ -1,8 +1,11 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { DashboardSkeleton } from '@/components/DashboardSkeleton';
 
 export default function LoginPage() {
+  const router = useRouter();
   const [id, setId] = useState('');
   const [pw, setPw] = useState('');
   const [err, setErr] = useState('');
@@ -19,12 +22,11 @@ export default function LoginPage() {
         body: JSON.stringify({ id, pw }),
       });
       if (r.ok) {
-        // 하드 내비게이션: 응답 즉시 로그인 페이지를 떠나고 '/'를 새로 로드한다.
-        // (dash) 레이아웃이 스트리밍되며 loading.tsx 스켈레톤이 먼저 뜬다.
-        // (router.replace 소프트 내비는 목적지가 다 그려질 때까지 현재 페이지에 머물러 멈춘 것처럼 보였음)
+        // SPA 소프트 전환(풀 리로드 없음). 로그인 화면은 busy=true 동안 아래에서 대시보드 스켈레톤을
+        // 그리고, router.replace로 '/'가 준비되면 자연스럽게 교체된다(언로드될 때까지 스켈레톤 유지).
         const next = new URLSearchParams(window.location.search).get('next');
-        window.location.assign(next && next.startsWith('/') ? next : '/');
-        return; // busy 유지(버튼 '확인 중…') — 페이지가 언로드될 때까지
+        router.replace(next && next.startsWith('/') ? next : '/');
+        return; // busy 유지 — 대시보드가 커밋될 때까지 스켈레톤 표시
       }
       const j = await r.json().catch(() => ({}));
       setErr(j.error || '로그인에 실패했습니다.');
@@ -34,6 +36,9 @@ export default function LoginPage() {
       setBusy(false);
     }
   };
+
+  // 로그인 성공 후 전환 중에는 폼 대신 대시보드 스켈레톤을 보여준다(멈춤·풀리로드 없이 매끄럽게).
+  if (busy && !err) return <DashboardSkeleton />;
 
   const input: React.CSSProperties = {
     width: '100%', boxSizing: 'border-box', background: 'var(--c-w04)', border: '1px solid var(--c-w10)',
