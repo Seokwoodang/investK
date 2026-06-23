@@ -1,6 +1,6 @@
 import 'server-only';
 import { MACRO, NEWS, BRIEFING, STOCKS } from '@/data';
-import type { Currency, DashboardData, FxRow, IndexRow, MacroEvent, Stock, UniverseRow } from '@/types';
+import type { AssetSummary, Currency, DashboardData, FxRow, IndexRow, MacroEvent, Stock, Stocks, TabId, UniverseRow } from '@/types';
 import { has } from './env';
 import { getIndexQuotes, type IndexSpec } from './providers/kis';
 import { getUpbitUniverse } from './providers/upbit';
@@ -16,22 +16,43 @@ import { getKrStockUniverse, getUsStockUniverse, type KrUniverseRow } from './pr
 //
 // 실연동: 주식·코인 유니버스(네이버/업비트/바이낸스), 지수(KIS), 환율(frankfurter), DXY(Yahoo),
 // 경제 캘린더(Nasdaq), 뉴스(RSS+AI). 키 없으면 각 영역 mock 폴백.
-export async function getDashboardData(): Promise<DashboardData> {
-  const [krStocks, usStocks, krCoins, globalCoins, fx, indices, events] = await Promise.all([
+// 전 종목 유니버스(주식·코인). 무겁다(수천 행) — 첫 페이로드엔 싣지 않고 /api/universe로 클라가 별도 로드.
+export async function getUniverse(): Promise<Stocks> {
+  const [krStocks, usStocks, krCoins, globalCoins] = await Promise.all([
     withKrUniverse(),
     withUniverse(getUsStockUniverse, '$', STOCKS.us_stock),
     withUniverse(getUpbitUniverse, '₩', STOCKS.kr_coin),
     withUniverse(getBinanceUniverse, '$', STOCKS.global_coin),
+  ]);
+  return { ...STOCKS, kr_stock: krStocks, us_stock: usStocks, kr_coin: krCoins, global_coin: globalCoins };
+}
+
+// 자산군 카드용 집계(전체 유니버스 기준). 전 종목 배열 대신 이 작은 요약만 첫 페이로드로 보낸다.
+function summarize(arr: Stock[]): AssetSummary {
+  if (!arr.length) return { count: 0, avgPct: 0, top: null };
+  const avg = arr.reduce((s, x) => s + x.pct, 0) / arr.length;
+  const top = arr.reduce((m, x) => (x.pct > m.pct ? x : m), arr[0]);
+  return { count: arr.length, avgPct: avg, top: { name: top.name, pct: top.pct } };
+}
+
+export async function getDashboardData(): Promise<DashboardData> {
+  const [universe, fx, indices, events] = await Promise.all([
+    getUniverse(),
     withFxLive(MACRO.fx),
     withIndicesLive(MACRO.indices),
     withCalendarLive(MACRO.events),
   ]);
 
+  const tabs = Object.keys(universe) as TabId[];
+  const assetSummary = Object.fromEntries(tabs.map((t) => [t, summarize(universe[t])])) as Record<TabId, AssetSummary>;
+
   return {
     macro: { ...MACRO, fx, indices, events },
     news: NEWS,
     briefing: BRIEFING,
-    stocks: { ...STOCKS, kr_stock: krStocks, us_stock: usStocks, kr_coin: krCoins, global_coin: globalCoins },
+    // 첫 페이로드는 큐레이션 소수만(~5.9MB → 수십 KB). 전체 유니버스는 클라가 /api/universe로 채운다.
+    stocks: STOCKS,
+    assetSummary,
   };
 }
 

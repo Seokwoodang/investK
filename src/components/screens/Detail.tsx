@@ -284,7 +284,14 @@ export function Detail({ id }: { id: string }) {
     };
   }, [selId, state.detailTab]);
 
-  if (!sel) return null;
+  // 직접 진입/새로고침 시 전체 유니버스(/api/universe)가 아직 도착 전이라 종목을 못 찾을 수 있다 → 잠깐 로딩 표시.
+  if (!sel) {
+    return (
+      <div style={{ padding: '80px 24px', textAlign: 'center', color: 'var(--c-tx5)', fontSize: 14 }}>
+        종목 정보를 불러오는 중…
+      </div>
+    );
+  }
 
   const ai = aiPerspective ?? sel.ai;
 

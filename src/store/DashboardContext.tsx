@@ -20,6 +20,7 @@ import type {
   Period,
   SortDir,
   SortKey,
+  Stocks,
   TabId,
 } from '../types';
 
@@ -149,6 +150,23 @@ function load<T>(key: string, fallback: T, guard: (v: unknown) => boolean): T {
 export function DashboardProvider({ data, children }: { data: DashboardData; children: ReactNode }) {
   const router = useRouter();
   const [state, setState] = useState<DashboardState>(() => makeInitial(data));
+  // 첫 페이로드엔 큐레이션 소수만 들어온다(HTML 경량화). 전체 유니버스는 마운트 후 한 번 받아 채운다.
+  const [stocks, setStocks] = useState<Stocks>(data.stocks);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/universe')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j: Stocks | null) => {
+        if (!cancelled && j && j.kr_stock) setStocks(j);
+      })
+      .catch(() => {
+        /* 실패 시 큐레이션 목록 유지(검색은 /api/resolve 원격 폴백으로 동작) */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Hydrate persisted watchlist + alerts + 큰글씨 + 실제 오늘 날짜(클라이언트 기준) on mount.
   useEffect(() => {
@@ -293,7 +311,9 @@ export function DashboardProvider({ data, children }: { data: DashboardData; chi
       }),
   }), [patch, router]);
 
-  const value = useMemo(() => ({ state, actions, data }), [state, actions, data]);
+  // 컨텍스트로 노출하는 data는 클라가 채운 전체 유니버스(stocks)로 덮어쓴다. macro/news/briefing/assetSummary는 서버 값 유지.
+  const mergedData = useMemo<DashboardData>(() => ({ ...data, stocks }), [data, stocks]);
+  const value = useMemo(() => ({ state, actions, data: mergedData }), [state, actions, mergedData]);
   return <DashboardCtx.Provider value={value}>{children}</DashboardCtx.Provider>;
 }
 

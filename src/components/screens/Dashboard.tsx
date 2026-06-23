@@ -48,7 +48,7 @@ function MacroCard({ title, rows, source }: { title: string; rows: { label: stri
 export function Dashboard() {
   const { vw, layout } = useViewportLayout();
   const { state, actions, data } = useDashboard();
-  const { macro, stocks } = data;
+  const { macro, assetSummary } = data;
   const weeks = buildCalendar(state.calEvents, vw, state.calYear, state.calMonth, state.today);
   const monthLabel = `${state.calYear}년 ${state.calMonth + 1}월`;
 
@@ -64,9 +64,10 @@ export function Dashboard() {
         <h2 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 700 }}>자산군 현황</h2>
         <div style={{ display: 'grid', gridTemplateColumns: layout.assetCols, gap: 16 }}>
           {TAB_LABELS.map((t) => {
-            const arr = stocks[t.id];
-            const avg = arr.reduce((s, x) => s + x.pct, 0) / arr.length;
-            const top = arr.reduce((m, x) => (x.pct > m.pct ? x : m), arr[0]);
+            // 전체 유니버스 기준 집계는 서버가 미리 계산해 보낸다(전 종목 배열을 클라로 안 보냄).
+            const sum = assetSummary[t.id];
+            const avg = sum.avgPct;
+            const top = sum.top;
             return (
               <button
                 key={t.id}
@@ -76,15 +77,17 @@ export function Dashboard() {
               >
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
                   <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--c-tx1b)' }}>{t.label}</span>
-                  <span style={{ fontSize: 12, color: 'var(--c-tx6)' }}>{arr.length}종목</span>
+                  <span style={{ fontSize: 12, color: 'var(--c-tx6)' }}>{sum.count.toLocaleString('ko-KR')}종목</span>
                 </div>
                 <div style={{ fontSize: 12, color: 'var(--c-tx5)', marginBottom: 4 }}>평균 등락</div>
                 <div style={{ fontSize: 26, fontWeight: 800, letterSpacing: '-0.01em', color: upColor(avg) }}>{fmtPct(avg)}</div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--c-w06)' }}>
-                  <span style={{ fontSize: 12, color: 'var(--c-tx6)' }}>상위</span>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--c-tx3)' }}>{top.name}</span>
-                  <span style={{ fontSize: 13, fontWeight: 700, marginLeft: 'auto', color: upColor(top.pct) }}>{fmtPct(top.pct)}</span>
-                </div>
+                {top && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--c-w06)' }}>
+                    <span style={{ fontSize: 12, color: 'var(--c-tx6)' }}>상위</span>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--c-tx3)' }}>{top.name}</span>
+                    <span style={{ fontSize: 13, fontWeight: 700, marginLeft: 'auto', color: upColor(top.pct) }}>{fmtPct(top.pct)}</span>
+                  </div>
+                )}
               </button>
             );
           })}

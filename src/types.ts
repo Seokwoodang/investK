@@ -134,11 +134,19 @@ export interface UniverseRow {
 
 // The full data payload the server assembles and hands to the client shell.
 // Glossary stays bundled client-side (static reference data).
+// 대시보드 '자산군 현황' 카드용 서버 집계(전체 유니버스 기준). 전 종목 배열을 클라로 안 보내려고 미리 계산.
+export interface AssetSummary {
+  count: number;
+  avgPct: number;
+  top: { name: string; pct: number } | null;
+}
+
 export interface DashboardData {
   macro: Macro;
   news: News;
   briefing: Briefing;
-  stocks: Stocks;
+  stocks: Stocks; // 초기엔 큐레이션 소수만, 클라이언트가 /api/universe로 전체를 채운다.
+  assetSummary: Record<TabId, AssetSummary>;
 }
 
 export interface Candle {
