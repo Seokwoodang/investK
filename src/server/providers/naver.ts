@@ -54,34 +54,37 @@ function toRows(stocks: NaverStock[]): KrUniverseRow[] {
 }
 
 export async function getKrStockUniverse(): Promise<KrUniverseRow[]> {
-  const out: KrUniverseRow[] = [];
-  for (const mkt of ['KOSPI', 'KOSDAQ'] as const) {
+  // KOSPI·KOSDAQ를 동시에(병렬) 수집 — 두 시장 사이 직렬 대기 제거.
+  const fetchMarket = async (mkt: 'KOSPI' | 'KOSDAQ'): Promise<KrUniverseRow[]> => {
+    const rows: KrUniverseRow[] = [];
     let first;
     try {
       first = await fetchPage(mkt, 1);
     } catch {
-      continue; // 이 거래소 1페이지 실패 → 건너뜀(전체 폴백 방지)
+      return rows; // 1페이지 실패 → 이 시장 스킵(전체 폴백 방지)
     }
-    out.push(...toRows(first.stocks));
+    rows.push(...toRows(first.stocks));
     const pages = Math.ceil(first.totalCount / 100);
     const rest: number[] = [];
     for (let p = 2; p <= pages; p++) rest.push(p);
-    // 6개씩 병렬, 일부 페이지 실패는 무시(allSettled) — 한 페이지 때문에 전체가 죽지 않게.
     for (let i = 0; i < rest.length; i += 6) {
-      const batch = rest.slice(i, i + 6);
-      const results = await Promise.allSettled(batch.map((p) => fetchPage(mkt, p)));
+      const results = await Promise.allSettled(rest.slice(i, i + 6).map((p) => fetchPage(mkt, p)));
       results.forEach((r) => {
-        if (r.status === 'fulfilled') out.push(...toRows(r.value.stocks));
+        if (r.status === 'fulfilled') rows.push(...toRows(r.value.stocks));
       });
     }
-  }
-  return out;
+    return rows;
+  };
+  const [kospi, kosdaq] = await Promise.all([fetchMarket('KOSPI'), fetchMarket('KOSDAQ')]);
+  return [...kospi, ...kosdaq];
 }
 
 // 해외주식(미국) 전 종목: 네이버 NASDAQ+NYSE 일괄 시세(지연 ~15분). 이름 한국어 제공.
 export async function getUsStockUniverse(): Promise<import('@/types').UniverseRow[]> {
-  const out: import('@/types').UniverseRow[] = [];
-  for (const ex of ['NASDAQ', 'NYSE'] as const) {
+  type Row = import('@/types').UniverseRow;
+  // NASDAQ·NYSE를 동시에(병렬) 수집 — 두 거래소 사이 직렬 대기 제거.
+  const fetchExchange = async (ex: 'NASDAQ' | 'NYSE'): Promise<Row[]> => {
+    const rows: Row[] = [];
     const base = `https://api.stock.naver.com/stock/exchange/${ex}/marketValue`;
     const get = async (page: number) => {
       const res = await fetch(`${base}?page=${page}&pageSize=100`, {
@@ -97,25 +100,26 @@ export async function getUsStockUniverse(): Promise<import('@/types').UniverseRo
         const sign = s.compareToPreviousPrice?.code;
         if ((sign === '4' || sign === '5') && pct > 0) pct = -pct;
         const code = s.symbolCode ?? s.itemCode;
-        if (code && num(s.closePrice) > 0) out.push({ id: code, name: s.stockName, ticker: code, price: num(s.closePrice), pct, vol: tradeValue(s) });
+        if (code && num(s.closePrice) > 0) rows.push({ id: code, name: s.stockName, ticker: code, price: num(s.closePrice), pct, vol: tradeValue(s) });
       });
     let first;
     try {
       first = await get(1);
     } catch {
-      continue; // 이 거래소 1페이지 실패 → 건너뜀(전체 폴백 방지)
+      return rows; // 1페이지 실패 → 이 거래소 스킵(전체 폴백 방지)
     }
     push(first.stocks);
     const pages = Math.min(60, Math.ceil(first.totalCount / 100));
     const rest: number[] = [];
     for (let p = 2; p <= pages; p++) rest.push(p);
     for (let i = 0; i < rest.length; i += 8) {
-      const batch = rest.slice(i, i + 8);
-      const results = await Promise.allSettled(batch.map((p) => get(p)));
+      const results = await Promise.allSettled(rest.slice(i, i + 8).map((p) => get(p)));
       results.forEach((r) => {
         if (r.status === 'fulfilled') push(r.value.stocks);
       });
     }
-  }
-  return out;
+    return rows;
+  };
+  const [nasdaq, nyse] = await Promise.all([fetchExchange('NASDAQ'), fetchExchange('NYSE')]);
+  return [...nasdaq, ...nyse];
 }
