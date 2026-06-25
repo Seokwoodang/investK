@@ -28,10 +28,44 @@ interface Evaluation {
   perStock: { name: string; comment: string }[];
   rebalance: string[];
 }
-interface SellSignal { level: 'high' | 'mid' | 'info'; text: string }
-interface SellResult {
-  code: string; name: string; verdict: 'hold' | 'watch' | 'review'; signals: SellSignal[];
+interface SellSignal { level: 'high' | 'mid' | 'info'; text: string; who: string; principle: string; detail: string }
+interface SellFundamental {
+  code: string; name: string; signals: SellSignal[];
   per: number | null; pbr: number | null; roe: number | null; debtRatio: number | null; target: number | null; upside: number | null;
+}
+interface SellConfig { stopLoss: number; takeProfit: number; maxWeight: number; trailingOn: boolean; trailing: number }
+
+const SELL_CFG_KEY = 'sell_cfg';
+const SELL_PEAK_KEY = 'sell_peaks';
+const DEFAULT_CFG: SellConfig = { stopLoss: -20, takeProfit: 50, maxWeight: 25, trailingOn: false, trailing: 20 };
+const PRESETS: { key: string; label: string; cfg: Partial<SellConfig> }[] = [
+  { key: 'oneill', label: '오닐 공격형 (-8% / +20%)', cfg: { stopLoss: -8, takeProfit: 20, maxWeight: 25 } },
+  { key: 'graham', label: '보수·장기 (-20% / +50%)', cfg: { stopLoss: -20, takeProfit: 50, maxWeight: 25 } },
+];
+const VERDICT: Record<'hold' | 'watch' | 'review', { label: string; color: string }> = {
+  review: { label: '점검 필요', color: 'var(--c-down)' },
+  watch: { label: '관찰', color: 'var(--c-warn)' },
+  hold: { label: '보유 유지', color: 'var(--c-up)' },
+};
+const RANK = { review: 0, watch: 1, hold: 2 };
+const sigColor = (l: SellSignal['level']) => (l === 'high' ? 'var(--c-down)' : l === 'mid' ? 'var(--c-warn)' : 'var(--c-tx4)');
+
+// 임계값 기반 신호(손절·익절·비중·트레일링) — 사용자 설정으로 클라에서 즉시 계산. 각 신호에 대가 원칙 메타.
+function thresholdSignals(plPct: number, price: number, weight: number, cfg: SellConfig, peak: number): SellSignal[] {
+  const out: SellSignal[] = [];
+  const pl = Math.round(plPct);
+  if (plPct <= cfg.stopLoss)
+    out.push({ level: 'high', text: `손절 라인(${cfg.stopLoss}%) 도달 — 현재 ${pl}%`, who: '윌리엄 오닐 · 리버모어', principle: '손절 라인 (1원칙)', detail: '오닐의 첫 번째 원칙: 정해둔 손실선(-7~8%)에서 예외 없이 매도해 큰 손실을 막습니다. "손실은 짧게, 수익은 길게"(리버모어). 예측이 아니라 리스크 관리 규칙이에요.' });
+  if (plPct >= cfg.takeProfit)
+    out.push({ level: 'mid', text: `평단 대비 +${pl}% — 목표 수익(${cfg.takeProfit}%) 도달`, who: '윌리엄 오닐', principle: '목표 수익 실현', detail: '오닐은 주도주를 보통 +20~25% 구간에서 차익실현합니다(단, 돌파 후 3주 내 급등한 주도주는 최소 8주 홀드). 욕심에 되돌림을 맞지 않으려는 규칙입니다.' });
+  if (weight > cfg.maxWeight)
+    out.push({ level: 'mid', text: `비중 ${Math.round(weight)}% 과다 (상한 ${cfg.maxWeight}%)`, who: '분산 · 리밸런싱', principle: '비중 상한', detail: '한 종목 비중이 과하면 그 종목의 리스크가 포트폴리오 전체를 흔듭니다. 일부를 덜어 분산하세요(리밸런싱). 버핏은 집중을 선호하지만, 일반 투자자에겐 비중 관리가 안전판입니다.' });
+  if (cfg.trailingOn && peak > 0 && price < peak) {
+    const dd = (price / peak - 1) * 100;
+    if (dd <= -cfg.trailing)
+      out.push({ level: 'high', text: `트레일링 스톱 — 고점 대비 ${dd.toFixed(0)}% (기준 -${cfg.trailing}%)`, who: '추세추종 · 리버모어', principle: '트레일링 스톱', detail: '고점 대비 일정 % 하락하면 매도해 수익을 보호하면서 추세는 끝까지 탑니다. ⚠️ 이 앱은 "보유 후 앱에서 본 가격"의 고점만 기록하므로 근사치입니다(앱을 자주 열수록 정확).' });
+  }
+  return out;
 }
 
 export function Portfolio() {
@@ -137,41 +171,64 @@ export function Portfolio() {
       .finally(() => setLoading(false));
   };
 
-  // ── 매도 점검 (규칙 기반) ──
-  const [sell, setSell] = useState<SellResult[] | null>(null);
+  // ── 매도 점검 ── 펀더멘털(목표가·퀄리티)은 서버, 임계값(손절·익절·비중·트레일링)은 클라에서 즉시 계산.
+  const [sellFund, setSellFund] = useState<SellFundamental[] | null>(null);
   const [sellLoading, setSellLoading] = useState(false);
+  const [cfg, setCfg] = useState<SellConfig>(DEFAULT_CFG);
+  const [peaks, setPeaks] = useState<Record<string, number>>({});
+  const [expanded, setExpanded] = useState<string | null>(null);
   const rowsRef = useRef(rows); rowsRef.current = rows;
-  const totalRef = useRef(totalKrw); totalRef.current = totalKrw;
   const sig = holdings.map((h) => `${h.id}:${h.qty}:${h.avg}`).join('|');
   const ready = holdings.length > 0 && totalKrw > 0;
+
+  // 설정·고점 로드(localStorage)
   useEffect(() => {
-    if (!holdings.length) { setSell(null); return; }
-    if (!ready) return; // 가격 로딩 대기
-    let cancelled = false;
-    setSellLoading(true);
-    const tot = totalRef.current;
-    const payload = rowsRef.current.map((r) => ({
-      code: r.id, tab: r.tab, name: r.name, plPct: r.plPct,
-      weight: tot > 0 ? (r.valueKrw / tot) * 100 : 0, price: r.price, cur: r.cur,
-    }));
+    try { const c = JSON.parse(localStorage.getItem(SELL_CFG_KEY) || 'null'); if (c) setCfg({ ...DEFAULT_CFG, ...c }); } catch { /* ignore */ }
+    try { const p = JSON.parse(localStorage.getItem(SELL_PEAK_KEY) || 'null'); if (p) setPeaks(p); } catch { /* ignore */ }
+  }, []);
+  const saveCfg = (c: SellConfig) => { setCfg(c); try { localStorage.setItem(SELL_CFG_KEY, JSON.stringify(c)); } catch { /* ignore */ } };
+
+  // 트레일링용 고점 추적 — 보유 종목 현재가의 최고치 기록(앱에서 본 가격 기준 근사).
+  useEffect(() => {
+    if (!ready) return;
+    setPeaks((prev) => {
+      let changed = false; const next = { ...prev };
+      rowsRef.current.forEach((r) => { if (r.price > (next[r.id] ?? 0)) { next[r.id] = r.price; changed = true; } });
+      if (!changed) return prev;
+      try { localStorage.setItem(SELL_PEAK_KEY, JSON.stringify(next)); } catch { /* ignore */ }
+      return next;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sig, ready, totalKrw]);
+
+  // 서버 펀더멘털 신호 fetch
+  useEffect(() => {
+    if (!holdings.length) { setSellFund(null); return; }
+    if (!ready) return;
+    let cancelled = false; setSellLoading(true);
+    const payload = rowsRef.current.map((r) => ({ code: r.id, tab: r.tab, name: r.name, price: r.price, cur: r.cur }));
     fetch('/api/sell-check', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ holdings: payload }) })
       .then((r) => (r.ok ? r.json() : null))
-      .then((j) => { if (!cancelled) setSell((j?.results as SellResult[]) ?? []); })
-      .catch(() => { if (!cancelled) setSell([]); })
+      .then((j) => { if (!cancelled) setSellFund((j?.results as SellFundamental[]) ?? []); })
+      .catch(() => { if (!cancelled) setSellFund([]); })
       .finally(() => { if (!cancelled) setSellLoading(false); });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sig, ready]);
 
-  const VERDICT: Record<SellResult['verdict'], { label: string; color: string }> = {
-    review: { label: '점검 필요', color: 'var(--c-down)' },
-    watch: { label: '관찰', color: 'var(--c-warn)' },
-    hold: { label: '보유 유지', color: 'var(--c-up)' },
-  };
-  const sigColor = (l: SellSignal['level']) => (l === 'high' ? 'var(--c-down)' : l === 'mid' ? 'var(--c-warn)' : 'var(--c-tx4)');
-  const rank = { review: 0, watch: 1, hold: 2 };
-  const sellSorted = sell ? [...sell].sort((a, b) => rank[a.verdict] - rank[b.verdict]) : [];
-  const sellCounts = sell ? sell.reduce((acc, s) => ((acc[s.verdict] = (acc[s.verdict] || 0) + 1), acc), {} as Record<string, number>) : {};
+  // 임계값 신호 + 서버 펀더멘털 신호 병합 → 종목별 판정.
+  const fundByCode = new Map((sellFund ?? []).map((f) => [f.code, f]));
+  const sellRows = ready
+    ? [...rows].map((r) => {
+        const weight = totalKrw > 0 ? (r.valueKrw / totalKrw) * 100 : 0;
+        const f = fundByCode.get(r.id);
+        const signals = [...thresholdSignals(r.plPct, r.price, weight, cfg, peaks[r.id] ?? 0), ...(f?.signals ?? [])];
+        const verdict: 'hold' | 'watch' | 'review' = signals.some((s) => s.level === 'high') ? 'review' : signals.length ? 'watch' : 'hold';
+        return { r, f, signals, verdict };
+      }).sort((a, b) => RANK[a.verdict] - RANK[b.verdict])
+    : [];
+  const sellCounts = sellRows.reduce((acc, s) => ((acc[s.verdict] = (acc[s.verdict] || 0) + 1), acc), {} as Record<string, number>);
+  const cfgActivePreset = PRESETS.find((p) => p.cfg.stopLoss === cfg.stopLoss && p.cfg.takeProfit === cfg.takeProfit && p.cfg.maxWeight === cfg.maxWeight)?.key;
 
   const krw = (v: number) => '₩' + Math.round(v).toLocaleString('ko-KR');
 
@@ -289,53 +346,95 @@ export function Portfolio() {
             </div>
           </div>
 
-          {/* 매도 점검 (규칙 기반) */}
+          {/* 매도 점검 */}
           <div style={{ ...CARD, padding: 24, marginBottom: 16 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
               <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.06em', padding: '3px 9px', borderRadius: 6, background: 'var(--c-am16)', color: 'var(--c-warn)' }}>매도 점검</span>
-              <span style={{ fontSize: 13, color: 'var(--c-tx5)' }}>손절·익절·비중·목표가·퀄리티 신호 (예측 아님, 점검용)</span>
-              {sell && (
+              <span style={{ fontSize: 13, color: 'var(--c-tx5)' }}>대가들의 매도 원칙으로 점검 · 신호를 누르면 근거 설명</span>
+              {sellFund && (
                 <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--c-tx5)' }}>
                   점검필요 <b style={{ color: 'var(--c-down)' }}>{sellCounts.review || 0}</b> · 관찰 <b style={{ color: 'var(--c-warn)' }}>{sellCounts.watch || 0}</b> · 보유 <b style={{ color: 'var(--c-up)' }}>{sellCounts.hold || 0}</b>
                 </span>
               )}
             </div>
-            {!sell && sellLoading && (
+
+            {/* 설정: 프리셋 + 직접 조절 + 트레일링 */}
+            <div style={{ background: 'var(--c-w04)', border: '1px solid var(--c-w07)', borderRadius: 12, padding: 14, marginBottom: 14, display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--c-tx5)' }}>프리셋</span>
+                {PRESETS.map((p) => {
+                  const on = cfgActivePreset === p.key;
+                  return (
+                    <button key={p.key} onClick={() => saveCfg({ ...cfg, ...p.cfg })}
+                      style={{ cursor: 'pointer', fontFamily: 'inherit', fontSize: 12, fontWeight: 700, padding: '5px 11px', borderRadius: 8, border: `1px solid ${on ? 'var(--c-cy45)' : 'var(--c-w08)'}`, background: on ? 'var(--c-cy16)' : 'var(--c-w05)', color: on ? 'var(--c-accyanbr)' : 'var(--c-tx5)' }}>{p.label}</button>
+                  );
+                })}
+              </div>
+              <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center', fontSize: 12, color: 'var(--c-tx4)' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>손절 <input type="number" value={cfg.stopLoss} onChange={(e) => saveCfg({ ...cfg, stopLoss: Number(e.target.value) })} style={{ ...inputStyle, width: 64, padding: '5px 8px' }} /> %</label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>익절 +<input type="number" value={cfg.takeProfit} onChange={(e) => saveCfg({ ...cfg, takeProfit: Number(e.target.value) })} style={{ ...inputStyle, width: 64, padding: '5px 8px' }} /> %</label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>비중 상한 <input type="number" value={cfg.maxWeight} onChange={(e) => saveCfg({ ...cfg, maxWeight: Number(e.target.value) })} style={{ ...inputStyle, width: 64, padding: '5px 8px' }} /> %</label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+                  <input type="checkbox" checked={cfg.trailingOn} onChange={(e) => saveCfg({ ...cfg, trailingOn: e.target.checked })} />
+                  트레일링 스톱 고점 -<input type="number" value={cfg.trailing} onChange={(e) => saveCfg({ ...cfg, trailing: Number(e.target.value) })} style={{ ...inputStyle, width: 60, padding: '5px 8px' }} disabled={!cfg.trailingOn} /> %
+                </label>
+              </div>
+            </div>
+
+            {!sellFund && sellLoading && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 0', color: 'var(--c-tx5)', fontSize: 14 }}>
                 <span className="skeleton-pulse" style={{ width: 9, height: 9, borderRadius: '50%', background: 'var(--c-warn)' }} />
                 보유 종목의 매도 신호를 점검하는 중입니다…
               </div>
             )}
-            {sell && (
+
+            {sellFund && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {sellSorted.map((s) => {
-                  const v = VERDICT[s.verdict];
+                {sellRows.map(({ r, f, signals, verdict }) => {
+                  const v = VERDICT[verdict];
                   return (
-                    <div key={s.code} style={{ background: 'var(--c-w04)', border: '1px solid var(--c-w07)', borderRadius: 12, padding: 14, borderLeft: `3px solid ${v.color}` }}>
+                    <div key={r.id} style={{ background: 'var(--c-w04)', border: '1px solid var(--c-w07)', borderRadius: 12, padding: 14, borderLeft: `3px solid ${v.color}` }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                        <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--c-tx1)' }}>{s.name}</span>
+                        <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--c-tx1)' }}>{r.name}</span>
                         <span style={{ fontSize: 11, fontWeight: 800, padding: '2px 8px', borderRadius: 6, color: v.color, background: 'color-mix(in srgb, ' + v.color + ' 16%, transparent)' }}>{v.label}</span>
+                        <span style={{ fontSize: 11, fontWeight: 600, color: upColor(r.plPct) }}>{fmtPct(r.plPct)}</span>
                         <span style={{ marginLeft: 'auto', display: 'flex', gap: 12, fontSize: 11, color: 'var(--c-tx6)', flexWrap: 'wrap' }}>
-                          {s.per != null && <span>PER {s.per.toFixed(1)}</span>}
-                          {s.pbr != null && <span>PBR {s.pbr.toFixed(2)}</span>}
-                          {s.roe != null && <span>ROE {s.roe.toFixed(0)}%</span>}
-                          {s.debtRatio != null && <span>부채 {s.debtRatio.toFixed(0)}%</span>}
-                          {s.upside != null && <span style={{ color: upColor(s.upside) }}>목표가 {fmtPct(s.upside)}</span>}
+                          {f?.per != null && <span>PER {f.per.toFixed(1)}</span>}
+                          {f?.roe != null && <span>ROE {f.roe.toFixed(0)}%</span>}
+                          {f?.debtRatio != null && <span>부채 {f.debtRatio.toFixed(0)}%</span>}
+                          {f?.upside != null && <span style={{ color: upColor(f.upside) }}>목표가 {fmtPct(f.upside)}</span>}
                         </span>
                       </div>
-                      {s.signals.length > 0 ? (
-                        <ul style={{ margin: '10px 0 0', paddingLeft: 16, display: 'flex', flexDirection: 'column', gap: 5 }}>
-                          {s.signals.map((sg, i) => (
-                            <li key={i} style={{ fontSize: 12.5, lineHeight: 1.5, color: sigColor(sg.level) }}>{sg.text}</li>
-                          ))}
-                        </ul>
+                      {signals.length > 0 ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 10 }}>
+                          {signals.map((sg, i) => {
+                            const key = `${r.id}:${i}`;
+                            const open = expanded === key;
+                            return (
+                              <div key={i}>
+                                <button onClick={() => setExpanded(open ? null : key)}
+                                  style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', background: 'transparent', border: 'none', padding: '4px 0' }}>
+                                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: sigColor(sg.level), flexShrink: 0 }} />
+                                  <span style={{ fontSize: 12.5, fontWeight: 600, color: sigColor(sg.level) }}>{sg.text}</span>
+                                  <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--c-tx6)', whiteSpace: 'nowrap' }}>{sg.who} {open ? '▴' : '▾'}</span>
+                                </button>
+                                {open && (
+                                  <div style={{ margin: '4px 0 6px 14px', padding: 12, background: 'var(--c-w05)', borderRadius: 10, border: '1px solid var(--c-w07)' }}>
+                                    <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--c-tx2)', marginBottom: 4 }}>{sg.principle} · {sg.who}</div>
+                                    <div style={{ fontSize: 12.5, lineHeight: 1.6, color: 'var(--c-tx4)' }}>{sg.detail}</div>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
                       ) : (
                         <div style={{ marginTop: 8, fontSize: 12.5, color: 'var(--c-tx5)' }}>특이 매도 신호 없음 — 보유 유지 관점.</div>
                       )}
                     </div>
                   );
                 })}
-                <SourceNote text="매도 점검 — 규칙 기반(평단 수익률·비중·증권가 목표가·재무 추세) · 예측·투자자문이 아닌 점검 보조입니다." />
+                <SourceNote text="매도 점검 — 대가 원칙 기반(오닐·피셔·버핏·그레이엄·리버모어). 신호 클릭 시 근거 설명. 예측·투자자문이 아닌 점검 보조입니다." />
               </div>
             )}
           </div>
