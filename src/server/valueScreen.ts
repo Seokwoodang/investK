@@ -1,45 +1,76 @@
 import 'server-only';
 import { kvGet, kvSet } from './kv';
-import { getTopByMarketCap, getFundamentals, type Candidate, type Fundamentals } from './providers/naverFundamentals';
+import { getTopByMarketCap, getTopUsByMarketCap, getKrFinance, type Candidate } from './providers/naverFundamentals';
+import { getUsFundamentals } from './providers/yahoo';
+import type { Currency } from '@/types';
 
-// "저평가 우량주" 스크리너: 시총 상위 유니버스에 대해 밸류·퀄리티·환원을 각각 백분위 점수화하고
-// 가중합(밸류 0.4 + 퀄리티 0.4 + 환원 0.2)으로 종합 랭킹한다(마법공식류 복합 점수). 재무는 자주
-// 바뀌지 않으므로 하루 1회 precompute해 Supabase(kv_store)에 저장하고, 화면은 그 결과만 즉시 읽는다.
-//
-// 참고: ROE는 PBR/PER로 도출(EPS/BPS), 성장은 추정EPS/EPS(또는 PER/추정PER)로 근사. 적자(PER≤0)·
-// 이상치(PER>80)·핵심 결측은 제외(밸류 함정 회피). 투자 권유가 아니라 참고용 정량 스크린.
+// "저평가 우량주" 스크리너 v2 — 버핏·그레이엄·그린블라트 원칙을 4개 축으로 점수화.
+//   밸류 30%   (그레이엄·그린블라트): 이익수익률 1/PER + 순자산수익률 1/PBR
+//   퀄리티 35% (버핏·노비막스):       ROE + 순이익률
+//   안정성 20% (그레이엄·버핏):       부채비율↓ + 유동성(당좌/유동비율)
+//   환원·성장 15%:                    배당수익률 + 이익성장
+// 각 지표를 같은 시장 유니버스 내 백분위(0~100)로 환산해 가중합 → 종합 100점.
+// 적자(PER≤0)·이상치(PER>60)·과다부채(부채비율≥400%)·핵심결측은 제외(밸류 함정 회피).
+// 국내=네이버 재무제표(실측 ROE·부채비율·이익률) + 시세, 해외=야후 재무지표. 투자 권유 아님(참고용).
 
-const KEY = 'value_screen:kr';
-const UNIVERSE = 1000; // 시총 상위 N
-const POOL = 12; // 동시 요청 수(네이버 예의)
-const TOP = 80; // 화면 노출 상위
+export type Market = 'kr' | 'us';
+const KEY = (m: Market) => `value_screen:${m}`;
+const KR_N = 1000;
+const US_N = 300;
+const TOP = 80;
 
 export interface ScoredStock {
   code: string;
   name: string;
   price: number;
+  cur: Currency;
   marketCapText: string;
   per: number | null;
   fwdPer: number | null;
   pbr: number | null;
-  roe: number | null; // % (PBR/PER 도출)
-  divYield: number | null; // %
-  dps: number | null;
-  targetPrice: number | null;
-  upside: number | null; // 목표주가 대비 상승여력 %
+  roe: number | null;
+  netMargin: number | null;
+  debtRatio: number | null;
+  divYield: number | null;
+  target: number | null;
+  upside: number | null;
   recommMean: number | null;
-  valueScore: number; // 0-100
-  qualityScore: number; // 0-100
-  returnScore: number; // 0-100
-  score: number; // 0-100 종합
+  valueScore: number;
+  qualityScore: number;
+  safetyScore: number;
+  yieldScore: number;
+  score: number;
+  graham: boolean; // 그레이엄 안전마진 충족
+  buffett: boolean; // 버핏형 우량 충족
 }
 
 export interface ValueScreen {
-  date: string; // YYYY-MM-DD (생성일, KST)
-  generatedAt: string; // ISO
-  universe: number; // 평가에 사용된 종목 수
-  weights: { value: number; quality: number; ret: number };
+  market: Market;
+  date: string;
+  generatedAt: string;
+  universe: number;
+  weights: { value: number; quality: number; safety: number; yield: number };
   items: ScoredStock[];
+}
+
+// 종목별 통합 지표(시장 무관 공통 형태).
+interface Metrics {
+  code: string;
+  name: string;
+  price: number;
+  cur: Currency;
+  marketCapText: string;
+  per: number | null;
+  fwdPer: number | null;
+  pbr: number | null;
+  roe: number | null; // %
+  netMargin: number | null; // %
+  debtRatio: number | null; // %
+  liquidity: number | null; // 당좌/유동비율
+  divYield: number | null; // %
+  growth: number | null; // 이익성장 %
+  target: number | null;
+  recommMean: number | null;
 }
 
 async function pool<T, R>(items: T[], n: number, fn: (t: T) => Promise<R>): Promise<R[]> {
@@ -55,7 +86,7 @@ async function pool<T, R>(items: T[], n: number, fn: (t: T) => Promise<R>): Prom
   return out;
 }
 
-// 값이 클수록 좋은 지표 → 큰 값이 높은 백분위(0-100). null은 중립 50.
+// 값이 클수록 좋은 지표 → 큰 값이 높은 백분위(0~100). null은 중립 50.
 function percentiles(vals: (number | null)[]): number[] {
   const idx: { v: number; i: number }[] = [];
   vals.forEach((v, i) => v != null && Number.isFinite(v) && idx.push({ v, i }));
@@ -70,96 +101,93 @@ function percentiles(vals: (number | null)[]): number[] {
 const kstDate = () =>
   new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
 
-export async function buildValueScreen(): Promise<ValueScreen> {
-  const candidates = await getTopByMarketCap(UNIVERSE);
-  const funds = await pool<Candidate, Fundamentals | null>(candidates, POOL, (c) => getFundamentals(c.code));
-
-  // 후보 + 재무 결합 후 파생지표 계산.
-  type Row = Candidate & {
-    f: Fundamentals;
-    roe: number | null;
-    earnYield: number | null;
-    bookYield: number | null;
-    growth: number | null;
-    upside: number | null;
+async function krMetrics(c: Candidate): Promise<Metrics | null> {
+  const f = await getKrFinance(c.code);
+  if (!f) return null;
+  const price = c.price;
+  const per = f.eps && f.eps > 0 ? price / f.eps : null;
+  const pbr = f.bps && f.bps > 0 ? price / f.bps : null;
+  const fwdPer = f.fwdEps && f.fwdEps > 0 ? price / f.fwdEps : null;
+  const divYield = f.dps != null && price > 0 ? (f.dps / price) * 100 : null;
+  const growth = f.eps && f.eps > 0 && f.fwdEps != null ? (f.fwdEps / f.eps - 1) * 100 : null;
+  return {
+    code: c.code, name: c.name, price, cur: '₩', marketCapText: c.marketCapText,
+    per, fwdPer, pbr, roe: f.roe, netMargin: f.netMargin, debtRatio: f.debtRatio,
+    liquidity: f.quickRatio, divYield, growth, target: null, recommMean: null,
   };
-  const rows: Row[] = [];
-  candidates.forEach((c, k) => {
-    const f = funds[k];
-    if (!f) return;
-    const per = f.per;
-    const pbr = f.pbr;
-    // 적자·이상치·핵심 결측 제외 = 밸류 함정 회피.
-    if (per == null || per <= 0 || per > 80 || pbr == null || pbr <= 0) return;
-    const roe = (pbr / per) * 100;
-    const earnYield = 100 / per;
-    const bookYield = 1 / pbr;
-    const growth =
-      f.eps && f.eps > 0 && f.fwdEps != null
-        ? (f.fwdEps / f.eps - 1) * 100
-        : f.fwdPer && f.fwdPer > 0
-          ? (per / f.fwdPer - 1) * 100
-          : null;
-    const upside = f.targetPrice && c.price > 0 ? (f.targetPrice / c.price - 1) * 100 : null;
-    rows.push({ ...c, f, roe, earnYield, bookYield, growth, upside });
-  });
+}
 
-  // 백분위(높을수록 좋음).
-  const pEarn = percentiles(rows.map((r) => r.earnYield));
-  const pBook = percentiles(rows.map((r) => r.bookYield));
-  const pRoe = percentiles(rows.map((r) => r.roe));
+async function usMetrics(c: Candidate): Promise<Metrics | null> {
+  const f = await getUsFundamentals(c.code);
+  if (!f) return null;
+  const price = f.price ?? c.price;
+  const growth = f.per && f.per > 0 && f.fwdPer && f.fwdPer > 0 ? (f.per / f.fwdPer - 1) * 100 : null;
+  return {
+    code: c.code, name: c.name, price, cur: '$', marketCapText: c.marketCapText,
+    per: f.per, fwdPer: f.fwdPer, pbr: f.pbr, roe: f.roe, netMargin: f.netMargin,
+    debtRatio: f.debtToEquity, liquidity: f.currentRatio, divYield: f.divYield, growth,
+    target: f.target, recommMean: f.recommMean,
+  };
+}
+
+export async function buildValueScreen(market: Market): Promise<ValueScreen> {
+  const candidates = market === 'kr' ? await getTopByMarketCap(KR_N) : await getTopUsByMarketCap(US_N);
+  const raw = market === 'kr' ? await pool(candidates, 10, krMetrics) : await pool(candidates, 6, usMetrics);
+
+  // 함정 회피 게이트: 흑자 + 합리적 PER + 양수 ROE + 과다부채 제외 + 핵심지표 존재.
+  const rows = raw.filter(
+    (m): m is Metrics =>
+      !!m &&
+      m.per != null && m.per > 0 && m.per <= 60 &&
+      m.pbr != null && m.pbr > 0 &&
+      m.roe != null && m.roe > 0 &&
+      (m.debtRatio == null || m.debtRatio < 400),
+  );
+
+  const pEY = percentiles(rows.map((r) => (r.per ? 1 / r.per : null)));
+  const pBY = percentiles(rows.map((r) => (r.pbr ? 1 / r.pbr : null)));
+  const pROE = percentiles(rows.map((r) => r.roe));
+  const pMargin = percentiles(rows.map((r) => r.netMargin));
+  const pDebt = percentiles(rows.map((r) => (r.debtRatio == null ? null : -r.debtRatio))); // 부채 낮을수록 높은 점수
+  const pLiq = percentiles(rows.map((r) => r.liquidity));
+  const pDiv = percentiles(rows.map((r) => r.divYield ?? 0));
   const pGrowth = percentiles(rows.map((r) => r.growth));
-  const pDiv = percentiles(rows.map((r) => r.f.divYield ?? 0));
 
-  const w = { value: 0.4, quality: 0.4, ret: 0.2 };
+  const w = { value: 0.3, quality: 0.35, safety: 0.2, yield: 0.15 };
   const scored: ScoredStock[] = rows.map((r, k) => {
-    const valueScore = (pEarn[k] + pBook[k]) / 2;
-    const qualityScore = (pRoe[k] + pGrowth[k]) / 2;
-    const returnScore = pDiv[k];
-    const score = w.value * valueScore + w.quality * qualityScore + w.ret * returnScore;
+    const valueScore = (pEY[k] + pBY[k]) / 2;
+    const qualityScore = (pROE[k] + pMargin[k]) / 2;
+    const safetyScore = (pDebt[k] + pLiq[k]) / 2;
+    const yieldScore = (pDiv[k] + pGrowth[k]) / 2;
+    const score = w.value * valueScore + w.quality * qualityScore + w.safety * safetyScore + w.yield * yieldScore;
+    const per = r.per!, pbr = r.pbr!, roe = r.roe!;
+    const graham = per <= 15 && pbr <= 1.5 && per * pbr <= 22.5 && (r.debtRatio == null || r.debtRatio < 100) && roe >= 10;
+    const buffett = roe >= 15 && r.netMargin != null && r.netMargin >= 10 && (r.debtRatio == null || r.debtRatio < 100);
     return {
-      code: r.code,
-      name: r.name,
-      price: r.price,
-      marketCapText: r.marketCapText,
-      per: r.f.per,
-      fwdPer: r.f.fwdPer,
-      pbr: r.f.pbr,
-      roe: r.roe,
-      divYield: r.f.divYield,
-      dps: r.f.dps,
-      targetPrice: r.f.targetPrice,
-      upside: r.upside,
-      recommMean: r.f.recommMean,
-      valueScore: Math.round(valueScore),
-      qualityScore: Math.round(qualityScore),
-      returnScore: Math.round(returnScore),
-      score: Math.round(score * 10) / 10,
+      code: r.code, name: r.name, price: r.price, cur: r.cur, marketCapText: r.marketCapText,
+      per: r.per, fwdPer: r.fwdPer, pbr: r.pbr, roe: r.roe, netMargin: r.netMargin, debtRatio: r.debtRatio,
+      divYield: r.divYield, target: r.target, upside: r.target && r.price > 0 ? (r.target / r.price - 1) * 100 : null,
+      recommMean: r.recommMean,
+      valueScore: Math.round(valueScore), qualityScore: Math.round(qualityScore),
+      safetyScore: Math.round(safetyScore), yieldScore: Math.round(yieldScore),
+      score: Math.round(score * 10) / 10, graham, buffett,
     };
   });
   scored.sort((a, b) => b.score - a.score);
 
-  return {
-    date: kstDate(),
-    generatedAt: new Date().toISOString(),
-    universe: rows.length,
-    weights: w,
-    items: scored.slice(0, TOP),
-  };
+  return { market, date: kstDate(), generatedAt: new Date().toISOString(), universe: rows.length, weights: w, items: scored.slice(0, TOP) };
 }
 
-// cron 전용: 항상 새로 생성·저장.
-export async function refreshValueScreen(): Promise<number> {
-  const screen = await buildValueScreen();
-  await kvSet(KEY, screen);
+export async function refreshValueScreen(market: Market): Promise<number> {
+  const screen = await buildValueScreen(market);
+  await kvSet(KEY(market), screen);
   return screen.items.length;
 }
 
-// 화면용: 캐시 우선(오늘자면 즉시). 없거나 오래됐으면 생성·저장(콜드 1회만 느림).
-export async function getValueScreen(): Promise<ValueScreen> {
-  const cached = await kvGet<ValueScreen>(KEY);
+export async function getValueScreen(market: Market): Promise<ValueScreen> {
+  const cached = await kvGet<ValueScreen>(KEY(market));
   if (cached && cached.date === kstDate()) return cached;
-  const screen = await buildValueScreen();
-  await kvSet(KEY, screen);
+  const screen = await buildValueScreen(market);
+  await kvSet(KEY(market), screen);
   return screen;
 }

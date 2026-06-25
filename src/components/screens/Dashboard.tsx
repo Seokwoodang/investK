@@ -95,6 +95,32 @@ export function Dashboard() {
         <SourceNote text={SRC.assetStatus} style={{ marginTop: 14 }} />
       </div>
 
+      {/* Market sentiment gauges — VIX·금리·크립토 공포지수·김프 */}
+      {macro.market && (() => {
+        const gauges = [macro.market.vix, macro.market.ust10y, macro.market.cryptoFng, macro.market.kimchi].filter(Boolean);
+        if (!gauges.length) return null;
+        const toneColor = (t?: string) =>
+          t === 'fear' || t === 'down' ? 'var(--c-down)' : t === 'greed' || t === 'up' ? 'var(--c-up)' : 'var(--c-tx1b)';
+        return (
+          <div style={{ marginBottom: 36 }}>
+            <h2 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 700 }}>시장 심리 · 지표</h2>
+            <div style={{ display: 'grid', gridTemplateColumns: layout.assetCols, gap: 16 }}>
+              {gauges.map((g) => (
+                <div key={g!.label} title={g!.hint} style={{ ...CARD, padding: 20, cursor: g!.hint ? 'help' : 'default' }}>
+                  <div style={{ fontSize: 13, color: 'var(--c-tx5)' }}>{g!.label}</div>
+                  <div style={{ fontSize: 26, fontWeight: 800, letterSpacing: '-0.01em', color: toneColor(g!.tone), marginTop: 8 }}>{g!.value}</div>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 6 }}>
+                    {g!.sub && <span style={{ fontSize: 12, fontWeight: 700, color: toneColor(g!.tone) }}>{g!.sub}</span>}
+                    {g!.chg != null && <span style={{ fontSize: 12, fontWeight: 600, color: upColor(g!.chg) }}>{fmtPct(g!.chg)}</span>}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <SourceNote text="VIX·美10년물 — Yahoo Finance · 크립토 공포·탐욕 — alternative.me · 김치프리미엄 — 업비트/바이낸스" style={{ marginTop: 14 }} />
+          </div>
+        );
+      })()}
+
       {/* Macro briefing */}
       <div style={{ marginBottom: 36 }}>
         <h2 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 700 }}>오늘의 매크로 브리핑</h2>

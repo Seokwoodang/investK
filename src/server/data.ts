@@ -9,6 +9,7 @@ import { getFxQuotes } from './providers/frankfurter';
 import { getDxy } from './providers/yahoo';
 import { getEconomicCalendar } from './providers/nasdaqCalendar';
 import { getKrStockUniverse, getUsStockUniverse, type KrUniverseRow } from './providers/naver';
+import { getMarketIndicators } from './providers/marketIndicators';
 
 // Assembles the full dashboard payload. Each domain pulls from its real provider
 // when configured, and falls back to bundled mock data otherwise — so the app
@@ -46,8 +47,15 @@ export async function getDashboardData(): Promise<DashboardData> {
   const tabs = Object.keys(universe) as TabId[];
   const assetSummary = Object.fromEntries(tabs.map((t) => [t, summarize(universe[t])])) as Record<TabId, AssetSummary>;
 
+  // 시장 심리·지표(VIX·美10년물·크립토 공포지수·김프). 김프용 USD/KRW는 위에서 받은 fx에서 추출.
+  const usdkrw = (() => {
+    const row = fx.find((r) => /USD\s*\/\s*KRW/i.test(r.pair) || r.pair.includes('USD/KRW'));
+    return row ? Number(row.val.replace(/,/g, '')) || null : null;
+  })();
+  const market = await getMarketIndicators(usdkrw).catch(() => undefined);
+
   return {
-    macro: { ...MACRO, fx, indices, events },
+    macro: { ...MACRO, fx, indices, events, market },
     news: NEWS,
     briefing: BRIEFING,
     // 첫 페이로드는 큐레이션 소수만(~5.9MB → 수십 KB). 전체 유니버스는 클라가 /api/universe로 채운다.

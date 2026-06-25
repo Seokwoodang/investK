@@ -66,6 +66,88 @@ export async function getTopByMarketCap(limit: number): Promise<Candidate[]> {
     .slice(0, limit);
 }
 
+// 미국(나스닥+뉴욕) 시총 상위 N. code=심볼(AAPL 등, 야후/상세와 동일).
+export async function getTopUsByMarketCap(limit: number): Promise<Candidate[]> {
+  const pagesPerEx = Math.min(15, Math.ceil(limit / 100) + 3);
+  const fetchEx = async (ex: 'NASDAQ' | 'NYSE'): Promise<Candidate[]> => {
+    const out: Candidate[] = [];
+    const get = async (p: number) => {
+      const r = await fetch(`https://api.stock.naver.com/stock/exchange/${ex}/marketValue?page=${p}&pageSize=100`, { headers: UA, next: { revalidate: 3600 } });
+      if (!r.ok) throw new Error(`${ex} p${p} ${r.status}`);
+      return ((await r.json()).stocks ?? []) as (MvStock & { symbolCode?: string })[];
+    };
+    const nums = Array.from({ length: pagesPerEx }, (_, i) => i + 1);
+    for (let i = 0; i < nums.length; i += 6) {
+      const res = await Promise.allSettled(nums.slice(i, i + 6).map(get));
+      res.forEach((rr) => {
+        if (rr.status === 'fulfilled')
+          out.push(
+            ...rr.value.map((s) => ({
+              code: s.symbolCode ?? s.itemCode,
+              name: s.stockName,
+              price: pnum(s.closePrice) ?? 0,
+              marketCap: pnum(s.marketValue) ?? 0,
+              marketCapText: s.marketValueHangeul ?? '',
+            })),
+          );
+      });
+    }
+    return out;
+  };
+  const [nasdaq, nyse] = await Promise.all([fetchEx('NASDAQ'), fetchEx('NYSE')]);
+  return [...nasdaq, ...nyse].filter((c) => c.code && c.marketCap > 0).sort((a, b) => b.marketCap - a.marketCap).slice(0, limit);
+}
+
+// 국내 재무제표(연간) — 실측 ROE·부채비율·이익률 + EPS/BPS/주당배당금(최근 실적연도) + 컨센서스 EPS.
+export interface KrFinance {
+  roe: number | null; // %
+  netMargin: number | null; // 순이익률 %
+  debtRatio: number | null; // 부채비율 %
+  quickRatio: number | null; // 당좌비율
+  eps: number | null;
+  bps: number | null;
+  dps: number | null; // 주당배당금
+  fwdEps: number | null; // 컨센서스(추정) EPS
+}
+
+export async function getKrFinance(code: string): Promise<KrFinance | null> {
+  try {
+    const r = await fetch(`https://m.stock.naver.com/api/stock/${code}/finance/annual`, { headers: UA, next: { revalidate: 3600 } });
+    if (!r.ok) return null;
+    const j = (await r.json()) as {
+      financeInfo?: {
+        trTitleList?: { isConsensus?: string; key: string }[];
+        rowList?: { title: string; columns: Record<string, { value?: string }> }[];
+      };
+    };
+    const fi = j.financeInfo;
+    const titles = fi?.trTitleList ?? [];
+    const rows = fi?.rowList ?? [];
+    if (!titles.length || !rows.length) return null;
+    const actuals = titles.filter((t) => t.isConsensus !== 'Y').map((t) => t.key);
+    const latest = actuals[actuals.length - 1];
+    const consensus = titles.filter((t) => t.isConsensus === 'Y').map((t) => t.key).pop();
+    if (!latest) return null;
+    const val = (title: string, key?: string) => {
+      if (!key) return null;
+      const row = rows.find((x) => x.title === title);
+      return row ? pnum(row.columns[key]?.value) : null;
+    };
+    return {
+      roe: val('ROE', latest),
+      netMargin: val('순이익률', latest),
+      debtRatio: val('부채비율', latest),
+      quickRatio: val('당좌비율', latest),
+      eps: val('EPS', latest),
+      bps: val('BPS', latest),
+      dps: val('주당배당금', latest),
+      fwdEps: val('EPS', consensus),
+    };
+  } catch {
+    return null;
+  }
+}
+
 export interface Fundamentals {
   per: number | null;
   fwdPer: number | null;

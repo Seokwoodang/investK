@@ -38,10 +38,27 @@ export interface MacroEvent {
   consensus?: string; // 시장 예상치(컨센서스)
 }
 
+// 시장 심리·지표 게이지(VIX·美10년물·크립토 공포탐욕·김치프리미엄).
+export interface MarketGauge {
+  label: string;
+  value: string; // 표시값
+  sub?: string; // 보조 설명(분류 등)
+  chg?: number; // 전일대비 %
+  tone?: 'fear' | 'greed' | 'neutral' | 'up' | 'down'; // 색/뉘앙스
+  hint?: string; // 툴팁 설명
+}
+export interface MarketIndicators {
+  vix: MarketGauge | null;
+  ust10y: MarketGauge | null;
+  cryptoFng: MarketGauge | null;
+  kimchi: MarketGauge | null;
+}
+
 export interface Macro {
   fx: FxRow[];
   indices: IndexRow[];
   events: MacroEvent[];
+  market?: MarketIndicators;
 }
 
 export interface NewsItem {
