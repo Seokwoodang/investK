@@ -1,0 +1,18 @@
+name: Refresh value screen (daily)
+
+# 저평가 우량주 스크린(시총 상위 재무지표 수집·점수화)을 하루 1회 미리 생성해 Supabase에 저장.
+# 장 마감(15:30 KST) 이후로 잡아 당일 종가/지표를 반영한다. 사용자는 캐시만 즉시 읽는다.
+on:
+  schedule:
+    - cron: '0 9 * * *' # 09:00 UTC = 18:00 KST (장 마감 후)
+  workflow_dispatch: {} # 수동 실행 버튼
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call value-screen refresh endpoint
+        run: |
+          curl -fsS --max-time 120 -X GET \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "https://invest-seokwoodangs-projects.vercel.app/api/cron/value-screen"
