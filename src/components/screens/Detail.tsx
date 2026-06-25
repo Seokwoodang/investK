@@ -227,13 +227,14 @@ export function Detail({ id }: { id: string }) {
   const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
   useEffect(() => {
     if (state.detailTab !== 'chart' || !sel) return;
+    if (!retData) return; // 헤더 '기간 수익률'(선택 기간)과 동일 수치로 분석하기 위해 로딩 후 호출
     let cancelled = false;
     setAiAnalysis(null);
     fetch('/api/ai/analysis', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
-        id: sel.id, period: state.period, ret,
+        id: sel.id, period: presetSel, ret: retData.ret,
         name: sel.name, ticker: sel.ticker, issue: sel.issue, chartNote: sel.chartNote, risk: sel.risk,
       }),
     })
@@ -245,7 +246,7 @@ export function Detail({ id }: { id: string }) {
     return () => {
       cancelled = true;
     };
-  }, [selId, state.period, ret, state.detailTab]);
+  }, [selId, presetSel, retData, state.detailTab]);
 
   // 'AI 관점'(긍정/부정/주의)도 서버(/api/ai/perspective)에서 Claude 생성+캐시.
   // 로딩/실패/키 없음 시 정적 sel.ai 폴백.
@@ -298,9 +299,11 @@ export function Detail({ id }: { id: string }) {
   const rm = riskMeta(sel.risk);
   const livePrice = rt[sel.id]?.price ?? sel.price; // 실시간 소켓 우선
   const livePct = rt[sel.id]?.pct ?? sel.pct;
-  const dirWord = ret > 0 ? '상승' : ret < 0 ? '하락' : '보합';
+  // AI 차트 분석·폴백 문구는 헤더의 '기간 수익률'(선택한 기간)과 동일한 수치·기간을 쓴다.
+  const periodRet = retData ? retData.ret : ret;
+  const dirWord = periodRet > 0 ? '상승' : periodRet < 0 ? '하락' : '보합';
   const volWord = sel.risk === 'high' ? '변동성이 매우 큰' : sel.risk === 'mid' ? '변동성이 다소 있는' : '비교적 안정적인';
-  const chartAnalysis = `${sel.name}은(는) 최근 ${state.period} 기준 ${fmtPct(ret)} ${dirWord}했습니다. ${sel.chartNote} 해당 흐름은 ${volWord} 모습으로, 매매 시 분할 접근과 손절 기준을 함께 점검하는 것이 좋습니다.`;
+  const chartAnalysis = `${sel.name}은(는) 최근 ${presetSel} 기준 ${fmtPct(periodRet)} ${dirWord}했습니다. ${sel.chartNote} 해당 흐름은 ${volWord} 모습으로, 매매 시 분할 접근과 손절 기준을 함께 점검하는 것이 좋습니다.`;
   const newsContext = `${sel.name}의 단기 주가에는 ${sel.issue} 이슈가 핵심 변수로 작용하고 있습니다. 아래는 현재 영향을 주고 있는 주요 뉴스입니다.`;
   // 실제 뉴스 우선, 없으면 정적(sel.news) 폴백.
   const relatedList: RelatedNewsItem[] = relatedNews && relatedNews.length ? relatedNews : sel.news;
@@ -441,7 +444,7 @@ export function Detail({ id }: { id: string }) {
           <div style={{ background: 'linear-gradient(135deg, var(--c-cy07), var(--c-bl05))', border: '1px solid var(--c-cy18)', borderRadius: 20, padding: 24 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
               <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.06em', padding: '3px 9px', borderRadius: 6, background: 'var(--c-cy18)', color: 'var(--c-accyanbr)' }}>AI 차트 분석</span>
-              <span style={{ fontSize: 12, color: 'var(--c-tx6)' }}>{state.period} 기준</span>
+              <span style={{ fontSize: 12, color: 'var(--c-tx6)' }}>최근 {presetSel} 기준</span>
             </div>
             <p style={{ margin: 0, fontSize: 15, lineHeight: 1.7, color: 'var(--c-tx2)' }}>{aiAnalysis || chartAnalysis}</p>
             <SourceNote text={aiAnalysis ? SRC.ai : 'AI 생성 — Claude (Anthropic) · 현재 정적 샘플 표시 중'} style={{ marginTop: 14 }} />
