@@ -25,10 +25,44 @@ function SearchIcon({ size, stroke = 'var(--c-tx6)' }: { size: number; stroke?: 
   );
 }
 
+function MenuIcon({ open }: { open: boolean }) {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+      {open ? (
+        <>
+          <line x1="6" y1="6" x2="18" y2="18" />
+          <line x1="18" y1="6" x2="6" y2="18" />
+        </>
+      ) : (
+        <>
+          <line x1="3" y1="6" x2="21" y2="6" />
+          <line x1="3" y1="12" x2="21" y2="12" />
+          <line x1="3" y1="18" x2="21" y2="18" />
+        </>
+      )}
+    </svg>
+  );
+}
+
+const utilBtnBase: React.CSSProperties = {
+  cursor: 'pointer', fontFamily: 'inherit', lineHeight: 1, display: 'flex', alignItems: 'center', gap: 5,
+  padding: '7px 11px', borderRadius: 10, border: '1px solid var(--c-w10)', background: 'var(--c-w05)',
+  color: 'var(--c-tx4)', whiteSpace: 'nowrap',
+};
+
 export function Header() {
-  const { layout } = useViewportLayout();
+  const { vw, layout } = useViewportLayout();
   const { state, actions, data } = useDashboard();
   const pathname = usePathname();
+
+  // 좁은 화면에선 메뉴(및 유틸 버튼)를 햄버거(≡) 드롭다운으로 접는다. 넓은 화면은 가로 메뉴 유지.
+  const navInline = vw >= 1280;
+  const [menuOpen, setMenuOpen] = useState(false);
+  // 페이지 이동(경로 변경) 시 메뉴 닫기. 가로 메뉴로 넓어지면 열린 상태 정리.
+  useEffect(() => setMenuOpen(false), [pathname]);
+  useEffect(() => {
+    if (navInline) setMenuOpen(false);
+  }, [navInline]);
 
   // 실시간 KST 시계 + 시장별 장 상태(코스피·뉴욕). 타임존으로 계산해 미국 DST 자동 반영.
   // SSR 불일치 방지 위해 마운트 후 설정.
@@ -93,6 +127,45 @@ export function Header() {
     return out.slice(0, 8);
   }, [gq, data.stocks]);
 
+  // 유틸 버튼(테마/큰글씨/로그아웃) — 가로 메뉴에선 인라인, 햄버거에선 세로 풀폭.
+  const fullStyle = (full: boolean): React.CSSProperties =>
+    full ? { width: '100%', justifyContent: 'flex-start', padding: '11px 12px' } : { flexShrink: 0 };
+
+  const themeBtn = (full: boolean) => (
+    <button onClick={actions.cycleTheme} title="화면 테마 전환 (시스템 → 라이트 → 다크)" style={{ ...utilBtnBase, ...fullStyle(full) }}>
+      <span style={{ fontSize: 14 }}>{state.theme === 'light' ? '☀' : state.theme === 'dark' ? '☾' : '◐'}</span>
+      <span style={{ fontSize: 11, fontWeight: 700 }}>{state.theme === 'light' ? '라이트' : state.theme === 'dark' ? '다크' : '시스템'}</span>
+    </button>
+  );
+  const fontBtn = (full: boolean) => (
+    <button
+      onClick={actions.toggleLargeFont}
+      title={state.largeFont ? '기본 글씨 크기로' : '큰글씨(어르신) 버전으로'}
+      aria-pressed={state.largeFont}
+      style={{
+        ...utilBtnBase, ...fullStyle(full),
+        border: `1px solid ${state.largeFont ? 'var(--c-cy45)' : 'var(--c-w10)'}`,
+        background: state.largeFont ? 'var(--c-cy16)' : 'var(--c-w05)',
+        color: state.largeFont ? 'var(--c-accyanbr)' : 'var(--c-tx4)',
+      }}
+    >
+      <span style={{ fontSize: 16, fontWeight: 800 }}>가</span>
+      <span style={{ fontSize: 11, fontWeight: 700 }}>큰글씨</span>
+    </button>
+  );
+  const logoutBtn = (full: boolean) => (
+    <button
+      onClick={async () => {
+        await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
+        window.location.href = '/login';
+      }}
+      title="로그아웃"
+      style={{ ...utilBtnBase, ...fullStyle(full), fontSize: 11, fontWeight: 700 }}
+    >
+      로그아웃
+    </button>
+  );
+
   return (
     <header
       style={{
@@ -127,25 +200,30 @@ export function Header() {
           )}
         </Link>
 
-        <nav className="no-scrollbar" style={{ display: 'flex', alignItems: 'center', gap: layout.navGap, flex: 1, overflowX: 'auto' }}>
-          {NAV.map((n) => {
-            const active = activeHref === n.href;
-            return (
-              <Link
-                key={n.href}
-                href={n.href}
-                style={{
-                  textDecoration: 'none',
-                  fontSize: 15, fontWeight: 600, padding: '6px 2px', whiteSpace: 'nowrap',
-                  borderBottom: `2px solid ${active ? 'var(--c-accyan)' : 'transparent'}`,
-                  color: active ? 'var(--c-tx1c)' : 'var(--c-tx5)', transition: 'color 180ms',
-                }}
-              >
-                {n.label}
-              </Link>
-            );
-          })}
-        </nav>
+        {navInline ? (
+          <nav className="no-scrollbar" style={{ display: 'flex', alignItems: 'center', gap: layout.navGap, flex: 1, overflowX: 'auto' }}>
+            {NAV.map((n) => {
+              const active = activeHref === n.href;
+              return (
+                <Link
+                  key={n.href}
+                  href={n.href}
+                  style={{
+                    textDecoration: 'none',
+                    fontSize: 15, fontWeight: 600, padding: '6px 2px', whiteSpace: 'nowrap',
+                    borderBottom: `2px solid ${active ? 'var(--c-accyan)' : 'transparent'}`,
+                    color: active ? 'var(--c-tx1c)' : 'var(--c-tx5)', transition: 'color 180ms',
+                  }}
+                >
+                  {n.label}
+                </Link>
+              );
+            })}
+          </nav>
+        ) : (
+          // 햄버거 모드: 가운데를 비워(나머지를 우측으로) 메뉴/유틸은 ≡ 안으로.
+          <div style={{ flex: 1 }} />
+        )}
 
         {layout.showGSearch && (
           <div style={{ position: 'relative', flexShrink: 0 }}>
@@ -202,49 +280,10 @@ export function Header() {
           </div>
         )}
 
-        <button
-          onClick={actions.cycleTheme}
-          title="화면 테마 전환 (시스템 → 라이트 → 다크)"
-          style={{
-            flexShrink: 0, cursor: 'pointer', fontFamily: 'inherit', lineHeight: 1,
-            display: 'flex', alignItems: 'center', gap: 5, padding: '7px 11px', borderRadius: 10,
-            border: '1px solid var(--c-w10)', background: 'var(--c-w05)', color: 'var(--c-tx4)', whiteSpace: 'nowrap',
-          }}
-        >
-          <span style={{ fontSize: 14 }}>{state.theme === 'light' ? '☀' : state.theme === 'dark' ? '☾' : '◐'}</span>
-          <span style={{ fontSize: 11, fontWeight: 700 }}>{state.theme === 'light' ? '라이트' : state.theme === 'dark' ? '다크' : '시스템'}</span>
-        </button>
-
-        <button
-          onClick={actions.toggleLargeFont}
-          title={state.largeFont ? '기본 글씨 크기로' : '큰글씨(어르신) 버전으로'}
-          aria-pressed={state.largeFont}
-          style={{
-            flexShrink: 0, cursor: 'pointer', fontFamily: 'inherit', lineHeight: 1,
-            display: 'flex', alignItems: 'center', gap: 5, padding: '7px 11px', borderRadius: 10,
-            border: `1px solid ${state.largeFont ? 'var(--c-cy45)' : 'var(--c-w10)'}`,
-            background: state.largeFont ? 'var(--c-cy16)' : 'var(--c-w05)',
-            color: state.largeFont ? 'var(--c-accyanbr)' : 'var(--c-tx4)', whiteSpace: 'nowrap',
-          }}
-        >
-          <span style={{ fontSize: 16, fontWeight: 800 }}>가</span>
-          <span style={{ fontSize: 11, fontWeight: 700 }}>큰글씨</span>
-        </button>
-
-        <button
-          onClick={async () => {
-            await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
-            window.location.href = '/login';
-          }}
-          title="로그아웃"
-          style={{
-            flexShrink: 0, cursor: 'pointer', fontFamily: 'inherit', lineHeight: 1, fontSize: 11, fontWeight: 700,
-            padding: '7px 11px', borderRadius: 10, border: '1px solid var(--c-w10)', background: 'var(--c-w05)',
-            color: 'var(--c-tx4)', whiteSpace: 'nowrap',
-          }}
-        >
-          로그아웃
-        </button>
+        {/* 유틸 버튼: 가로 메뉴일 때만 인라인 노출(햄버거 모드에선 드롭다운 안에) */}
+        {navInline && themeBtn(false)}
+        {navInline && fontBtn(false)}
+        {navInline && logoutBtn(false)}
 
         {layout.showStatus && (
           <div style={{ textAlign: 'right', flexShrink: 0 }}>
@@ -279,7 +318,64 @@ export function Header() {
             </div>
           </div>
         )}
+
+        {/* 햄버거 버튼 (좁은 화면) */}
+        {!navInline && (
+          <button
+            onClick={() => setMenuOpen((v) => !v)}
+            aria-label="메뉴"
+            aria-expanded={menuOpen}
+            style={{
+              flexShrink: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              width: 40, height: 40, borderRadius: 10, border: '1px solid var(--c-w10)',
+              background: menuOpen ? 'var(--c-w08)' : 'var(--c-w05)', color: 'var(--c-tx2)',
+            }}
+          >
+            <MenuIcon open={menuOpen} />
+          </button>
+        )}
       </div>
+
+      {/* 햄버거 드롭다운 + 바깥 클릭 닫기 */}
+      {!navInline && menuOpen && (
+        <>
+          <div onClick={() => setMenuOpen(false)} style={{ position: 'fixed', inset: 0, top: 64, zIndex: 45, background: 'var(--c-shadow)' }} />
+          <div
+            style={{
+              position: 'absolute', top: 'calc(100% + 8px)', right: layout.padX, zIndex: 55, width: 'min(260px, calc(100vw - 32px))',
+              background: 'var(--c-panel)', border: '1px solid var(--c-w12)', borderRadius: 16,
+              boxShadow: '0 18px 48px var(--c-shadow)', padding: 8,
+            }}
+          >
+            <nav style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              {NAV.map((n) => {
+                const active = activeHref === n.href;
+                return (
+                  <Link
+                    key={n.href}
+                    href={n.href}
+                    onClick={() => setMenuOpen(false)}
+                    style={{
+                      textDecoration: 'none', display: 'block', padding: '11px 12px', borderRadius: 10,
+                      fontSize: 15, fontWeight: 600,
+                      background: active ? 'var(--c-w06)' : 'transparent',
+                      color: active ? 'var(--c-tx1c)' : 'var(--c-tx4)',
+                    }}
+                  >
+                    {n.label}
+                  </Link>
+                );
+              })}
+            </nav>
+            <div style={{ height: 1, background: 'var(--c-w07)', margin: '8px 4px' }} />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {themeBtn(true)}
+              {fontBtn(true)}
+              {logoutBtn(true)}
+            </div>
+          </div>
+        </>
+      )}
     </header>
   );
 }
