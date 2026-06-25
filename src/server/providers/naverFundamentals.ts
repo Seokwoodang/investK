@@ -108,6 +108,9 @@ export interface KrFinance {
   bps: number | null;
   dps: number | null; // 주당배당금
   fwdEps: number | null; // 컨센서스(추정) EPS
+  roePrev: number | null; // 직전연도 ROE (전년比 비교용)
+  netMarginPrev: number | null;
+  debtRatioPrev: number | null;
 }
 
 export async function getKrFinance(code: string): Promise<KrFinance | null> {
@@ -126,6 +129,7 @@ export async function getKrFinance(code: string): Promise<KrFinance | null> {
     if (!titles.length || !rows.length) return null;
     const actuals = titles.filter((t) => t.isConsensus !== 'Y').map((t) => t.key);
     const latest = actuals[actuals.length - 1];
+    const prev = actuals[actuals.length - 2];
     const consensus = titles.filter((t) => t.isConsensus === 'Y').map((t) => t.key).pop();
     if (!latest) return null;
     const val = (title: string, key?: string) => {
@@ -142,6 +146,9 @@ export async function getKrFinance(code: string): Promise<KrFinance | null> {
       bps: val('BPS', latest),
       dps: val('주당배당금', latest),
       fwdEps: val('EPS', consensus),
+      roePrev: val('ROE', prev),
+      netMarginPrev: val('순이익률', prev),
+      debtRatioPrev: val('부채비율', prev),
     };
   } catch {
     return null;

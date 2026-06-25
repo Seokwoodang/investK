@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { fmtPct, fmtPrice, upColor } from '../../lib/format';
 import { parseHoldingsText, resolveStock, usdKrwFromFx, usePortfolio, useResolvedPrices, valuePortfolio } from '../../lib/portfolio';
 import { useDashboard } from '../../store/DashboardContext';
@@ -27,6 +27,11 @@ interface Evaluation {
   risk: string;
   perStock: { name: string; comment: string }[];
   rebalance: string[];
+}
+interface SellSignal { level: 'high' | 'mid' | 'info'; text: string }
+interface SellResult {
+  code: string; name: string; verdict: 'hold' | 'watch' | 'review'; signals: SellSignal[];
+  per: number | null; pbr: number | null; roe: number | null; debtRatio: number | null; target: number | null; upside: number | null;
 }
 
 export function Portfolio() {
@@ -131,6 +136,42 @@ export function Portfolio() {
       .catch(() => {})
       .finally(() => setLoading(false));
   };
+
+  // ── 매도 점검 (규칙 기반) ──
+  const [sell, setSell] = useState<SellResult[] | null>(null);
+  const [sellLoading, setSellLoading] = useState(false);
+  const rowsRef = useRef(rows); rowsRef.current = rows;
+  const totalRef = useRef(totalKrw); totalRef.current = totalKrw;
+  const sig = holdings.map((h) => `${h.id}:${h.qty}:${h.avg}`).join('|');
+  const ready = holdings.length > 0 && totalKrw > 0;
+  useEffect(() => {
+    if (!holdings.length) { setSell(null); return; }
+    if (!ready) return; // 가격 로딩 대기
+    let cancelled = false;
+    setSellLoading(true);
+    const tot = totalRef.current;
+    const payload = rowsRef.current.map((r) => ({
+      code: r.id, tab: r.tab, name: r.name, plPct: r.plPct,
+      weight: tot > 0 ? (r.valueKrw / tot) * 100 : 0, price: r.price, cur: r.cur,
+    }));
+    fetch('/api/sell-check', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ holdings: payload }) })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => { if (!cancelled) setSell((j?.results as SellResult[]) ?? []); })
+      .catch(() => { if (!cancelled) setSell([]); })
+      .finally(() => { if (!cancelled) setSellLoading(false); });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sig, ready]);
+
+  const VERDICT: Record<SellResult['verdict'], { label: string; color: string }> = {
+    review: { label: '점검 필요', color: 'var(--c-down)' },
+    watch: { label: '관찰', color: 'var(--c-warn)' },
+    hold: { label: '보유 유지', color: 'var(--c-up)' },
+  };
+  const sigColor = (l: SellSignal['level']) => (l === 'high' ? 'var(--c-down)' : l === 'mid' ? 'var(--c-warn)' : 'var(--c-tx4)');
+  const rank = { review: 0, watch: 1, hold: 2 };
+  const sellSorted = sell ? [...sell].sort((a, b) => rank[a.verdict] - rank[b.verdict]) : [];
+  const sellCounts = sell ? sell.reduce((acc, s) => ((acc[s.verdict] = (acc[s.verdict] || 0) + 1), acc), {} as Record<string, number>) : {};
 
   const krw = (v: number) => '₩' + Math.round(v).toLocaleString('ko-KR');
 
@@ -246,6 +287,57 @@ export function Portfolio() {
             <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '10px 0' }}>
               <button onClick={clear} style={{ cursor: 'pointer', background: 'transparent', border: 'none', color: 'var(--c-tx6)', fontSize: 12, fontFamily: 'inherit' }}>전체 비우기</button>
             </div>
+          </div>
+
+          {/* 매도 점검 (규칙 기반) */}
+          <div style={{ ...CARD, padding: 24, marginBottom: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
+              <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.06em', padding: '3px 9px', borderRadius: 6, background: 'var(--c-am16)', color: 'var(--c-warn)' }}>매도 점검</span>
+              <span style={{ fontSize: 13, color: 'var(--c-tx5)' }}>손절·익절·비중·목표가·퀄리티 신호 (예측 아님, 점검용)</span>
+              {sell && (
+                <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--c-tx5)' }}>
+                  점검필요 <b style={{ color: 'var(--c-down)' }}>{sellCounts.review || 0}</b> · 관찰 <b style={{ color: 'var(--c-warn)' }}>{sellCounts.watch || 0}</b> · 보유 <b style={{ color: 'var(--c-up)' }}>{sellCounts.hold || 0}</b>
+                </span>
+              )}
+            </div>
+            {!sell && sellLoading && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 0', color: 'var(--c-tx5)', fontSize: 14 }}>
+                <span className="skeleton-pulse" style={{ width: 9, height: 9, borderRadius: '50%', background: 'var(--c-warn)' }} />
+                보유 종목의 매도 신호를 점검하는 중입니다…
+              </div>
+            )}
+            {sell && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {sellSorted.map((s) => {
+                  const v = VERDICT[s.verdict];
+                  return (
+                    <div key={s.code} style={{ background: 'var(--c-w04)', border: '1px solid var(--c-w07)', borderRadius: 12, padding: 14, borderLeft: `3px solid ${v.color}` }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--c-tx1)' }}>{s.name}</span>
+                        <span style={{ fontSize: 11, fontWeight: 800, padding: '2px 8px', borderRadius: 6, color: v.color, background: 'color-mix(in srgb, ' + v.color + ' 16%, transparent)' }}>{v.label}</span>
+                        <span style={{ marginLeft: 'auto', display: 'flex', gap: 12, fontSize: 11, color: 'var(--c-tx6)', flexWrap: 'wrap' }}>
+                          {s.per != null && <span>PER {s.per.toFixed(1)}</span>}
+                          {s.pbr != null && <span>PBR {s.pbr.toFixed(2)}</span>}
+                          {s.roe != null && <span>ROE {s.roe.toFixed(0)}%</span>}
+                          {s.debtRatio != null && <span>부채 {s.debtRatio.toFixed(0)}%</span>}
+                          {s.upside != null && <span style={{ color: upColor(s.upside) }}>목표가 {fmtPct(s.upside)}</span>}
+                        </span>
+                      </div>
+                      {s.signals.length > 0 ? (
+                        <ul style={{ margin: '10px 0 0', paddingLeft: 16, display: 'flex', flexDirection: 'column', gap: 5 }}>
+                          {s.signals.map((sg, i) => (
+                            <li key={i} style={{ fontSize: 12.5, lineHeight: 1.5, color: sigColor(sg.level) }}>{sg.text}</li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <div style={{ marginTop: 8, fontSize: 12.5, color: 'var(--c-tx5)' }}>특이 매도 신호 없음 — 보유 유지 관점.</div>
+                      )}
+                    </div>
+                  );
+                })}
+                <SourceNote text="매도 점검 — 규칙 기반(평단 수익률·비중·증권가 목표가·재무 추세) · 예측·투자자문이 아닌 점검 보조입니다." />
+              </div>
+            )}
           </div>
 
           {/* AI 평가 */}
