@@ -58,6 +58,7 @@ export interface UsFundamentals {
   target: number | null;
   recommMean: number | null;
   price: number | null;
+  hi52: number | null; // 52주 최고가
 }
 
 const n = (x: { raw?: number } | undefined): number | null => (x && typeof x.raw === 'number' ? x.raw : null);
@@ -94,6 +95,7 @@ export async function getUsFundamentals(symbol: string, retry = true): Promise<U
       target: n(fd.targetMeanPrice),
       recommMean: n(fd.recommendationMean),
       price: n(fd.currentPrice),
+      hi52: n(sd.fiftyTwoWeekHigh),
     };
   } catch {
     return null;

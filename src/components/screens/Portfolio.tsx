@@ -32,11 +32,11 @@ interface SellSignal { level: 'high' | 'mid' | 'info'; text: string; who: string
 interface SellFundamental {
   code: string; name: string; signals: SellSignal[];
   per: number | null; pbr: number | null; roe: number | null; debtRatio: number | null; target: number | null; upside: number | null;
+  peak: number | null; // 서버 저장 고점(트레일링용)
 }
 interface SellConfig { stopLoss: number; takeProfit: number; maxWeight: number; trailingOn: boolean; trailing: number }
 
 const SELL_CFG_KEY = 'sell_cfg';
-const SELL_PEAK_KEY = 'sell_peaks';
 const DEFAULT_CFG: SellConfig = { stopLoss: -20, takeProfit: 50, maxWeight: 25, trailingOn: false, trailing: 20 };
 const PRESETS: { key: string; label: string; cfg: Partial<SellConfig> }[] = [
   { key: 'oneill', label: '오닐 공격형 (-8% / +20%)', cfg: { stopLoss: -8, takeProfit: 20, maxWeight: 25 } },
@@ -175,31 +175,18 @@ export function Portfolio() {
   const [sellFund, setSellFund] = useState<SellFundamental[] | null>(null);
   const [sellLoading, setSellLoading] = useState(false);
   const [cfg, setCfg] = useState<SellConfig>(DEFAULT_CFG);
-  const [peaks, setPeaks] = useState<Record<string, number>>({});
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [aiSell, setAiSell] = useState<{ summary: string; perStock: { name: string; comment: string }[] } | null>(null);
+  const [aiSellLoading, setAiSellLoading] = useState(false);
   const rowsRef = useRef(rows); rowsRef.current = rows;
   const sig = holdings.map((h) => `${h.id}:${h.qty}:${h.avg}`).join('|');
   const ready = holdings.length > 0 && totalKrw > 0;
 
-  // 설정·고점 로드(localStorage)
+  // 설정 로드(localStorage). 트레일링 고점은 서버(kv)에 저장돼 응답에 담겨 온다.
   useEffect(() => {
     try { const c = JSON.parse(localStorage.getItem(SELL_CFG_KEY) || 'null'); if (c) setCfg({ ...DEFAULT_CFG, ...c }); } catch { /* ignore */ }
-    try { const p = JSON.parse(localStorage.getItem(SELL_PEAK_KEY) || 'null'); if (p) setPeaks(p); } catch { /* ignore */ }
   }, []);
   const saveCfg = (c: SellConfig) => { setCfg(c); try { localStorage.setItem(SELL_CFG_KEY, JSON.stringify(c)); } catch { /* ignore */ } };
-
-  // 트레일링용 고점 추적 — 보유 종목 현재가의 최고치 기록(앱에서 본 가격 기준 근사).
-  useEffect(() => {
-    if (!ready) return;
-    setPeaks((prev) => {
-      let changed = false; const next = { ...prev };
-      rowsRef.current.forEach((r) => { if (r.price > (next[r.id] ?? 0)) { next[r.id] = r.price; changed = true; } });
-      if (!changed) return prev;
-      try { localStorage.setItem(SELL_PEAK_KEY, JSON.stringify(next)); } catch { /* ignore */ }
-      return next;
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sig, ready, totalKrw]);
 
   // 서버 펀더멘털 신호 fetch
   useEffect(() => {
@@ -222,13 +209,28 @@ export function Portfolio() {
     ? [...rows].map((r) => {
         const weight = totalKrw > 0 ? (r.valueKrw / totalKrw) * 100 : 0;
         const f = fundByCode.get(r.id);
-        const signals = [...thresholdSignals(r.plPct, r.price, weight, cfg, peaks[r.id] ?? 0), ...(f?.signals ?? [])];
+        const signals = [...thresholdSignals(r.plPct, r.price, weight, cfg, f?.peak ?? 0), ...(f?.signals ?? [])];
         const verdict: 'hold' | 'watch' | 'review' = signals.some((s) => s.level === 'high') ? 'review' : signals.length ? 'watch' : 'hold';
         return { r, f, signals, verdict };
       }).sort((a, b) => RANK[a.verdict] - RANK[b.verdict])
     : [];
   const sellCounts = sellRows.reduce((acc, s) => ((acc[s.verdict] = (acc[s.verdict] || 0) + 1), acc), {} as Record<string, number>);
   const cfgActivePreset = PRESETS.find((p) => p.cfg.stopLoss === cfg.stopLoss && p.cfg.takeProfit === cfg.takeProfit && p.cfg.maxWeight === cfg.maxWeight)?.key;
+
+  // AI 매도 총평 — 판정은 규칙(위), AI는 신호 종합 설명만.
+  const runSellAi = () => {
+    if (!sellRows.length) return;
+    setAiSellLoading(true); setAiSell(null);
+    const items = sellRows.map(({ r, f, signals, verdict }) => ({
+      name: r.name, verdict, plPct: r.plPct, signals: signals.map((s) => s.text),
+      per: f?.per ?? null, roe: f?.roe ?? null, debtRatio: f?.debtRatio ?? null,
+    }));
+    fetch('/api/ai/sell', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ items }) })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => { if (j?.summary) setAiSell(j); })
+      .catch(() => {})
+      .finally(() => setAiSellLoading(false));
+  };
 
   const krw = (v: number) => '₩' + Math.round(v).toLocaleString('ko-KR');
 
@@ -352,9 +354,14 @@ export function Portfolio() {
               <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.06em', padding: '3px 9px', borderRadius: 6, background: 'var(--c-am16)', color: 'var(--c-warn)' }}>매도 점검</span>
               <span style={{ fontSize: 13, color: 'var(--c-tx5)' }}>대가들의 매도 원칙으로 점검 · 신호를 누르면 근거 설명</span>
               {sellFund && (
-                <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--c-tx5)' }}>
-                  점검필요 <b style={{ color: 'var(--c-down)' }}>{sellCounts.review || 0}</b> · 관찰 <b style={{ color: 'var(--c-warn)' }}>{sellCounts.watch || 0}</b> · 보유 <b style={{ color: 'var(--c-up)' }}>{sellCounts.hold || 0}</b>
-                </span>
+                <>
+                  <button onClick={runSellAi} disabled={aiSellLoading || !sellRows.length} style={{ ...btn(true), marginLeft: 'auto', fontSize: 12, padding: '6px 12px' }}>
+                    {aiSellLoading ? 'AI 총평 생성 중…' : aiSell ? 'AI 총평 다시' : 'AI 매도 총평'}
+                  </button>
+                  <span style={{ fontSize: 12, color: 'var(--c-tx5)' }}>
+                    점검필요 <b style={{ color: 'var(--c-down)' }}>{sellCounts.review || 0}</b> · 관찰 <b style={{ color: 'var(--c-warn)' }}>{sellCounts.watch || 0}</b> · 보유 <b style={{ color: 'var(--c-up)' }}>{sellCounts.hold || 0}</b>
+                  </span>
+                </>
               )}
             </div>
 
@@ -434,7 +441,31 @@ export function Portfolio() {
                     </div>
                   );
                 })}
-                <SourceNote text="매도 점검 — 대가 원칙 기반(오닐·피셔·버핏·그레이엄·리버모어). 신호 클릭 시 근거 설명. 예측·투자자문이 아닌 점검 보조입니다." />
+                {(aiSellLoading || aiSell) && (
+                  <div style={{ marginTop: 4, padding: 16, borderRadius: 12, background: 'linear-gradient(135deg, var(--c-cy07), var(--c-bl05))', border: '1px solid var(--c-cy18)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: aiSell ? 10 : 0 }}>
+                      <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.06em', padding: '3px 9px', borderRadius: 6, background: 'var(--c-cy18)', color: 'var(--c-accyanbr)' }}>AI 매도 총평</span>
+                      <span style={{ fontSize: 11, color: 'var(--c-tx6)' }}>판정은 규칙, 해석은 AI</span>
+                    </div>
+                    {aiSellLoading && !aiSell && <div style={{ fontSize: 13, color: 'var(--c-tx5)' }}>신호를 종합하는 중입니다…</div>}
+                    {aiSell && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                        <p style={{ margin: 0, fontSize: 14, lineHeight: 1.7, color: 'var(--c-tx1)' }}>{aiSell.summary}</p>
+                        {aiSell.perStock?.length > 0 && (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                            {aiSell.perStock.map((p, i) => (
+                              <div key={i} style={{ display: 'flex', gap: 10, fontSize: 13, lineHeight: 1.6 }}>
+                                <span style={{ fontWeight: 700, color: 'var(--c-tx2)', minWidth: 90, flexShrink: 0 }}>{p.name}</span>
+                                <span style={{ color: 'var(--c-tx4)' }}>{p.comment}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+                <SourceNote text="매도 점검 — 대가 원칙 기반(오닐·피셔·버핏·그레이엄·리버모어). 신호 클릭 시 근거 설명. AI 총평은 규칙 판정을 해석할 뿐 매매 지시가 아닙니다." />
               </div>
             )}
           </div>

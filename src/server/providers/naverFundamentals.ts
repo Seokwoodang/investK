@@ -166,6 +166,7 @@ export interface Fundamentals {
   dps: number | null; // 주당배당금
   targetPrice: number | null; // 컨센서스 목표주가
   recommMean: number | null; // 투자의견(1매수~5매도)
+  hi52: number | null; // 52주 최고가
 }
 
 interface TotalInfo {
@@ -200,6 +201,7 @@ export async function getFundamentals(code: string): Promise<Fundamentals | null
       dps: get('주당배당금'),
       targetPrice: pnum(j.consensusInfo?.priceTargetMean),
       recommMean: pnum(j.consensusInfo?.recommMean),
+      hi52: get('52주 최고'),
     };
   } catch {
     return null;

@@ -32,6 +32,7 @@ export interface SellFundamental {
   debtRatio: number | null;
   target: number | null;
   upside: number | null;
+  peak: number | null; // 트레일링용 고점(서버 저장 = max(52주 고점, 관측가))
 }
 
 interface Fund {
@@ -44,6 +45,7 @@ interface Fund {
   debtRatio: number | null;
   debtRatioPrev: number | null;
   target: number | null;
+  hi52: number | null;
   market: 'kr' | 'us';
 }
 
@@ -66,7 +68,7 @@ async function getFund(code: string, tab: TabId): Promise<Fund | null> {
         roe: fin?.roe ?? null, roePrev: fin?.roePrev ?? null,
         netMargin: fin?.netMargin ?? null, netMarginPrev: fin?.netMarginPrev ?? null,
         debtRatio: fin?.debtRatio ?? null, debtRatioPrev: fin?.debtRatioPrev ?? null,
-        market: 'kr',
+        hi52: integ?.hi52 ?? null, market: 'kr',
       };
     }
   } else {
@@ -75,7 +77,7 @@ async function getFund(code: string, tab: TabId): Promise<Fund | null> {
       fund = {
         per: f.per, pbr: f.pbr, target: f.target, roe: f.roe, roePrev: null,
         netMargin: f.netMargin, netMarginPrev: null, debtRatio: f.debtToEquity, debtRatioPrev: null,
-        market: 'us',
+        hi52: f.hi52, market: 'us',
       };
     }
   }
@@ -122,6 +124,16 @@ function fundamentalSignals(h: SellHolding, f: Fund | null): SellSignal[] {
   return out;
 }
 
+// 트레일링용 고점: 종목별로 max(이전 저장값, 52주 고점, 현재가)를 kv에 누적 저장.
+// 52주 고점을 시드로 써서 추적 시작부터 의미 있는 기준이 된다.
+async function trackPeak(code: string, price: number, hi52: number): Promise<number> {
+  const key = `peak:${code}`;
+  const prev = (await kvGet<number>(key)) ?? 0;
+  const peak = Math.max(prev, hi52 || 0, price || 0);
+  if (peak > prev) await kvSet(key, peak);
+  return peak;
+}
+
 export async function checkSell(holdings: SellHolding[]): Promise<SellFundamental[]> {
   const out: SellFundamental[] = [];
   let i = 0;
@@ -129,10 +141,12 @@ export async function checkSell(holdings: SellHolding[]): Promise<SellFundamenta
     while (i < holdings.length) {
       const h = holdings[i++];
       const f = await getFund(h.code, h.tab).catch(() => null);
+      const peak = await trackPeak(h.code, h.price, f?.hi52 ?? 0).catch(() => null);
       out.push({
         code: h.code, name: h.name, signals: fundamentalSignals(h, f),
         per: f?.per ?? null, pbr: f?.pbr ?? null, roe: f?.roe ?? null, debtRatio: f?.debtRatio ?? null,
         target: f?.target ?? null, upside: f?.target && h.price > 0 ? (f.target / h.price - 1) * 100 : null,
+        peak,
       });
     }
   }
