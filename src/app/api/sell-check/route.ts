@@ -7,10 +7,10 @@ export const maxDuration = 60;
 
 export async function POST(req: Request) {
   try {
-    const body = (await req.json().catch(() => ({}))) as { holdings?: SellHolding[] };
+    const body = (await req.json().catch(() => ({}))) as { holdings?: SellHolding[]; tech?: boolean };
     const holdings = (body.holdings ?? []).filter((h) => h && h.code && h.tab).slice(0, 60);
     if (!holdings.length) return NextResponse.json({ results: [] });
-    const results = await checkSell(holdings);
+    const results = await checkSell(holdings, !!body.tech);
     return NextResponse.json({ results });
   } catch (e) {
     console.error('[sell-check] failed:', e);

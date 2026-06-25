@@ -28,19 +28,29 @@ interface Evaluation {
   perStock: { name: string; comment: string }[];
   rebalance: string[];
 }
-interface SellSignal { level: 'high' | 'mid' | 'info'; text: string; who: string; principle: string; detail: string }
+interface SellSignal { level: 'high' | 'mid' | 'info'; text: string; who: string; principle: string; detail: string; formula: string }
 interface SellFundamental {
   code: string; name: string; signals: SellSignal[];
   per: number | null; pbr: number | null; roe: number | null; debtRatio: number | null; target: number | null; upside: number | null;
-  peak: number | null; // 서버 저장 고점(트레일링용)
+  recentHigh: number | null; // 캔들 실제 고점(트레일링용)
 }
-interface SellConfig { stopLoss: number; takeProfit: number; maxWeight: number; trailingOn: boolean; trailing: number }
+interface SellConfig { stopLoss: number; takeProfit: number; maxWeight: number; trailing: number; enabled: Record<string, boolean> }
 
 const SELL_CFG_KEY = 'sell_cfg';
-const DEFAULT_CFG: SellConfig = { stopLoss: -20, takeProfit: 50, maxWeight: 25, trailingOn: false, trailing: 20 };
-const PRESETS: { key: string; label: string; cfg: Partial<SellConfig> }[] = [
-  { key: 'oneill', label: '오닐 공격형 (-8% / +20%)', cfg: { stopLoss: -8, takeProfit: 20, maxWeight: 25 } },
-  { key: 'graham', label: '보수·장기 (-20% / +50%)', cfg: { stopLoss: -20, takeProfit: 50, maxWeight: 25 } },
+// 선택 가능한 매도 공식(전략). 켜면 그 공식의 신호만 본다. (stock=주식 전용 — 캔들/재무 필요)
+const FORMULAS: { key: string; name: string; who: string; desc: string; stock?: boolean }[] = [
+  { key: 'oneill', name: '오닐 (CAN SLIM)', who: '윌리엄 오닐', desc: '고정 손절·익절 라인' },
+  { key: 'trend', name: '추세 (이동평균)', who: '추세추종', desc: '장기 이동평균선 이탈', stock: true },
+  { key: 'atr', name: '변동성 손절 (ATR)', who: '샹들리에 이그짓', desc: '고점−3×ATR · 변동성 자동', stock: true },
+  { key: 'trail', name: '트레일링 스톱', who: '추세추종', desc: '실제 고점 대비 하락', stock: true },
+  { key: 'graham', name: '그레이엄 (가치)', who: '벤저민 그레이엄', desc: '목표가 도달 = 고평가', stock: true },
+  { key: 'quality', name: '피셔·버핏 (퀄리티)', who: '필립 피셔·버핏', desc: '재무 악화 = 보유근거 소멸', stock: true },
+  { key: 'weight', name: '비중 리밸런싱', who: '분산 투자', desc: '단일 종목 비중 상한' },
+];
+const DEFAULT_CFG: SellConfig = { stopLoss: -20, takeProfit: 50, maxWeight: 25, trailing: 20, enabled: { oneill: true, graham: true, quality: true, weight: true, trend: false, atr: false, trail: false } };
+const PRESETS: { label: string; cfg: Partial<SellConfig> }[] = [
+  { label: '오닐 공격형 (-8% / +20%)', cfg: { stopLoss: -8, takeProfit: 20 } },
+  { label: '보수·장기 (-20% / +50%)', cfg: { stopLoss: -20, takeProfit: 50 } },
 ];
 const VERDICT: Record<'hold' | 'watch' | 'review', { label: string; color: string }> = {
   review: { label: '점검 필요', color: 'var(--c-down)' },
@@ -50,20 +60,19 @@ const VERDICT: Record<'hold' | 'watch' | 'review', { label: string; color: strin
 const RANK = { review: 0, watch: 1, hold: 2 };
 const sigColor = (l: SellSignal['level']) => (l === 'high' ? 'var(--c-down)' : l === 'mid' ? 'var(--c-warn)' : 'var(--c-tx4)');
 
-// 임계값 기반 신호(손절·익절·비중·트레일링) — 사용자 설정으로 클라에서 즉시 계산. 각 신호에 대가 원칙 메타.
-function thresholdSignals(plPct: number, price: number, weight: number, cfg: SellConfig, peak: number): SellSignal[] {
+// 사용자 조절형 신호(오닐 손절·익절, 비중, 트레일링) — 켜진 공식만, 클라에서 즉시 계산.
+function clientSignals(plPct: number, price: number, weight: number, cfg: SellConfig, recentHigh: number): SellSignal[] {
   const out: SellSignal[] = [];
   const pl = Math.round(plPct);
-  if (plPct <= cfg.stopLoss)
-    out.push({ level: 'high', text: `손절 라인(${cfg.stopLoss}%) 도달 — 현재 ${pl}%`, who: '윌리엄 오닐 · 리버모어', principle: '손절 라인 (1원칙)', detail: '오닐의 첫 번째 원칙: 정해둔 손실선(-7~8%)에서 예외 없이 매도해 큰 손실을 막습니다. "손실은 짧게, 수익은 길게"(리버모어). 예측이 아니라 리스크 관리 규칙이에요.' });
-  if (plPct >= cfg.takeProfit)
-    out.push({ level: 'mid', text: `평단 대비 +${pl}% — 목표 수익(${cfg.takeProfit}%) 도달`, who: '윌리엄 오닐', principle: '목표 수익 실현', detail: '오닐은 주도주를 보통 +20~25% 구간에서 차익실현합니다(단, 돌파 후 3주 내 급등한 주도주는 최소 8주 홀드). 욕심에 되돌림을 맞지 않으려는 규칙입니다.' });
-  if (weight > cfg.maxWeight)
-    out.push({ level: 'mid', text: `비중 ${Math.round(weight)}% 과다 (상한 ${cfg.maxWeight}%)`, who: '분산 · 리밸런싱', principle: '비중 상한', detail: '한 종목 비중이 과하면 그 종목의 리스크가 포트폴리오 전체를 흔듭니다. 일부를 덜어 분산하세요(리밸런싱). 버핏은 집중을 선호하지만, 일반 투자자에겐 비중 관리가 안전판입니다.' });
-  if (cfg.trailingOn && peak > 0 && price < peak) {
-    const dd = (price / peak - 1) * 100;
-    if (dd <= -cfg.trailing)
-      out.push({ level: 'high', text: `트레일링 스톱 — 고점 대비 ${dd.toFixed(0)}% (기준 -${cfg.trailing}%)`, who: '추세추종 · 리버모어', principle: '트레일링 스톱', detail: '고점 대비 일정 % 하락하면 매도해 수익을 보호하면서 추세는 끝까지 탑니다. ⚠️ 이 앱은 "보유 후 앱에서 본 가격"의 고점만 기록하므로 근사치입니다(앱을 자주 열수록 정확).' });
+  const en = cfg.enabled;
+  if (en.oneill) {
+    if (plPct <= cfg.stopLoss) out.push({ formula: 'oneill', level: 'high', text: `손절 라인(${cfg.stopLoss}%) 도달 — 현재 ${pl}%`, who: '윌리엄 오닐 · 리버모어', principle: '고정 손절 (1원칙)', detail: '오닐의 첫 원칙: 미리 정한 손실선에서 예외 없이 매도해 큰 손실을 막는다. "손실은 짧게, 수익은 길게"(리버모어). 내가 정한 규율형 매도선이에요(시장 신호가 아니라 규칙).' });
+    if (plPct >= cfg.takeProfit) out.push({ formula: 'oneill', level: 'mid', text: `평단 대비 +${pl}% — 목표 수익(${cfg.takeProfit}%) 도달`, who: '윌리엄 오닐', principle: '목표 수익 실현', detail: '오닐은 주도주를 +20~25%에서 차익실현(돌파 후 3주 내 급등주는 8주 홀드). 되돌림을 피하려는 규칙.' });
+  }
+  if (en.weight && weight > cfg.maxWeight) out.push({ formula: 'weight', level: 'mid', text: `비중 ${Math.round(weight)}% 과다 (상한 ${cfg.maxWeight}%)`, who: '분산 투자', principle: '비중 상한', detail: '한 종목 비중이 과하면 그 종목 리스크가 포트폴리오 전체를 흔든다. 일부 덜어 분산(리밸런싱).' });
+  if (en.trail && recentHigh > 0 && price < recentHigh) {
+    const dd = (price / recentHigh - 1) * 100;
+    if (dd <= -cfg.trailing) out.push({ formula: 'trail', level: 'high', text: `트레일링 스톱 — 고점 대비 ${dd.toFixed(0)}% (기준 -${cfg.trailing}%)`, who: '추세추종 · 리버모어', principle: '트레일링 스톱', detail: '실제 고점(최근 약 1년 캔들) 대비 일정 % 하락하면 매도해 수익을 보호하면서 추세는 끝까지 탑니다.' });
   }
   return out;
 }
@@ -188,34 +197,38 @@ export function Portfolio() {
   }, []);
   const saveCfg = (c: SellConfig) => { setCfg(c); try { localStorage.setItem(SELL_CFG_KEY, JSON.stringify(c)); } catch { /* ignore */ } };
 
-  // 서버 펀더멘털 신호 fetch
+  // 캔들 기반 공식(추세·ATR·트레일링)이 켜졌을 때만 서버가 캔들을 받는다.
+  const needTech = !!(cfg.enabled.trend || cfg.enabled.atr || cfg.enabled.trail);
+
+  // 서버 신호 fetch (목표가·퀄리티는 항상, 추세·ATR·트레일링용 캔들은 needTech일 때만)
   useEffect(() => {
     if (!holdings.length) { setSellFund(null); return; }
     if (!ready) return;
     let cancelled = false; setSellLoading(true);
     const payload = rowsRef.current.map((r) => ({ code: r.id, tab: r.tab, name: r.name, price: r.price, cur: r.cur }));
-    fetch('/api/sell-check', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ holdings: payload }) })
+    fetch('/api/sell-check', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ holdings: payload, tech: needTech }) })
       .then((r) => (r.ok ? r.json() : null))
       .then((j) => { if (!cancelled) setSellFund((j?.results as SellFundamental[]) ?? []); })
       .catch(() => { if (!cancelled) setSellFund([]); })
       .finally(() => { if (!cancelled) setSellLoading(false); });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sig, ready]);
+  }, [sig, ready, needTech]);
 
-  // 임계값 신호 + 서버 펀더멘털 신호 병합 → 종목별 판정.
+  // 클라 신호(켜진 공식) + 서버 신호(켜진 공식만 필터) 병합 → 종목별 판정.
   const fundByCode = new Map((sellFund ?? []).map((f) => [f.code, f]));
   const sellRows = ready
     ? [...rows].map((r) => {
         const weight = totalKrw > 0 ? (r.valueKrw / totalKrw) * 100 : 0;
         const f = fundByCode.get(r.id);
-        const signals = [...thresholdSignals(r.plPct, r.price, weight, cfg, f?.peak ?? 0), ...(f?.signals ?? [])];
+        const serverSig = (f?.signals ?? []).filter((s) => cfg.enabled[s.formula]);
+        const signals = [...clientSignals(r.plPct, r.price, weight, cfg, f?.recentHigh ?? 0), ...serverSig];
         const verdict: 'hold' | 'watch' | 'review' = signals.some((s) => s.level === 'high') ? 'review' : signals.length ? 'watch' : 'hold';
         return { r, f, signals, verdict };
       }).sort((a, b) => RANK[a.verdict] - RANK[b.verdict])
     : [];
   const sellCounts = sellRows.reduce((acc, s) => ((acc[s.verdict] = (acc[s.verdict] || 0) + 1), acc), {} as Record<string, number>);
-  const cfgActivePreset = PRESETS.find((p) => p.cfg.stopLoss === cfg.stopLoss && p.cfg.takeProfit === cfg.takeProfit && p.cfg.maxWeight === cfg.maxWeight)?.key;
+  const activePreset = PRESETS.find((p) => p.cfg.stopLoss === cfg.stopLoss && p.cfg.takeProfit === cfg.takeProfit)?.label;
 
   // AI 매도 총평 — 판정은 규칙(위), AI는 신호 종합 설명만.
   const runSellAi = () => {
@@ -365,27 +378,41 @@ export function Portfolio() {
               )}
             </div>
 
-            {/* 설정: 프리셋 + 직접 조절 + 트레일링 */}
-            <div style={{ background: 'var(--c-w04)', border: '1px solid var(--c-w07)', borderRadius: 12, padding: 14, marginBottom: 14, display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-                <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--c-tx5)' }}>프리셋</span>
-                {PRESETS.map((p) => {
-                  const on = cfgActivePreset === p.key;
+            {/* 공식(전략) 선택 */}
+            <div style={{ background: 'var(--c-w04)', border: '1px solid var(--c-w07)', borderRadius: 12, padding: 14, marginBottom: 14 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--c-tx5)', marginBottom: 10 }}>적용할 매도 공식 — 켜고 끄면 그 공식 기준으로만 판정</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(212px, 1fr))', gap: 8 }}>
+                {FORMULAS.map((fm) => {
+                  const on = !!cfg.enabled[fm.key];
                   return (
-                    <button key={p.key} onClick={() => saveCfg({ ...cfg, ...p.cfg })}
-                      style={{ cursor: 'pointer', fontFamily: 'inherit', fontSize: 12, fontWeight: 700, padding: '5px 11px', borderRadius: 8, border: `1px solid ${on ? 'var(--c-cy45)' : 'var(--c-w08)'}`, background: on ? 'var(--c-cy16)' : 'var(--c-w05)', color: on ? 'var(--c-accyanbr)' : 'var(--c-tx5)' }}>{p.label}</button>
+                    <button key={fm.key} onClick={() => saveCfg({ ...cfg, enabled: { ...cfg.enabled, [fm.key]: !on } })}
+                      style={{ cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', padding: '10px 12px', borderRadius: 10, border: `1px solid ${on ? 'var(--c-cy45)' : 'var(--c-w08)'}`, background: on ? 'var(--c-cy16)' : 'var(--c-w05)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                        <span style={{ width: 15, height: 15, borderRadius: 4, flexShrink: 0, border: `1px solid ${on ? 'var(--c-accyanbr)' : 'var(--c-w10)'}`, background: on ? 'var(--c-accyanbr)' : 'transparent', color: 'var(--c-bg)', fontSize: 10, fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{on ? '✓' : ''}</span>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: on ? 'var(--c-tx1b)' : 'var(--c-tx3)' }}>{fm.name}</span>
+                        {fm.stock && <span style={{ marginLeft: 'auto', fontSize: 9, color: 'var(--c-tx6)', border: '1px solid var(--c-w08)', borderRadius: 4, padding: '1px 4px' }}>주식</span>}
+                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--c-tx6)', marginTop: 4, paddingLeft: 22 }}>{fm.who} · {fm.desc}</div>
+                    </button>
                   );
                 })}
               </div>
-              <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center', fontSize: 12, color: 'var(--c-tx4)' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>손절 <input type="number" value={cfg.stopLoss} onChange={(e) => saveCfg({ ...cfg, stopLoss: Number(e.target.value) })} style={{ ...inputStyle, width: 64, padding: '5px 8px' }} /> %</label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>익절 +<input type="number" value={cfg.takeProfit} onChange={(e) => saveCfg({ ...cfg, takeProfit: Number(e.target.value) })} style={{ ...inputStyle, width: 64, padding: '5px 8px' }} /> %</label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>비중 상한 <input type="number" value={cfg.maxWeight} onChange={(e) => saveCfg({ ...cfg, maxWeight: Number(e.target.value) })} style={{ ...inputStyle, width: 64, padding: '5px 8px' }} /> %</label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
-                  <input type="checkbox" checked={cfg.trailingOn} onChange={(e) => saveCfg({ ...cfg, trailingOn: e.target.checked })} />
-                  트레일링 스톱 고점 -<input type="number" value={cfg.trailing} onChange={(e) => saveCfg({ ...cfg, trailing: Number(e.target.value) })} style={{ ...inputStyle, width: 60, padding: '5px 8px' }} disabled={!cfg.trailingOn} /> %
-                </label>
-              </div>
+              {(cfg.enabled.oneill || cfg.enabled.weight || cfg.enabled.trail) && (
+                <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'center', fontSize: 12, color: 'var(--c-tx4)', marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--c-w06)' }}>
+                  {cfg.enabled.oneill && (
+                    <>
+                      {PRESETS.map((p) => {
+                        const on = activePreset === p.label;
+                        return <button key={p.label} onClick={() => saveCfg({ ...cfg, ...p.cfg })} style={{ cursor: 'pointer', fontFamily: 'inherit', fontSize: 11, fontWeight: 700, padding: '4px 9px', borderRadius: 7, border: `1px solid ${on ? 'var(--c-cy45)' : 'var(--c-w08)'}`, background: on ? 'var(--c-cy16)' : 'var(--c-w05)', color: on ? 'var(--c-accyanbr)' : 'var(--c-tx5)' }}>{p.label}</button>;
+                      })}
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>손절 <input type="number" value={cfg.stopLoss} onChange={(e) => saveCfg({ ...cfg, stopLoss: Number(e.target.value) })} style={{ ...inputStyle, width: 62, padding: '5px 8px' }} /> %</label>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>익절 +<input type="number" value={cfg.takeProfit} onChange={(e) => saveCfg({ ...cfg, takeProfit: Number(e.target.value) })} style={{ ...inputStyle, width: 62, padding: '5px 8px' }} /> %</label>
+                    </>
+                  )}
+                  {cfg.enabled.weight && <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>비중 상한 <input type="number" value={cfg.maxWeight} onChange={(e) => saveCfg({ ...cfg, maxWeight: Number(e.target.value) })} style={{ ...inputStyle, width: 62, padding: '5px 8px' }} /> %</label>}
+                  {cfg.enabled.trail && <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>트레일링 고점 -<input type="number" value={cfg.trailing} onChange={(e) => saveCfg({ ...cfg, trailing: Number(e.target.value) })} style={{ ...inputStyle, width: 58, padding: '5px 8px' }} /> %</label>}
+                </div>
+              )}
             </div>
 
             {!sellFund && sellLoading && (
