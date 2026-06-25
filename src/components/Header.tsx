@@ -44,28 +44,44 @@ function MenuIcon({ open }: { open: boolean }) {
   );
 }
 
+function GearIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="3" />
+      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+    </svg>
+  );
+}
+
 const utilBtnBase: React.CSSProperties = {
   cursor: 'pointer', fontFamily: 'inherit', lineHeight: 1, display: 'flex', alignItems: 'center', gap: 5,
   padding: '7px 11px', borderRadius: 10, border: '1px solid var(--c-w10)', background: 'var(--c-w05)',
   color: 'var(--c-tx4)', whiteSpace: 'nowrap',
 };
+const iconBtn = (active: boolean): React.CSSProperties => ({
+  flexShrink: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+  width: 40, height: 40, borderRadius: 10, border: '1px solid var(--c-w10)',
+  background: active ? 'var(--c-w08)' : 'var(--c-w05)', color: 'var(--c-tx2)',
+});
 
 export function Header() {
   const { vw, layout } = useViewportLayout();
   const { state, actions, data } = useDashboard();
   const pathname = usePathname();
 
-  // 좁은 화면에선 메뉴(및 유틸 버튼)를 햄버거(≡) 드롭다운으로 접는다. 넓은 화면은 가로 메뉴 유지.
-  const navInline = vw >= 1280;
+  // 좁은 화면에선 메뉴를 햄버거(≡)로 접는다. 다크/큰글씨/로그아웃은 항상 ⚙ 설정 드롭다운으로 묶어 공간 절약.
+  const navInline = vw >= 1340;
   const [menuOpen, setMenuOpen] = useState(false);
-  // 페이지 이동(경로 변경) 시 메뉴 닫기. 가로 메뉴로 넓어지면 열린 상태 정리.
-  useEffect(() => setMenuOpen(false), [pathname]);
+  const [setOpen, setSetOpen] = useState(false);
+  useEffect(() => {
+    setMenuOpen(false);
+    setSetOpen(false);
+  }, [pathname]);
   useEffect(() => {
     if (navInline) setMenuOpen(false);
   }, [navInline]);
 
   // 실시간 KST 시계 + 시장별 장 상태(코스피·뉴욕). 타임존으로 계산해 미국 DST 자동 반영.
-  // SSR 불일치 방지 위해 마운트 후 설정.
   const [now, setNow] = useState<Date | null>(null);
   const [hoverMkt, setHoverMkt] = useState<string | null>(null);
   useEffect(() => {
@@ -75,7 +91,6 @@ export function Header() {
   }, []);
   const clock = useMemo(() => {
     if (!now) return { date: '', time: '--:--', markets: [] as { name: string; label: string; color: string; hours: string }[] };
-    // 해당 타임존의 요일/분 단위 시각 + 정규장 시간으로 상태 산출.
     const status = (tz: string, openMin: number, closeMin: number) => {
       const p = Object.fromEntries(
         new Intl.DateTimeFormat('en-GB', { timeZone: tz, weekday: 'short', hour: '2-digit', minute: '2-digit', hour12: false })
@@ -97,13 +112,12 @@ export function Header() {
       date: `${k.year}.${k.month}.${k.day}`,
       time: `${k.hour}:${k.minute}`,
       markets: [
-        { name: '코스피', ...status('Asia/Seoul', 540, 930), hours: '정규장 09:00 ~ 15:30 (KST) · 평일' }, // 09:00~15:30
-        { name: '뉴욕', ...status('America/New_York', 570, 960), hours: '정규장 09:30 ~ 16:00 (현지) · 한국시간 약 22:30 ~ 05:00 · 평일 (서머타임 자동 반영)' }, // 09:30~16:00 ET
+        { name: '코스피', ...status('Asia/Seoul', 540, 930), hours: '정규장 09:00 ~ 15:30 (KST) · 평일' },
+        { name: '뉴욕', ...status('America/New_York', 570, 960), hours: '정규장 09:30 ~ 16:00 (현지) · 한국시간 약 22:30 ~ 05:00 · 평일 (서머타임 자동 반영)' },
       ],
     };
   }, [now]);
 
-  // 현재 경로로 활성 탭 결정. 상세(/instrument)는 '종목' 강조.
   const activeHref =
     pathname === '/' ? '/' : pathname.startsWith('/instrument') ? '/stocks' : '/' + (pathname.split('/')[1] || '');
   const gq = state.gQuery.trim().toLowerCase();
@@ -127,43 +141,36 @@ export function Header() {
     return out.slice(0, 8);
   }, [gq, data.stocks]);
 
-  // 유틸 버튼(테마/큰글씨/로그아웃) — 가로 메뉴에선 인라인, 햄버거에선 세로 풀폭.
-  const fullStyle = (full: boolean): React.CSSProperties =>
-    full ? { width: '100%', justifyContent: 'flex-start', padding: '11px 12px' } : { flexShrink: 0 };
-
-  const themeBtn = (full: boolean) => (
-    <button onClick={actions.cycleTheme} title="화면 테마 전환 (시스템 → 라이트 → 다크)" style={{ ...utilBtnBase, ...fullStyle(full) }}>
-      <span style={{ fontSize: 14 }}>{state.theme === 'light' ? '☀' : state.theme === 'dark' ? '☾' : '◐'}</span>
-      <span style={{ fontSize: 11, fontWeight: 700 }}>{state.theme === 'light' ? '라이트' : state.theme === 'dark' ? '다크' : '시스템'}</span>
-    </button>
-  );
-  const fontBtn = (full: boolean) => (
-    <button
-      onClick={actions.toggleLargeFont}
-      title={state.largeFont ? '기본 글씨 크기로' : '큰글씨(어르신) 버전으로'}
-      aria-pressed={state.largeFont}
-      style={{
-        ...utilBtnBase, ...fullStyle(full),
-        border: `1px solid ${state.largeFont ? 'var(--c-cy45)' : 'var(--c-w10)'}`,
-        background: state.largeFont ? 'var(--c-cy16)' : 'var(--c-w05)',
-        color: state.largeFont ? 'var(--c-accyanbr)' : 'var(--c-tx4)',
-      }}
-    >
-      <span style={{ fontSize: 16, fontWeight: 800 }}>가</span>
-      <span style={{ fontSize: 11, fontWeight: 700 }}>큰글씨</span>
-    </button>
-  );
-  const logoutBtn = (full: boolean) => (
-    <button
-      onClick={async () => {
-        await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
-        window.location.href = '/login';
-      }}
-      title="로그아웃"
-      style={{ ...utilBtnBase, ...fullStyle(full), fontSize: 11, fontWeight: 700 }}
-    >
-      로그아웃
-    </button>
+  // 설정 항목(테마/큰글씨/로그아웃) — 드롭다운 안 세로 풀폭 버튼.
+  const settingsItems = (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <button onClick={actions.cycleTheme} style={{ ...utilBtnBase, width: '100%', justifyContent: 'flex-start', padding: '11px 12px' }}>
+        <span style={{ fontSize: 14 }}>{state.theme === 'light' ? '☀' : state.theme === 'dark' ? '☾' : '◐'}</span>
+        <span style={{ fontSize: 13, fontWeight: 700 }}>테마: {state.theme === 'light' ? '라이트' : state.theme === 'dark' ? '다크' : '시스템'}</span>
+      </button>
+      <button
+        onClick={actions.toggleLargeFont}
+        aria-pressed={state.largeFont}
+        style={{
+          ...utilBtnBase, width: '100%', justifyContent: 'flex-start', padding: '11px 12px',
+          border: `1px solid ${state.largeFont ? 'var(--c-cy45)' : 'var(--c-w10)'}`,
+          background: state.largeFont ? 'var(--c-cy16)' : 'var(--c-w05)',
+          color: state.largeFont ? 'var(--c-accyanbr)' : 'var(--c-tx4)',
+        }}
+      >
+        <span style={{ fontSize: 16, fontWeight: 800 }}>가</span>
+        <span style={{ fontSize: 13, fontWeight: 700 }}>큰글씨 {state.largeFont ? '켜짐' : '꺼짐'}</span>
+      </button>
+      <button
+        onClick={async () => {
+          await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
+          window.location.href = '/login';
+        }}
+        style={{ ...utilBtnBase, width: '100%', justifyContent: 'flex-start', padding: '11px 12px', fontSize: 13, fontWeight: 700 }}
+      >
+        로그아웃
+      </button>
+    </div>
   );
 
   return (
@@ -180,28 +187,22 @@ export function Header() {
           gap: layout.navGap, padding: `0 ${layout.padX}`, height: 64,
         }}
       >
-        <Link
-          href="/"
-          style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', flexShrink: 0, textDecoration: 'none' }}
-        >
+        <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', flexShrink: 0, textDecoration: 'none' }}>
           <div
             style={{
               width: 34, height: 34, borderRadius: 10, background: 'linear-gradient(135deg,var(--c-accyan),var(--c-blue))',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              boxShadow: '0 6px 18px var(--c-cy22)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 6px 18px var(--c-cy22)',
             }}
           >
             <div style={{ width: 12, height: 12, borderRadius: 4, background: 'var(--c-bg)' }} />
           </div>
           {layout.showBrand && (
-            <div style={{ fontSize: 16, fontWeight: 700, letterSpacing: '-0.01em', whiteSpace: 'nowrap' }}>
-              InvestKang
-            </div>
+            <div style={{ fontSize: 16, fontWeight: 700, letterSpacing: '-0.01em', whiteSpace: 'nowrap' }}>InvestKang</div>
           )}
         </Link>
 
         {navInline ? (
-          <nav className="no-scrollbar" style={{ display: 'flex', alignItems: 'center', gap: layout.navGap, flex: 1, overflowX: 'auto' }}>
+          <nav className="no-scrollbar" style={{ display: 'flex', alignItems: 'center', gap: 22, flex: 1, overflowX: 'auto' }}>
             {NAV.map((n) => {
               const active = activeHref === n.href;
               return (
@@ -209,8 +210,7 @@ export function Header() {
                   key={n.href}
                   href={n.href}
                   style={{
-                    textDecoration: 'none',
-                    fontSize: 15, fontWeight: 600, padding: '6px 2px', whiteSpace: 'nowrap',
+                    textDecoration: 'none', fontSize: 15, fontWeight: 600, padding: '6px 2px', whiteSpace: 'nowrap',
                     borderBottom: `2px solid ${active ? 'var(--c-accyan)' : 'transparent'}`,
                     color: active ? 'var(--c-tx1c)' : 'var(--c-tx5)', transition: 'color 180ms',
                   }}
@@ -221,7 +221,6 @@ export function Header() {
             })}
           </nav>
         ) : (
-          // 햄버거 모드: 가운데를 비워(나머지를 우측으로) 메뉴/유틸은 ≡ 안으로.
           <div style={{ flex: 1 }} />
         )}
 
@@ -271,19 +270,12 @@ export function Header() {
                   </div>
                 ))}
                 {gResults.length === 0 && (
-                  <div style={{ padding: 20, textAlign: 'center', fontSize: 13, color: 'var(--c-tx6)' }}>
-                    검색 결과가 없습니다.
-                  </div>
+                  <div style={{ padding: 20, textAlign: 'center', fontSize: 13, color: 'var(--c-tx6)' }}>검색 결과가 없습니다.</div>
                 )}
               </div>
             )}
           </div>
         )}
-
-        {/* 유틸 버튼: 가로 메뉴일 때만 인라인 노출(햄버거 모드에선 드롭다운 안에) */}
-        {navInline && themeBtn(false)}
-        {navInline && fontBtn(false)}
-        {navInline && logoutBtn(false)}
 
         {layout.showStatus && (
           <div style={{ textAlign: 'right', flexShrink: 0 }}>
@@ -319,32 +311,27 @@ export function Header() {
           </div>
         )}
 
-        {/* 햄버거 버튼 (좁은 화면) */}
+        {/* 햄버거(메뉴) — 좁은 화면 */}
         {!navInline && (
-          <button
-            onClick={() => setMenuOpen((v) => !v)}
-            aria-label="메뉴"
-            aria-expanded={menuOpen}
-            style={{
-              flexShrink: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-              width: 40, height: 40, borderRadius: 10, border: '1px solid var(--c-w10)',
-              background: menuOpen ? 'var(--c-w08)' : 'var(--c-w05)', color: 'var(--c-tx2)',
-            }}
-          >
+          <button onClick={() => { setMenuOpen((v) => !v); setSetOpen(false); }} aria-label="메뉴" aria-expanded={menuOpen} style={iconBtn(menuOpen)}>
             <MenuIcon open={menuOpen} />
           </button>
         )}
+
+        {/* 설정(⚙) — 다크/큰글씨/로그아웃 묶음. 항상 노출. */}
+        <button onClick={() => { setSetOpen((v) => !v); setMenuOpen(false); }} aria-label="설정" aria-expanded={setOpen} title="설정 (테마·큰글씨·로그아웃)" style={iconBtn(setOpen)}>
+          <GearIcon />
+        </button>
       </div>
 
-      {/* 햄버거 드롭다운 + 바깥 클릭 닫기 */}
-      {!navInline && menuOpen && (
+      {/* 햄버거 드롭다운(메뉴 링크) */}
+      {menuOpen && (
         <>
           <div onClick={() => setMenuOpen(false)} style={{ position: 'fixed', inset: 0, top: 64, zIndex: 45, background: 'var(--c-shadow)' }} />
           <div
             style={{
-              position: 'absolute', top: 'calc(100% + 8px)', right: layout.padX, zIndex: 55, width: 'min(260px, calc(100vw - 32px))',
-              background: 'var(--c-panel)', border: '1px solid var(--c-w12)', borderRadius: 16,
-              boxShadow: '0 18px 48px var(--c-shadow)', padding: 8,
+              position: 'absolute', top: 'calc(100% + 8px)', right: layout.padX, zIndex: 55, width: 'min(240px, calc(100vw - 32px))',
+              background: 'var(--c-panel)', border: '1px solid var(--c-w12)', borderRadius: 16, boxShadow: '0 18px 48px var(--c-shadow)', padding: 8,
             }}
           >
             <nav style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -356,10 +343,8 @@ export function Header() {
                     href={n.href}
                     onClick={() => setMenuOpen(false)}
                     style={{
-                      textDecoration: 'none', display: 'block', padding: '11px 12px', borderRadius: 10,
-                      fontSize: 15, fontWeight: 600,
-                      background: active ? 'var(--c-w06)' : 'transparent',
-                      color: active ? 'var(--c-tx1c)' : 'var(--c-tx4)',
+                      textDecoration: 'none', display: 'block', padding: '11px 12px', borderRadius: 10, fontSize: 15, fontWeight: 600,
+                      background: active ? 'var(--c-w06)' : 'transparent', color: active ? 'var(--c-tx1c)' : 'var(--c-tx4)',
                     }}
                   >
                     {n.label}
@@ -367,12 +352,21 @@ export function Header() {
                 );
               })}
             </nav>
-            <div style={{ height: 1, background: 'var(--c-w07)', margin: '8px 4px' }} />
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {themeBtn(true)}
-              {fontBtn(true)}
-              {logoutBtn(true)}
-            </div>
+          </div>
+        </>
+      )}
+
+      {/* 설정 드롭다운 */}
+      {setOpen && (
+        <>
+          <div onClick={() => setSetOpen(false)} style={{ position: 'fixed', inset: 0, top: 64, zIndex: 45, background: 'var(--c-shadow)' }} />
+          <div
+            style={{
+              position: 'absolute', top: 'calc(100% + 8px)', right: layout.padX, zIndex: 55, width: 'min(220px, calc(100vw - 32px))',
+              background: 'var(--c-panel)', border: '1px solid var(--c-w12)', borderRadius: 16, boxShadow: '0 18px 48px var(--c-shadow)', padding: 8,
+            }}
+          >
+            {settingsItems}
           </div>
         </>
       )}

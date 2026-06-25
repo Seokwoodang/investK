@@ -50,6 +50,19 @@ function num(n: number | null, suffix = '', digits = 2): string {
   return n == null ? '—' : `${n.toLocaleString('ko-KR', { maximumFractionDigits: digits })}${suffix}`;
 }
 
+const PAGE = 10; // 무한스크롤 한 번에 늘어나는 개수
+const SORTS: { key: string; label: string; val: (s: ScoredStock) => number; asc?: boolean }[] = [
+  { key: 'score', label: '종합점수', val: (s) => s.score },
+  { key: 'value', label: '밸류', val: (s) => s.valueScore },
+  { key: 'quality', label: '퀄리티', val: (s) => s.qualityScore },
+  { key: 'safety', label: '안정성', val: (s) => s.safetyScore },
+  { key: 'yield', label: '환원', val: (s) => s.yieldScore },
+  { key: 'roe', label: 'ROE', val: (s) => s.roe ?? -1 },
+  { key: 'div', label: '배당', val: (s) => s.divYield ?? -1 },
+  { key: 'per', label: '저PER', val: (s) => (s.per == null ? Infinity : s.per), asc: true },
+  { key: 'pbr', label: '저PBR', val: (s) => (s.pbr == null ? Infinity : s.pbr), asc: true },
+];
+
 function ScoreBar({ label, value }: { label: string; value: number }) {
   return (
     <div style={{ flex: 1, minWidth: 58 }}>
@@ -80,7 +93,25 @@ export function ValueStocks() {
   const [market, setMarket] = useState<Market>('kr');
   const [cache, setCache] = useState<Partial<Record<Market, ValueScreen>>>({});
   const [err, setErr] = useState<Market | null>(null);
+  const [sortKey, setSortKey] = useState('score');
+  const [limit, setLimit] = useState(PAGE);
   const data = cache[market];
+
+  const sortDef = SORTS.find((x) => x.key === sortKey) ?? SORTS[0];
+  const sorted = data ? [...data.items].sort((a, b) => (sortDef.asc ? sortDef.val(a) - sortDef.val(b) : sortDef.val(b) - sortDef.val(a))) : [];
+  const visible = sorted.slice(0, limit);
+
+  // 시장·정렬 바뀌면 처음부터.
+  useEffect(() => setLimit(PAGE), [market, sortKey]);
+
+  // 무한스크롤: 바닥 근처면 더 보여준다.
+  useEffect(() => {
+    const onScroll = () => {
+      if (window.innerHeight + window.scrollY >= document.body.offsetHeight - 600) setLimit((l) => l + PAGE);
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
 
   useEffect(() => {
     if (cache[market]) return;
@@ -153,11 +184,29 @@ export function ValueStocks() {
 
       {data && (
         <>
-          <div style={{ fontSize: 12, color: 'var(--c-tx6)', marginBottom: 12 }}>
-            기준일 {data.date} · 평가 {data.universe.toLocaleString('ko-KR')}종목 중 상위 {data.items.length}개
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>
+            <div style={{ fontSize: 12, color: 'var(--c-tx6)' }}>
+              기준일 {data.date} · 평가 {data.universe.toLocaleString('ko-KR')}종목 중 상위 {data.items.length}개
+            </div>
+            <div className="no-scrollbar" style={{ display: 'flex', gap: 6, overflowX: 'auto', maxWidth: '100%' }}>
+              {SORTS.map((s) => (
+                <button
+                  key={s.key}
+                  onClick={() => setSortKey(s.key)}
+                  style={{
+                    cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', padding: '5px 11px', borderRadius: 8, fontSize: 12, fontWeight: 700,
+                    border: `1px solid ${sortKey === s.key ? 'var(--c-cy45)' : 'var(--c-w08)'}`,
+                    background: sortKey === s.key ? 'var(--c-cy16)' : 'var(--c-w04)',
+                    color: sortKey === s.key ? 'var(--c-accyanbr)' : 'var(--c-tx5)',
+                  }}
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {data.items.map((s, i) => (
+            {visible.map((s, i) => (
               <button
                 key={s.code}
                 className="card-hover"
@@ -199,6 +248,11 @@ export function ValueStocks() {
               </button>
             ))}
           </div>
+          {limit < sorted.length && (
+            <div style={{ textAlign: 'center', padding: 14, fontSize: 12, color: 'var(--c-tx6)' }}>
+              아래로 스크롤하면 더 보입니다 · {visible.length}/{sorted.length}
+            </div>
+          )}
           <SourceNote
             text={market === 'kr' ? '재무 — 네이버 금융 재무제표(ROE·부채비율·이익률·EPS·BPS·배당) + 시세 · 점수는 자체 산식' : '재무 — Yahoo Finance(PER·PBR·ROE·부채·이익률·배당·컨센서스) · 점수는 자체 산식'}
             style={{ marginTop: 16 }}
