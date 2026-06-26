@@ -6,7 +6,7 @@ import { parseHoldingsText, resolveStock, usdKrwFromFx, usePortfolio, useResolve
 import { useDashboard } from '../../store/DashboardContext';
 import { TAB_MAP, type Currency, type TabId } from '../../types';
 import { SourceNote } from '../SourceNote';
-import { TermTip } from '../GlossaryTip';
+import { GlossaryTip, TermTip } from '../GlossaryTip';
 import { InlineSpinner } from '../Footer';
 
 const CARD: React.CSSProperties = {
@@ -40,14 +40,14 @@ interface SellConfig { stopLoss: number; takeProfit: number; maxWeight: number; 
 
 const SELL_CFG_KEY = 'sell_cfg';
 // 선택 가능한 매도 공식(전략). 켜면 그 공식의 신호만 본다. (stock=주식 전용 — 캔들/재무 필요)
-const FORMULAS: { key: string; name: string; who: string; desc: string; stock?: boolean }[] = [
-  { key: 'oneill', name: '오닐 (CAN SLIM)', who: '윌리엄 오닐', desc: '고정 손절·익절 라인' },
-  { key: 'trend', name: '추세 (이동평균)', who: '추세추종', desc: '장기 이동평균선 이탈', stock: true },
-  { key: 'atr', name: '변동성 손절 (ATR)', who: '샹들리에 이그짓', desc: '고점−3×ATR · 변동성 자동', stock: true },
-  { key: 'trail', name: '트레일링 스톱', who: '추세추종', desc: '실제 고점 대비 하락', stock: true },
-  { key: 'graham', name: '그레이엄 (가치)', who: '벤저민 그레이엄', desc: '목표가 도달 = 고평가', stock: true },
-  { key: 'quality', name: '피셔·버핏 (퀄리티)', who: '필립 피셔·버핏', desc: '재무 악화 = 보유근거 소멸', stock: true },
-  { key: 'weight', name: '비중 리밸런싱', who: '분산 투자', desc: '단일 종목 비중 상한' },
+const FORMULAS: { key: string; name: string; who: string; desc: string; stock?: boolean; tip: string }[] = [
+  { key: 'oneill', name: '오닐 (CAN SLIM)', who: '윌리엄 오닐', desc: '고정 손절·익절 라인', tip: '윌리엄 오닐의 투자법. 손실은 정해둔 선(예 -8%)에서 칼같이 끊고, 오른 종목은 +20~25%에서 차익실현하는 "규칙대로 사고팔기" 방식이에요. 내가 정한 숫자 기준입니다.' },
+  { key: 'trend', name: '추세 (이동평균)', who: '추세추종', desc: '장기 이동평균선 이탈', stock: true, tip: '"이동평균선"은 최근 며칠 종가의 평균을 이은 선이에요. 주가가 이 선(예 120일선) 아래로 떨어지면 상승 추세가 꺾였다고 보고 매도를 검토합니다. 종목 가격 자체가 주는 신호예요.' },
+  { key: 'atr', name: '변동성 손절 (ATR)', who: '샹들리에 이그짓', desc: '고점−3×ATR · 변동성 자동', stock: true, tip: '종목마다 평소 출렁이는 폭(ATR)이 다른데, 그 변동성에 맞춰 손절선을 자동으로 잡는 방식이에요(고점 − 3×ATR). 많이 흔들리는 종목은 손절선을 넓게, 안정적인 종목은 좁게 잡아 노이즈에 안 털립니다.' },
+  { key: 'trail', name: '트레일링 스톱', who: '추세추종', desc: '실제 고점 대비 하락', stock: true, tip: '주가가 고점을 찍은 뒤 정해둔 % 만큼 떨어지면 파는 방법. 오를 때는 끝까지 따라가다가, 고점 대비 일정폭 빠지면 수익을 지키며 매도합니다.' },
+  { key: 'graham', name: '그레이엄 (가치)', who: '벤저민 그레이엄', desc: '목표가 도달 = 고평가', stock: true, tip: '"가치투자의 아버지" 벤저민 그레이엄 방식. 주가가 적정가치(증권가 평균 목표가)에 도달하면 더 오를 여유(안전마진)가 줄었다고 보고 매도를 고려합니다.' },
+  { key: 'quality', name: '피셔·버핏 (퀄리티)', who: '필립 피셔·버핏', desc: '재무 악화 = 보유근거 소멸', stock: true, tip: '필립 피셔·워런 버핏 방식. 회사 자체가 나빠지면(ROE·이익률 하락, 부채 급증) "내가 산 이유"가 사라졌다고 보고 매도를 검토합니다. 단순 주가 등락이 아니라 기업의 질을 봐요.' },
+  { key: 'weight', name: '비중 리밸런싱', who: '분산 투자', desc: '단일 종목 비중 상한', tip: '한 종목이 내 전체 자산에서 너무 큰 비중을 차지하면 그 종목 하나에 위험이 쏠려요. 비중이 상한(예 25%)을 넘으면 일부를 덜어 분산하라는 신호입니다.' },
 ];
 const DEFAULT_CFG: SellConfig = { stopLoss: -20, takeProfit: 50, maxWeight: 25, trailing: 20, enabled: { oneill: true, graham: true, quality: true, weight: true, trend: false, atr: false, trail: false } };
 const PRESETS: { label: string; cfg: Partial<SellConfig> }[] = [
@@ -392,6 +392,9 @@ export function Portfolio() {
                       <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                         <span style={{ width: 15, height: 15, borderRadius: 4, flexShrink: 0, border: `1px solid ${on ? 'var(--c-accyanbr)' : 'var(--c-w10)'}`, background: on ? 'var(--c-accyanbr)' : 'transparent', color: 'var(--c-bg)', fontSize: 10, fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{on ? '✓' : ''}</span>
                         <span style={{ fontSize: 13, fontWeight: 700, color: on ? 'var(--c-tx1b)' : 'var(--c-tx3)' }}>{fm.name}</span>
+                        <span onClick={(e) => e.stopPropagation()} role="presentation" style={{ display: 'inline-flex' }}>
+                          <GlossaryTip hit={{ term: fm.name, def: fm.tip }} zIndex={90} />
+                        </span>
                         {fm.stock && <span style={{ marginLeft: 'auto', fontSize: 9, color: 'var(--c-tx6)', border: '1px solid var(--c-w08)', borderRadius: 4, padding: '1px 4px' }}>주식</span>}
                       </div>
                       <div style={{ fontSize: 11, color: 'var(--c-tx6)', marginTop: 4, paddingLeft: 22 }}>{fm.who} · {fm.desc}</div>
