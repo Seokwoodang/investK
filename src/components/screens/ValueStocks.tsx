@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { fmtPct, upColor } from '../../lib/format';
 import { useDashboard } from '../../store/DashboardContext';
 import { SourceNote } from '../SourceNote';
@@ -33,10 +33,11 @@ interface ScoredStock {
   graham: boolean;
   buffett: boolean;
 }
-interface ValueScreen {
-  market: Market;
+interface ValuePage {
   date: string;
   universe: number;
+  total: number;
+  offset: number;
   items: ScoredStock[];
 }
 
@@ -51,17 +52,17 @@ function num(n: number | null, suffix = '', digits = 2): string {
   return n == null ? '—' : `${n.toLocaleString('ko-KR', { maximumFractionDigits: digits })}${suffix}`;
 }
 
-const PAGE = 10; // 무한스크롤 한 번에 늘어나는 개수
-const SORTS: { key: string; label: string; val: (s: ScoredStock) => number; asc?: boolean }[] = [
-  { key: 'score', label: '종합점수', val: (s) => s.score },
-  { key: 'value', label: '밸류', val: (s) => s.valueScore },
-  { key: 'quality', label: '퀄리티', val: (s) => s.qualityScore },
-  { key: 'safety', label: '안정성', val: (s) => s.safetyScore },
-  { key: 'yield', label: '환원', val: (s) => s.yieldScore },
-  { key: 'roe', label: 'ROE', val: (s) => s.roe ?? -1 },
-  { key: 'div', label: '배당', val: (s) => s.divYield ?? -1 },
-  { key: 'per', label: '저PER', val: (s) => (s.per == null ? Infinity : s.per), asc: true },
-  { key: 'pbr', label: '저PBR', val: (s) => (s.pbr == null ? Infinity : s.pbr), asc: true },
+const PAGE = 20; // 스크롤 시 서버에서 한 번에 받아오는 개수(네트워크 무한스크롤)
+const SORTS: { key: string; label: string }[] = [
+  { key: 'score', label: '종합점수' },
+  { key: 'value', label: '밸류' },
+  { key: 'quality', label: '퀄리티' },
+  { key: 'safety', label: '안정성' },
+  { key: 'yield', label: '환원' },
+  { key: 'roe', label: 'ROE' },
+  { key: 'div', label: '배당' },
+  { key: 'per', label: '저PER' },
+  { key: 'pbr', label: '저PBR' },
 ];
 
 function ScoreBar({ label, value, term }: { label: string; value: number; term?: string }) {
@@ -92,37 +93,47 @@ function Badge({ text, color, bg }: { text: string; color: string; bg: string })
 export function ValueStocks() {
   const { actions } = useDashboard();
   const [market, setMarket] = useState<Market>('kr');
-  const [cache, setCache] = useState<Partial<Record<Market, ValueScreen>>>({});
-  const [err, setErr] = useState<Market | null>(null);
   const [sortKey, setSortKey] = useState('score');
-  const [limit, setLimit] = useState(PAGE);
-  const data = cache[market];
+  const [items, setItems] = useState<ScoredStock[]>([]);
+  const [total, setTotal] = useState(0);
+  const [meta, setMeta] = useState<{ date: string; universe: number } | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState(false);
+  const reqId = useRef(0);
 
-  const sortDef = SORTS.find((x) => x.key === sortKey) ?? SORTS[0];
-  const sorted = data ? [...data.items].sort((a, b) => (sortDef.asc ? sortDef.val(a) - sortDef.val(b) : sortDef.val(b) - sortDef.val(a))) : [];
-  const visible = sorted.slice(0, limit);
-
-  // 시장·정렬 바뀌면 처음부터.
-  useEffect(() => setLimit(PAGE), [market, sortKey]);
-
-  // 무한스크롤은 아래 목록 컨테이너 내부 스크롤(onScroll)에서 처리한다(페이지 전체가 늘어나지 않게).
-
-  useEffect(() => {
-    if (cache[market]) return;
-    let cancelled = false;
-    setErr(null);
-    fetch(`/api/value-screen?market=${market}`)
+  // 서버에서 (정렬 + offset/limit) 한 페이지씩 받아온다. offset=0이면 새로(시장·정렬 변경), 아니면 이어붙임.
+  const load = useCallback((offset: number) => {
+    const id = ++reqId.current;
+    setLoading(true);
+    if (offset === 0) setErr(false);
+    fetch(`/api/value-screen?market=${market}&sort=${sortKey}&offset=${offset}&limit=${PAGE}`)
       .then((r) => (r.ok ? r.json() : Promise.reject()))
-      .then((j: ValueScreen) => {
-        if (!cancelled) setCache((c) => ({ ...c, [market]: j }));
+      .then((j: ValuePage) => {
+        if (id !== reqId.current) return; // 더 최신 요청이 있으면 무시
+        setMeta({ date: j.date, universe: j.universe });
+        setTotal(j.total ?? 0);
+        setItems((prev) => (offset === 0 ? j.items : [...prev, ...j.items]));
       })
       .catch(() => {
-        if (!cancelled) setErr(market);
+        if (id === reqId.current && offset === 0) setErr(true);
+      })
+      .finally(() => {
+        if (id === reqId.current) setLoading(false);
       });
-    return () => {
-      cancelled = true;
-    };
-  }, [market, cache]);
+  }, [market, sortKey]);
+
+  // 시장·정렬 변경 → 처음부터 다시.
+  useEffect(() => {
+    setItems([]);
+    setTotal(0);
+    load(0);
+  }, [load]);
+
+  const hasMore = items.length < total;
+  const onScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const el = e.currentTarget;
+    if (!loading && hasMore && el.scrollTop + el.clientHeight >= el.scrollHeight - 280) load(items.length);
+  };
 
   const seg = (m: Market, label: string) => (
     <button
@@ -169,18 +180,18 @@ export function ValueStocks() {
         </div>
       </div>
 
-      {err === market && <div style={{ ...CARD, padding: 40, textAlign: 'center', color: 'var(--c-tx5)' }}>데이터를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.</div>}
-      {!data && err !== market && (
+      {err && items.length === 0 && <div style={{ ...CARD, padding: 40, textAlign: 'center', color: 'var(--c-tx5)' }}>데이터를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.</div>}
+      {!err && items.length === 0 && loading && (
         <div style={{ ...CARD, padding: 40, textAlign: 'center', color: 'var(--c-tx5)' }}>
           {market === 'kr' ? '국내' : '해외'} 종목 재무지표를 분석하는 중입니다… (최초 생성은 십수 초 걸릴 수 있어요)
         </div>
       )}
 
-      {data && (
+      {items.length > 0 && (
         <>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>
             <div style={{ fontSize: 12, color: 'var(--c-tx6)' }}>
-              기준일 {data.date} · 평가 {data.universe.toLocaleString('ko-KR')}종목 중 상위 {data.items.length}개
+              기준일 {meta?.date} · 평가 {(meta?.universe ?? 0).toLocaleString('ko-KR')}종목 중 상위 {total.toLocaleString('ko-KR')}개 · {items.length} 로딩됨
             </div>
             <div className="no-scrollbar" style={{ display: 'flex', gap: 6, overflowX: 'auto', maxWidth: '100%' }}>
               {SORTS.map((s) => (
@@ -201,13 +212,10 @@ export function ValueStocks() {
           </div>
           <div
             className="list-scroll"
-            onScroll={(e) => {
-              const el = e.currentTarget;
-              if (el.scrollTop + el.clientHeight >= el.scrollHeight - 240) setLimit((l) => l + PAGE);
-            }}
+            onScroll={onScroll}
             style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: '68vh', overflowY: 'auto', overflowX: 'hidden', overscrollBehavior: 'contain', paddingRight: 4 }}
           >
-            {visible.map((s, i) => (
+            {items.map((s, i) => (
               <button
                 key={s.code}
                 className="card-hover"
@@ -248,11 +256,8 @@ export function ValueStocks() {
                 </div>
               </button>
             ))}
-            {limit < sorted.length && (
-              <div style={{ textAlign: 'center', padding: 14, fontSize: 12, color: 'var(--c-tx6)' }}>
-                아래로 스크롤하면 더 보입니다 · {visible.length}/{sorted.length}
-              </div>
-            )}
+            {loading && <div style={{ textAlign: 'center', padding: 14, fontSize: 12, color: 'var(--c-tx6)' }}>불러오는 중…</div>}
+            {!hasMore && !loading && <div style={{ textAlign: 'center', padding: 14, fontSize: 12, color: 'var(--c-tx6)' }}>전체 {total.toLocaleString('ko-KR')}개를 모두 봤습니다</div>}
           </div>
           <SourceNote
             text={market === 'kr' ? '재무 — 네이버 금융 재무제표(ROE·부채비율·이익률·EPS·BPS·배당) + 시세 · 점수는 자체 산식' : '재무 — Yahoo Finance(PER·PBR·ROE·부채·이익률·배당·컨센서스) · 점수는 자체 산식'}

@@ -17,7 +17,7 @@ export type Market = 'kr' | 'us';
 const KEY = (m: Market) => `value_screen:${m}`;
 const KR_N = 1000;
 const US_N = 300;
-const TOP = 80;
+const KEEP = 200; // 캐시·페이지네이션 대상 상위 랭킹 수(이만큼을 무한스크롤로 넘겨본다)
 
 export interface ScoredStock {
   code: string;
@@ -175,7 +175,36 @@ export async function buildValueScreen(market: Market): Promise<ValueScreen> {
   });
   scored.sort((a, b) => b.score - a.score);
 
-  return { market, date: kstDate(), generatedAt: new Date().toISOString(), universe: rows.length, weights: w, items: scored.slice(0, TOP) };
+  return { market, date: kstDate(), generatedAt: new Date().toISOString(), universe: rows.length, weights: w, items: scored.slice(0, KEEP) };
+}
+
+// 정렬 키(클라 칩과 동일). 서버에서 정렬 후 페이지로 잘라 무한스크롤(네트워크) 지원.
+const SORT_FNS: Record<string, { val: (s: ScoredStock) => number; asc?: boolean }> = {
+  score: { val: (s) => s.score },
+  value: { val: (s) => s.valueScore },
+  quality: { val: (s) => s.qualityScore },
+  safety: { val: (s) => s.safetyScore },
+  yield: { val: (s) => s.yieldScore },
+  roe: { val: (s) => s.roe ?? -1 },
+  div: { val: (s) => s.divYield ?? -1 },
+  per: { val: (s) => (s.per == null ? Infinity : s.per), asc: true },
+  pbr: { val: (s) => (s.pbr == null ? Infinity : s.pbr), asc: true },
+};
+
+export interface ValuePage {
+  date: string;
+  universe: number;
+  total: number;
+  offset: number;
+  items: ScoredStock[];
+}
+
+// 정렬 + offset/limit 슬라이스. 캐시된 전체 랭킹(최대 KEEP)을 읽어 해당 페이지만 반환.
+export async function getValuePage(market: Market, sort: string, offset: number, limit: number): Promise<ValuePage> {
+  const screen = await getValueScreen(market);
+  const fn = SORT_FNS[sort] ?? SORT_FNS.score;
+  const sorted = [...screen.items].sort((a, b) => (fn.asc ? fn.val(a) - fn.val(b) : fn.val(b) - fn.val(a)));
+  return { date: screen.date, universe: screen.universe, total: sorted.length, offset, items: sorted.slice(offset, offset + limit) };
 }
 
 export async function refreshValueScreen(market: Market): Promise<number> {
