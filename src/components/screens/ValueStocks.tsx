@@ -114,20 +114,25 @@ function Badge({ text, color, bg, tip }: { text: string; color: string; bg: stri
   );
 }
 
+// 상세 페이지 갔다가 뒤로 와도 시장·정렬·필터·스크롤·로드한 목록을 복원하기 위한 세션 캐시(모듈 스코프, SPA 세션 동안 유지).
+interface VsCache { market: Market; sortKey: string; filterKey: string; items: ScoredStock[]; total: number; meta: { date: string; universe: number } | null; scrollTop: number }
+let vsCache: VsCache | null = null;
+
 export function ValueStocks() {
   const { actions } = useDashboard();
-  const [market, setMarket] = useState<Market>('kr');
-  const [sortKey, setSortKey] = useState('score');
-  const [filterKey, setFilterKey] = useState('all');
-  const [items, setItems] = useState<ScoredStock[]>([]);
-  const [total, setTotal] = useState(0);
-  const [meta, setMeta] = useState<{ date: string; universe: number } | null>(null);
+  const [market, setMarket] = useState<Market>(vsCache?.market ?? 'kr');
+  const [sortKey, setSortKey] = useState(vsCache?.sortKey ?? 'score');
+  const [filterKey, setFilterKey] = useState(vsCache?.filterKey ?? 'all');
+  const [items, setItems] = useState<ScoredStock[]>(vsCache?.items ?? []);
+  const [total, setTotal] = useState(vsCache?.total ?? 0);
+  const [meta, setMeta] = useState<{ date: string; universe: number } | null>(vsCache?.meta ?? null);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState(false);
   const reqId = useRef(0);
   const loadingRef = useRef(false); // 동기 가드(중복 로드 방지)
   const containerRef = useRef<HTMLDivElement | null>(null);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const skipInitial = useRef((vsCache?.items?.length ?? 0) > 0); // 복원된 첫 마운트는 재요청 생략
 
   // 서버에서 (정렬 + offset/limit) 한 페이지씩 받아온다. offset=0이면 새로(시장·정렬 변경), 아니면 이어붙임.
   const load = useCallback((offset: number) => {
@@ -152,12 +157,26 @@ export function ValueStocks() {
       });
   }, [market, sortKey, filterKey]);
 
-  // 시장·정렬 변경 → 처음부터 다시.
+  // 시장·정렬·필터 변경 → 처음부터 다시. 단, 뒤로가기로 복원된 첫 마운트는 건너뜀(목록·스크롤 유지).
   useEffect(() => {
+    if (skipInitial.current) { skipInitial.current = false; return; }
     setItems([]);
     setTotal(0);
     load(0);
   }, [load]);
+
+  // 현재 상태를 ref로 보관 → 언마운트(상세 이동) 시 캐시에 저장.
+  const snapRef = useRef<Omit<VsCache, 'scrollTop'>>({ market, sortKey, filterKey, items, total, meta });
+  snapRef.current = { market, sortKey, filterKey, items, total, meta };
+  useEffect(() => {
+    // 마운트: 복원된 스크롤 위치 적용.
+    if (vsCache && containerRef.current) containerRef.current.scrollTop = vsCache.scrollTop || 0;
+    return () => {
+      // 언마운트: 시장·정렬·필터·목록·스크롤 저장(뒤로 오면 그대로 복원).
+      vsCache = { ...snapRef.current, scrollTop: containerRef.current?.scrollTop ?? 0 };
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const hasMore = items.length < total;
   // 최신 상태를 옵저버 콜백에서 쓰기 위한 ref.
