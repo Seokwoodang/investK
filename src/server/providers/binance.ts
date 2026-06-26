@@ -34,6 +34,9 @@ export async function getBinanceQuotes(symbols: string[]): Promise<Record<string
 
 // 바이낸스 캔들(klines). 기간별 interval/limit. 키 불필요. 과거순으로 반환됨.
 const BINANCE_CANDLE: Record<Period, { interval: string; limit: number }> = {
+  '1분': { interval: '1m', limit: 200 },
+  '5분': { interval: '5m', limit: 200 },
+  '15분': { interval: '15m', limit: 200 },
   '1시간': { interval: '1h', limit: 168 },
   '일봉': { interval: '1d', limit: 90 },
   '주봉': { interval: '1w', limit: 52 },

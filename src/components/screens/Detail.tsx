@@ -45,10 +45,10 @@ const DETAIL_TABS: { id: DetailTab; label: string }[] = [
 ];
 
 // 봉 단위 선택지. 코인은 거래소가 분/시간봉도 주므로 1시간 포함, 주식(KIS)은 일/주/월.
-const PERIODS_COIN: Period[] = ['1시간', '일봉', '주봉', '월봉'];
+const PERIODS_COIN: Period[] = ['1분', '5분', '15분', '1시간', '일봉', '주봉', '월봉'];
 const PERIODS_STOCK: Period[] = ['일봉', '주봉', '월봉'];
 // 차트 봉 표시 라벨(트레이딩뷰 스타일). 내부 값은 한글 Period 유지.
-const PERIOD_LABEL: Record<Period, string> = { '1시간': '1H', '일봉': '1D', '주봉': '1W', '월봉': '1M' };
+const PERIOD_LABEL: Record<Period, string> = { '1분': '1m', '5분': '5m', '15분': '15m', '1시간': '1H', '일봉': '1D', '주봉': '1W', '월봉': '1M' };
 const ALERTS: { k: AlertKey; label: string }[] = [
   { k: 'target', label: '목표가 도달' },
   { k: 'swing', label: '급등락 ±5%' },

@@ -34,6 +34,9 @@ export async function getUpbitQuotes(markets: string[]): Promise<Record<string, 
 
 // 업비트 캔들 (과거 OHLC). 기간별로 분/일봉 선택. 키 불필요.
 const UPBIT_CANDLE: Record<Period, { path: string; count: number }> = {
+  '1분': { path: 'minutes/1', count: 200 },
+  '5분': { path: 'minutes/5', count: 200 },
+  '15분': { path: 'minutes/15', count: 200 },
   '1시간': { path: 'minutes/60', count: 168 },
   '일봉': { path: 'days', count: 90 },
   '주봉': { path: 'weeks', count: 52 },

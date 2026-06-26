@@ -29,6 +29,9 @@ export function genVol(stock: Stock, tab: TabId): number {
 }
 
 const PERIOD_CFG: Record<Period, { n: number; s: number }> = {
+  '1분': { n: 60, s: 5 },
+  '5분': { n: 60, s: 7 },
+  '15분': { n: 60, s: 9 },
   '1시간': { n: 56, s: 11 },
   '일봉': { n: 90, s: 23 },
   '주봉': { n: 52, s: 37 },

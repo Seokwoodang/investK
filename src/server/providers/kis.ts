@@ -257,8 +257,9 @@ async function getOverseasIndex(symb: string): Promise<IndexQuote> {
 
 // ── 캔들(과거 OHLC) ──
 // 봉 단위별 조회 기간(일수)과 KIS 기간코드. 주식은 분봉 미지원이라 '1시간'은 일봉으로 대체.
-const CANDLE_BACK: Record<Period, number> = { '1시간': 40, '일봉': 130, '주봉': 400, '월봉': 1100 };
-const PERIOD_DIV: Record<Period, 'D' | 'W' | 'M'> = { '1시간': 'D', '일봉': 'D', '주봉': 'W', '월봉': 'M' };
+// 분봉(1·5·15분)은 주식 셀렉터에 없으므로 KIS에선 안 쓰이지만, 타입 충족용 폴백(일봉 취급).
+const CANDLE_BACK: Record<Period, number> = { '1분': 5, '5분': 5, '15분': 5, '1시간': 40, '일봉': 130, '주봉': 400, '월봉': 1100 };
+const PERIOD_DIV: Record<Period, 'D' | 'W' | 'M'> = { '1분': 'D', '5분': 'D', '15분': 'D', '1시간': 'D', '일봉': 'D', '주봉': 'W', '월봉': 'M' };
 // 'YYYYMMDD' → epoch ms
 const dateMs = (s: string | undefined): number | undefined => {
   if (!s || s.length < 8) return undefined;

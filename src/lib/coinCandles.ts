@@ -3,6 +3,9 @@ import type { Candle, Period, TabId } from '../types';
 // 코인 캔들은 브라우저에서 거래소 REST에 직접 요청(업비트/바이낸스 둘 다 CORS 허용).
 // 서버 경유보다 안정적이고(샌드박스 TLS 회피) 키도 불필요. 봉 단위(period)별 간격·개수.
 const UPBIT: Record<Period, { path: string }> = {
+  '1분': { path: 'minutes/1' },
+  '5분': { path: 'minutes/5' },
+  '15분': { path: 'minutes/15' },
   '1시간': { path: 'minutes/60' },
   '일봉': { path: 'days' },
   '주봉': { path: 'weeks' },
@@ -10,6 +13,9 @@ const UPBIT: Record<Period, { path: string }> = {
 };
 
 const BINANCE: Record<Period, { interval: string }> = {
+  '1분': { interval: '1m' },
+  '5분': { interval: '5m' },
+  '15분': { interval: '15m' },
   '1시간': { interval: '1h' },
   '일봉': { interval: '1d' },
   '주봉': { interval: '1w' },
@@ -18,6 +24,9 @@ const BINANCE: Record<Period, { interval: string }> = {
 
 // 봉 1개의 대략 길이(ms) — 기간에서 캔들 개수를 산출하는 데 사용.
 const SPAN_MS: Record<Period, number> = {
+  '1분': 60e3,
+  '5분': 300e3,
+  '15분': 900e3,
   '1시간': 3600e3,
   '일봉': 86400e3,
   '주봉': 7 * 86400e3,
@@ -25,7 +34,7 @@ const SPAN_MS: Record<Period, number> = {
 };
 
 // 기본 개수(기간 미지정 시) — 기존 동작 유지.
-const DEFAULT_COUNT: Record<Period, number> = { '1시간': 168, '일봉': 90, '주봉': 52, '월봉': 36 };
+const DEFAULT_COUNT: Record<Period, number> = { '1분': 200, '5분': 200, '15분': 200, '1시간': 168, '일봉': 90, '주봉': 52, '월봉': 36 };
 
 // 기간(fromMs~toMs)을 덮을 캔들 개수. 거래소 1회 호출 상한(cap) 안으로 제한.
 function countFor(period: Period, fromMs: number | undefined, toMs: number | undefined, cap: number): number {
