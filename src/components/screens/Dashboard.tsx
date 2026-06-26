@@ -9,7 +9,7 @@ import { useDashboard } from '../../store/DashboardContext';
 import { useViewportLayout } from '../DashboardChrome';
 import { TAB_LABELS } from '../../types';
 import { GlossaryTip, ImpactTag } from '../GlossaryTip';
-import { SourceNote } from '../SourceNote';
+import { SourceNote, UpdateNote } from '../SourceNote';
 import { InlineSpinner } from '../Footer';
 
 const CARD: React.CSSProperties = {
@@ -58,6 +58,7 @@ export function Dashboard() {
       <div style={{ marginBottom: 32 }}>
         <h1 style={{ margin: 0, fontSize: 28, fontWeight: 800, letterSpacing: '-0.02em' }}>대시보드</h1>
         <p style={{ margin: '8px 0 0', fontSize: 14, color: 'var(--c-tx5)' }}>시장 개장 전 핵심 지표와 자산군 현황을 한눈에 확인하세요.</p>
+        <UpdateNote text="실시간 시세(국내주식·코인) · 해외주식 약 15분 지연 · 환율·지수·시장지표 수 분~1시간 캐시" style={{ marginTop: 8 }} />
       </div>
 
       {/* Asset-class status — 최상단(가장 보고 싶은 내 자산 현황 + 종목 진입점) */}

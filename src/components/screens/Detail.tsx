@@ -10,7 +10,7 @@ import { useDashboard } from '../../store/DashboardContext';
 import { useRealtime, useSubscribeStocks, useSubscribeCoins, useSubscribeUs } from '../../store/RealtimeContext';
 import type { AlertKey, Candle, DetailTab, Period, Stock, Stocks, TabId } from '../../types';
 import { CandleChart } from '../CandleChart';
-import { SourceNote } from '../SourceNote';
+import { SourceNote, UpdateNote } from '../SourceNote';
 import { TermTip } from '../GlossaryTip';
 import { InlineSpinner } from '../Footer';
 
@@ -362,6 +362,8 @@ export function Detail({ id }: { id: string }) {
           </div>
         </div>
       </div>
+
+      <UpdateNote text="시세 실시간(국내주식·코인) · 해외주식 약 15분 지연 · AI 차트분석·관점은 하루 1회 캐시" style={{ marginBottom: 20 }} />
 
       {/* Alerts */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 24 }}>

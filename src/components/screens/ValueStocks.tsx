@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { fmtPct, upColor } from '../../lib/format';
 import { useDashboard } from '../../store/DashboardContext';
-import { SourceNote } from '../SourceNote';
+import { SourceNote, UpdateNote } from '../SourceNote';
 import { TermTip } from '../GlossaryTip';
 import { InlineSpinner } from '../Footer';
 import type { Currency, TabId } from '../../types';
@@ -199,6 +199,7 @@ export function ValueStocks() {
         <p style={{ margin: '8px 0 0', fontSize: 14, color: 'var(--c-tx5)' }}>
           버핏·그레이엄·그린블라트의 원칙을 4개 축으로 점수화해 랭킹합니다.
         </p>
+        <UpdateNote text="매일 18:00(KST · 장 마감 후) 자동 갱신 — 그 사이엔 저장된 결과를 보여줍니다" style={{ marginTop: 8 }} />
       </div>
 
       <div style={{ display: 'inline-flex', gap: 4, padding: 4, background: 'var(--c-w04)', border: '1px solid var(--c-w07)', borderRadius: 12, marginBottom: 20 }}>

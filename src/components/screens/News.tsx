@@ -5,7 +5,7 @@ import { SRC_NEWS } from '../../lib/sources';
 import { useDashboard } from '../../store/DashboardContext';
 import { useViewportLayout } from '../DashboardChrome';
 import { TabBar } from '../TabBar';
-import { SourceNote } from '../SourceNote';
+import { SourceNote, UpdateNote } from '../SourceNote';
 import { InlineSpinner } from '../Footer';
 
 interface NewsItem {
@@ -93,6 +93,7 @@ export function News() {
             ? '언론사 경제·증권·코인 뉴스를 AI가 호재·악재와 중요도로 판별해 정렬했습니다.'
             : '언론사가 경제·증권·코인으로 분류한 뉴스를 최신순으로 모았습니다.'}
         </p>
+        <UpdateNote text="매시간 자동 갱신" style={{ marginTop: 8 }} />
       </div>
 
       <TabBar marginBottom={28} coinsMerged />

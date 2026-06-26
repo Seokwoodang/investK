@@ -8,7 +8,7 @@ import { useDashboard } from '../../store/DashboardContext';
 import { useRealtime, useSubscribeStocks, useSubscribeCoins, useSubscribeUs } from '../../store/RealtimeContext';
 import type { SortKey } from '../../types';
 import { TabBar } from '../TabBar';
-import { SourceNote } from '../SourceNote';
+import { SourceNote, UpdateNote } from '../SourceNote';
 import { useViewportLayout } from '../DashboardChrome';
 
 const SORTS: { key: SortKey; label: string }[] = [
@@ -125,6 +125,7 @@ export function Stocks() {
       <div style={{ marginBottom: 24 }}>
         <h1 style={{ margin: 0, fontSize: 28, fontWeight: 800, letterSpacing: '-0.02em' }}>종목</h1>
         <p style={{ margin: '8px 0 0', fontSize: 14, color: 'var(--c-tx5)' }}>자산군을 고르고 거래대금·가격·변동률 기준으로 정렬해 보세요.</p>
+        <UpdateNote text="국내주식·코인 실시간 · 해외주식 약 15분 지연 · 종목 목록 1시간 캐시" style={{ marginTop: 8 }} />
       </div>
 
       <TabBar marginBottom={activeTab === 'us_stock' ? 12 : 24} />

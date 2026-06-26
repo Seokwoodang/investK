@@ -7,3 +7,16 @@ export function SourceNote({ text, style }: { text: string; style?: React.CSSPro
     </div>
   );
 }
+
+// 데이터 갱신 주기/시점 안내 — 페이지마다 "언제 업데이트되는지" 표시.
+export function UpdateNote({ text, style }: { text: string; style?: React.CSSProperties }) {
+  return (
+    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11.5, color: 'var(--c-tx6)', ...style }}>
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ flexShrink: 0, opacity: 0.8 }}>
+        <circle cx="12" cy="12" r="9" />
+        <path d="M12 7v5l3 2" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+      <span>{text}</span>
+    </div>
+  );
+}

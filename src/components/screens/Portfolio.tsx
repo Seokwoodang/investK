@@ -5,7 +5,7 @@ import { fmtPct, fmtPrice, upColor } from '../../lib/format';
 import { parseHoldingsText, resolveStock, usdKrwFromFx, usePortfolio, useResolvedPrices, valuePortfolio } from '../../lib/portfolio';
 import { useDashboard } from '../../store/DashboardContext';
 import { TAB_MAP, type Currency, type TabId } from '../../types';
-import { SourceNote } from '../SourceNote';
+import { SourceNote, UpdateNote } from '../SourceNote';
 import { GlossaryTip, TermTip } from '../GlossaryTip';
 import { InlineSpinner } from '../Footer';
 
@@ -254,6 +254,7 @@ export function Portfolio() {
       <div style={{ marginBottom: 24 }}>
         <h1 style={{ margin: 0, fontSize: 28, fontWeight: 800, letterSpacing: '-0.02em' }}>내 자산</h1>
         <p style={{ margin: '8px 0 0', fontSize: 14, color: 'var(--c-tx5)' }}>보유 종목을 직접 입력하거나 CSV로 붙여넣으면 평가손익·비중과 AI 포트폴리오 평가를 보여줍니다. (증권사 무관)</p>
+        <UpdateNote text="보유 평가액은 실시간 시세 반영 · 매도 점검 재무는 하루 1회 갱신" style={{ marginTop: 8 }} />
       </div>
 
       {/* 입력 */}

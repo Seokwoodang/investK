@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { fmtPct, upColor } from '../../lib/format';
 import { usePortfolio, usdKrwFromFx, useResolvedPrices, valuePortfolio } from '../../lib/portfolio';
 import { useDashboard } from '../../store/DashboardContext';
-import { SourceNote } from '../SourceNote';
+import { SourceNote, UpdateNote } from '../SourceNote';
 import { InlineSpinner } from '../Footer';
 
 const CARD: React.CSSProperties = {
@@ -136,6 +136,7 @@ export function Report() {
         <p style={{ margin: '8px 0 0', fontSize: 14, color: 'var(--c-tx5)' }}>
           {disp.isPast ? `${disp.atLabel} 기록 (과거 보고서)` : `${today} 기준 · 내 보유 포트폴리오와 현재 시장을 종합한 리포트`}
         </p>
+        <UpdateNote text="버튼을 누른 시점의 데이터로 작성되어 기록에 저장됩니다(자동 갱신 아님)" style={{ marginTop: 8 }} />
       </div>
 
       {!showBody ? (

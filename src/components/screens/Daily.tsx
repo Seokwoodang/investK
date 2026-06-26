@@ -8,7 +8,7 @@ import { useDashboard } from '../../store/DashboardContext';
 import { useViewportLayout } from '../DashboardChrome';
 import type { BriefingDay, Direction } from '../../types';
 import { GlossaryTip, ImpactTag } from '../GlossaryTip';
-import { SourceNote } from '../SourceNote';
+import { SourceNote, UpdateNote } from '../SourceNote';
 
 const CARD: React.CSSProperties = {
   background: 'var(--c-w04)', border: '1px solid var(--c-w08)',
@@ -86,6 +86,7 @@ export function Daily() {
             <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.06em', padding: '4px 10px', borderRadius: 6, whiteSpace: 'nowrap', background: 'var(--c-cy16)', color: 'var(--c-accyanbr)' }}>팩트 브리핑</span>
           </div>
           <p style={{ margin: '8px 0 0', fontSize: 14, color: 'var(--c-tx5)' }}>의견·전망 없이 사실·수치·인과만 정리한 하루 단위 시장 요약입니다.</p>
+          <UpdateNote text="매일 06 · 17 · 22시(KST) 자동 갱신" style={{ marginTop: 8 }} />
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <button onClick={() => actions.setBriefDate(addDays(bd, -1))} style={navBtn(false)}>‹</button>
