@@ -1,11 +1,11 @@
-name: Refresh news (hourly)
+name: Refresh news (6h)
 
-# Vercel 무료(Hobby) 플랜은 시간당 cron을 막으므로, GitHub Actions(무료)로 매시간
-# /api/cron/news를 호출해 서버가 RSS+AI로 뉴스를 생성·Supabase에 저장하게 한다.
+# GitHub Actions(무료)로 6시간마다 /api/cron/news를 호출해 서버가 RSS+AI로 뉴스를 생성·Supabase에 저장한다.
 # 사용자는 항상 Supabase 캐시를 즉시 읽기만 한다.
 on:
   schedule:
-    - cron: '0 * * * *' # 매시간 정각(UTC)
+    # UTC 03·09·15·21 = KST 12·18·24·06 (하루 4회, 6시간 간격)
+    - cron: '0 3,9,15,21 * * *'
   workflow_dispatch: {} # 수동 실행 버튼
 
 jobs:
