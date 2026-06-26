@@ -195,8 +195,8 @@ export function Stocks() {
         </div>
       )}
 
-      {/* Header row */}
-      <div style={{ display: 'grid', gridTemplateColumns: layout.rowCols, alignItems: 'center', gap: 12, padding: '0 18px 12px', borderBottom: '1px solid var(--c-w08)' }}>
+      {/* Header row — 리스트 박스의 상단부(테두리·상단 라운드 포함). 아래 리스트와 한 박스를 이룬다. */}
+      <div style={{ display: 'grid', gridTemplateColumns: layout.rowCols, alignItems: 'center', gap: 12, padding: '14px 18px 12px', background: 'var(--c-w025)', border: '1px solid var(--c-w06)', borderBottom: '1px solid var(--c-w08)', borderRadius: '18px 18px 0 0' }}>
         <span />
         <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--c-tx6)' }}>종목</span>
         {layout.showVol && (
