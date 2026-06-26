@@ -11,6 +11,7 @@ import { useRealtime, useSubscribeStocks, useSubscribeCoins, useSubscribeUs } fr
 import type { AlertKey, Candle, DetailTab, Period, Stock, Stocks, TabId } from '../../types';
 import { CandleChart } from '../CandleChart';
 import { SourceNote } from '../SourceNote';
+import { TermTip } from '../GlossaryTip';
 
 const CARD: React.CSSProperties = {
   background: 'var(--c-w04)', border: '1px solid var(--c-w08)',
@@ -416,7 +417,7 @@ export function Detail({ id }: { id: string }) {
           <div style={{ ...CARD, borderRadius: 24, padding: 24, marginBottom: 20 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 12, flexWrap: 'wrap' }}>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
-                <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--c-tx4)' }}>기간 수익률</span>
+                <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--c-tx4)' }}><TermTip term="기간 수익률">기간 수익률</TermTip></span>
                 <span style={{ fontSize: 22, fontWeight: 800, color: upColor(shownRet) }}>{fmtPct(shownRet)}</span>
                 {shownSpan && <span style={{ fontSize: 12, color: 'var(--c-tx6)' }}>{shownSpan}</span>}
               </div>

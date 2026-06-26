@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { fmtPct, upColor } from '../../lib/format';
 import { useDashboard } from '../../store/DashboardContext';
 import { SourceNote } from '../SourceNote';
+import { TermTip } from '../GlossaryTip';
 import type { Currency, TabId } from '../../types';
 
 type Market = 'kr' | 'us';
@@ -63,11 +64,11 @@ const SORTS: { key: string; label: string; val: (s: ScoredStock) => number; asc?
   { key: 'pbr', label: '저PBR', val: (s) => (s.pbr == null ? Infinity : s.pbr), asc: true },
 ];
 
-function ScoreBar({ label, value }: { label: string; value: number }) {
+function ScoreBar({ label, value, term }: { label: string; value: number; term?: string }) {
   return (
     <div style={{ flex: 1, minWidth: 58 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--c-tx6)', marginBottom: 3 }}>
-        <span>{label}</span>
+        <span><TermTip term={term ?? label}>{label}</TermTip></span>
         <span style={{ fontWeight: 700, color: 'var(--c-tx3)' }}>{value}</span>
       </div>
       <div style={{ height: 5, borderRadius: 3, background: 'var(--c-w06)', overflow: 'hidden' }}>
@@ -76,10 +77,10 @@ function ScoreBar({ label, value }: { label: string; value: number }) {
     </div>
   );
 }
-function Metric({ label, value, color }: { label: string; value: string; color?: string }) {
+function Metric({ label, value, color, tip }: { label: string; value: string; color?: string; tip?: string }) {
   return (
     <div style={{ minWidth: 60 }}>
-      <div style={{ fontSize: 11, color: 'var(--c-tx6)', marginBottom: 2 }}>{label}</div>
+      <div style={{ fontSize: 11, color: 'var(--c-tx6)', marginBottom: 2 }}><TermTip term={tip ?? label}>{label}</TermTip></div>
       <div style={{ fontSize: 13, fontWeight: 700, color: color ?? 'var(--c-tx2)' }}>{value}</div>
     </div>
   );
@@ -233,7 +234,7 @@ export function ValueStocks() {
                     <ScoreBar label="밸류" value={s.valueScore} />
                     <ScoreBar label="퀄리티" value={s.qualityScore} />
                     <ScoreBar label="안정성" value={s.safetyScore} />
-                    <ScoreBar label="환원" value={s.yieldScore} />
+                    <ScoreBar label="환원" value={s.yieldScore} term="주주환원" />
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--c-w05)' }}>
@@ -242,8 +243,8 @@ export function ValueStocks() {
                   <Metric label="ROE" value={num(s.roe, '%', 1)} color={s.roe != null && s.roe >= 15 ? 'var(--c-up)' : undefined} />
                   <Metric label="순이익률" value={num(s.netMargin, '%', 1)} />
                   <Metric label="부채비율" value={num(s.debtRatio, '%', 0)} color={s.debtRatio != null && s.debtRatio < 100 ? 'var(--c-up)' : undefined} />
-                  <Metric label="배당" value={num(s.divYield, '%', 1)} color={s.divYield != null && s.divYield >= 3 ? 'var(--c-up)' : undefined} />
-                  {s.upside != null && <Metric label="목표가 괴리" value={fmtPct(s.upside)} color={upColor(s.upside)} />}
+                  <Metric label="배당" value={num(s.divYield, '%', 1)} tip="배당수익률" color={s.divYield != null && s.divYield >= 3 ? 'var(--c-up)' : undefined} />
+                  {s.upside != null && <Metric label="목표가 괴리" value={fmtPct(s.upside)} tip="목표주가" color={upColor(s.upside)} />}
                 </div>
               </button>
             ))}

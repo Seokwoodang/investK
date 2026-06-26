@@ -1,4 +1,29 @@
+import type { ReactNode } from 'react';
 import type { GlossHit } from '../lib/glossary';
+import { GLOSSARY } from '../data/glossary';
+
+// 용어에 점선 밑줄 + 호버/탭 시 설명 툴팁. term이 사전에 없으면 그냥 텍스트만 보여준다.
+export function TermTip({ term, children, width = 250 }: { term: string; children?: ReactNode; width?: number }) {
+  const def = GLOSSARY[term];
+  const content = children ?? term;
+  if (!def) return <>{content}</>;
+  return (
+    <span className="gloss" tabIndex={0} style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', cursor: 'help', outline: 'none' }}>
+      <span style={{ borderBottom: '1px dotted var(--c-w22)' }}>{content}</span>
+      <span
+        className="gloss-pop"
+        style={{
+          position: 'absolute', top: 'calc(100% + 6px)', left: 0, width,
+          background: 'var(--c-panel)', border: '1px solid var(--c-w12)', borderRadius: 12,
+          padding: '12px 14px', boxShadow: '0 14px 36px var(--c-shadow)', zIndex: 70, textAlign: 'left', whiteSpace: 'normal',
+        }}
+      >
+        <span style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--c-accyanbr)', marginBottom: 5 }}>{term}</span>
+        <span style={{ display: 'block', fontSize: 12, lineHeight: 1.55, color: 'var(--c-tx3)', fontWeight: 400 }}>{def}</span>
+      </span>
+    </span>
+  );
+}
 
 // The ⓘ glossary badge + hover popover (250px). Shown wherever a known term appears.
 export function GlossaryTip({ hit, zIndex = 45 }: { hit: GlossHit; zIndex?: number }) {

@@ -401,7 +401,9 @@ input::placeholder {
   pointer-events: none;
 }
 .risk-cell:hover .risk-tip,
-.gloss:hover .gloss-pop {
+.gloss:hover .gloss-pop,
+.gloss:focus .gloss-pop,
+.gloss:focus-within .gloss-pop {
   opacity: 1;
   visibility: visible;
   transform: none;

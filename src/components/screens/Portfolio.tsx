@@ -6,6 +6,7 @@ import { parseHoldingsText, resolveStock, usdKrwFromFx, usePortfolio, useResolve
 import { useDashboard } from '../../store/DashboardContext';
 import { TAB_MAP, type Currency, type TabId } from '../../types';
 import { SourceNote } from '../SourceNote';
+import { TermTip } from '../GlossaryTip';
 
 const CARD: React.CSSProperties = {
   background: 'var(--c-w04)', border: '1px solid var(--c-w08)', borderRadius: 20,
@@ -433,10 +434,10 @@ export function Portfolio() {
                         <span style={{ fontSize: 11, fontWeight: 800, padding: '2px 8px', borderRadius: 6, color: v.color, background: 'color-mix(in srgb, ' + v.color + ' 16%, transparent)' }}>{v.label}</span>
                         <span style={{ fontSize: 11, fontWeight: 600, color: upColor(r.plPct) }}>{fmtPct(r.plPct)}</span>
                         <span style={{ marginLeft: 'auto', display: 'flex', gap: 12, fontSize: 11, color: 'var(--c-tx6)', flexWrap: 'wrap' }}>
-                          {f?.per != null && <span>PER {f.per.toFixed(1)}</span>}
-                          {f?.roe != null && <span>ROE {f.roe.toFixed(0)}%</span>}
-                          {f?.debtRatio != null && <span>부채 {f.debtRatio.toFixed(0)}%</span>}
-                          {f?.upside != null && <span style={{ color: upColor(f.upside) }}>목표가 {fmtPct(f.upside)}</span>}
+                          {f?.per != null && <span><TermTip term="PER">PER</TermTip> {f.per.toFixed(1)}</span>}
+                          {f?.roe != null && <span><TermTip term="ROE">ROE</TermTip> {f.roe.toFixed(0)}%</span>}
+                          {f?.debtRatio != null && <span><TermTip term="부채비율">부채</TermTip> {f.debtRatio.toFixed(0)}%</span>}
+                          {f?.upside != null && <span style={{ color: upColor(f.upside) }}><TermTip term="목표주가">목표가</TermTip> {fmtPct(f.upside)}</span>}
                         </span>
                       </div>
                       {signals.length > 0 ? (
