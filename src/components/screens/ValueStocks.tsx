@@ -105,14 +105,7 @@ export function ValueStocks() {
   // 시장·정렬 바뀌면 처음부터.
   useEffect(() => setLimit(PAGE), [market, sortKey]);
 
-  // 무한스크롤: 바닥 근처면 더 보여준다.
-  useEffect(() => {
-    const onScroll = () => {
-      if (window.innerHeight + window.scrollY >= document.body.offsetHeight - 600) setLimit((l) => l + PAGE);
-    };
-    window.addEventListener('scroll', onScroll, { passive: true });
-    return () => window.removeEventListener('scroll', onScroll);
-  }, []);
+  // 무한스크롤은 아래 목록 컨테이너 내부 스크롤(onScroll)에서 처리한다(페이지 전체가 늘어나지 않게).
 
   useEffect(() => {
     if (cache[market]) return;
@@ -206,7 +199,14 @@ export function ValueStocks() {
               ))}
             </div>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div
+            className="list-scroll"
+            onScroll={(e) => {
+              const el = e.currentTarget;
+              if (el.scrollTop + el.clientHeight >= el.scrollHeight - 240) setLimit((l) => l + PAGE);
+            }}
+            style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: '68vh', overflowY: 'auto', overflowX: 'hidden', overscrollBehavior: 'contain', paddingRight: 4 }}
+          >
             {visible.map((s, i) => (
               <button
                 key={s.code}
@@ -248,12 +248,12 @@ export function ValueStocks() {
                 </div>
               </button>
             ))}
+            {limit < sorted.length && (
+              <div style={{ textAlign: 'center', padding: 14, fontSize: 12, color: 'var(--c-tx6)' }}>
+                아래로 스크롤하면 더 보입니다 · {visible.length}/{sorted.length}
+              </div>
+            )}
           </div>
-          {limit < sorted.length && (
-            <div style={{ textAlign: 'center', padding: 14, fontSize: 12, color: 'var(--c-tx6)' }}>
-              아래로 스크롤하면 더 보입니다 · {visible.length}/{sorted.length}
-            </div>
-          )}
           <SourceNote
             text={market === 'kr' ? '재무 — 네이버 금융 재무제표(ROE·부채비율·이익률·EPS·BPS·배당) + 시세 · 점수는 자체 산식' : '재무 — Yahoo Finance(PER·PBR·ROE·부채·이익률·배당·컨센서스) · 점수는 자체 산식'}
             style={{ marginTop: 16 }}
