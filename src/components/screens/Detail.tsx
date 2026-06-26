@@ -192,6 +192,52 @@ export function Detail({ id }: { id: string }) {
     };
   }, [selId, selTicker, state.activeTab, presetSel]);
 
+  // ── AI 차트 분석 전용 통계(고정: 최근 6개월 일봉) — 수익률 기간 칩·봉 토글과 무관. ──
+  const [dayStat, setDayStat] = useState<{ ret: number; high: number; low: number; close: number; offHigh: number; offLow: number; upRatio: number } | null>(null);
+  useEffect(() => {
+    if (!selId || !selTicker) return;
+    const tab = state.activeTab;
+    const isCoin = tab === 'kr_coin' || tab === 'global_coin';
+    const end = new Date();
+    const startD = new Date(end);
+    startD.setMonth(end.getMonth() - 6);
+    const fromMs = startD.getTime();
+    const toMs = end.getTime();
+    let cancelled = false;
+    setDayStat(null);
+    const calc = (c: Candle[] | null) => {
+      if (cancelled || !c || !c.length) return;
+      const f = c[0];
+      const close = c[c.length - 1].c;
+      const high = Math.max(...c.map((x) => x.h));
+      const low = Math.min(...c.map((x) => x.l));
+      const up = c.filter((x) => x.c >= x.o).length;
+      setDayStat({
+        ret: ((close - f.o) / f.o) * 100,
+        high, low, close,
+        offHigh: high > 0 ? (close / high - 1) * 100 : 0,
+        offLow: low > 0 ? (close / low - 1) * 100 : 0,
+        upRatio: Math.round((up / c.length) * 100),
+      });
+    };
+    if (isCoin) {
+      fetchCoinCandles(tab, selTicker, '일봉', { fromMs, toMs }).then(calc).catch(() => {});
+    } else {
+      const ymd = (d: Date) => isoDate(d).replace(/-/g, '');
+      fetch('/api/candles', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ tab, ticker: selTicker, period: '일봉', from: ymd(startD), to: ymd(end) }),
+      })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((j) => calc(j?.candles ?? null))
+        .catch(() => {});
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [selId, selTicker, state.activeTab]);
+
   // 상세 종목 실시간 구독: 국내주식=KIS SSE, 코인=거래소 ws.
   useEffect(() => {
     const tab = state.activeTab;
@@ -246,18 +292,18 @@ export function Detail({ id }: { id: string }) {
   const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
   useEffect(() => {
     if (state.detailTab !== 'chart' || !sel) return;
-    if (!retData) return; // 헤더 '기간 수익률'(선택 기간)과 동일 수치로 분석하기 위해 로딩 후 호출
+    if (!dayStat) return; // 고정 일봉(최근 6개월) 통계가 준비되면 호출 — 수익률 기간 칩과 무관
     let cancelled = false;
     setAiAnalysis(null);
     fetch('/api/ai/analysis', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
-        id: sel.id, period: presetSel, ret: retData.ret,
+        id: sel.id, period: '최근 6개월(일봉)', ret: dayStat.ret,
         name: sel.name, ticker: sel.ticker, issue: sel.issue, chartNote: sel.chartNote, risk: sel.risk,
         cur: sel.cur,
-        close: retData.close, high: retData.high, low: retData.low,
-        offHigh: retData.offHigh, offLow: retData.offLow, upRatio: retData.upRatio,
+        close: dayStat.close, high: dayStat.high, low: dayStat.low,
+        offHigh: dayStat.offHigh, offLow: dayStat.offLow, upRatio: dayStat.upRatio,
       }),
     })
       .then((r) => (r.ok ? r.json() : null))
@@ -268,7 +314,7 @@ export function Detail({ id }: { id: string }) {
     return () => {
       cancelled = true;
     };
-  }, [selId, presetSel, retData, state.detailTab]);
+  }, [selId, dayStat, state.detailTab]);
 
   // 'AI 관점'(긍정/부정/주의)도 서버(/api/ai/perspective)에서 Claude 생성+캐시.
   // 로딩/실패/키 없음 시 정적 sel.ai 폴백.
@@ -322,13 +368,11 @@ export function Detail({ id }: { id: string }) {
   const rm = riskMeta(sel.risk);
   const livePrice = rt[sel.id]?.price ?? sel.price; // 실시간 소켓 우선
   const livePct = rt[sel.id]?.pct ?? sel.pct;
-  // AI 차트 분석·폴백 문구는 헤더의 '기간 수익률'(선택한 기간)과 동일한 수치·기간을 쓴다.
-  const periodRet = retData ? retData.ret : ret;
-  const dirWord = periodRet > 0 ? '상승' : periodRet < 0 ? '하락' : '보합';
+  // AI 차트 분석·폴백 문구는 고정 일봉(최근 6개월) 기준 — 수익률 기간 칩과 무관.
   const volWord = sel.risk === 'high' ? '변동성이 매우 큰' : sel.risk === 'mid' ? '변동성이 다소 있는' : '비교적 안정적인';
-  const chartAnalysis = retData
-    ? `${sel.name}은(는) 최근 ${presetSel} 기준 ${fmtPct(periodRet)} ${dirWord}했고, 현재가는 기간 고점 대비 ${fmtPct(retData.offHigh)} 수준입니다. 해당 기간 상승 마감 비율은 약 ${retData.upRatio}%로 ${volWord} 흐름입니다. (참고용)`
-    : `${sel.name}은(는) 최근 ${presetSel} 기준 ${fmtPct(periodRet)} ${dirWord}했습니다. (참고용)`;
+  const chartAnalysis = dayStat
+    ? `${sel.name}은(는) 최근 6개월(일봉) 기준 ${fmtPct(dayStat.ret)} ${dayStat.ret > 0 ? '상승' : dayStat.ret < 0 ? '하락' : '보합'}했고, 현재가는 고점 대비 ${fmtPct(dayStat.offHigh)} 수준입니다. 상승 마감 비율은 약 ${dayStat.upRatio}%로 ${volWord} 흐름입니다. (참고용)`
+    : `${sel.name} 차트를 분석하는 중입니다. (참고용)`;
   const newsContext = `${sel.name}의 단기 주가에는 ${sel.issue} 이슈가 핵심 변수로 작용하고 있습니다. 아래는 현재 영향을 주고 있는 주요 뉴스입니다.`;
   // 실제 뉴스 우선, 없으면 정적(sel.news) 폴백.
   const relatedList: RelatedNewsItem[] = relatedNews && relatedNews.length ? relatedNews : sel.news;
@@ -474,7 +518,7 @@ export function Detail({ id }: { id: string }) {
           <div style={{ background: 'linear-gradient(135deg, var(--c-cy07), var(--c-bl05))', border: '1px solid var(--c-cy18)', borderRadius: 20, padding: 24 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
               <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.06em', padding: '3px 9px', borderRadius: 6, background: 'var(--c-cy18)', color: 'var(--c-accyanbr)' }}>AI 차트 분석</span>
-              <span style={{ fontSize: 12, color: 'var(--c-tx6)' }}>최근 {presetSel} 기준</span>
+              <span style={{ fontSize: 12, color: 'var(--c-tx6)' }}>최근 6개월 · 일봉 기준</span>
             </div>
             <p style={{ margin: 0, fontSize: 15, lineHeight: 1.7, color: 'var(--c-tx2)' }}>{aiAnalysis || chartAnalysis}</p>
             <SourceNote text={aiAnalysis ? SRC.ai : 'AI 생성 — Claude (Anthropic) · 현재 정적 샘플 표시 중'} style={{ marginTop: 14 }} />

@@ -1,14 +1,13 @@
 import { NextResponse } from 'next/server';
 import { fmtPct } from '@/lib/format';
 import { getOrGenerate } from '@/server/ai';
-import type { Period } from '@/types';
 
 // POST /api/ai/analysis { id, period, ret, name, ticker, issue?, chartNote?, risk? }
 // 종목 차트 흐름 분석 텍스트를 Claude로 생성·캐시. 큐레이션 종목뿐 아니라 모든 종목 지원
 // (클라이언트가 보낸 종목 정보로 생성). 키 없거나 실패 시 결정적 템플릿 폴백.
 export async function POST(req: Request) {
   const b = (await req.json()) as {
-    id: string; period: Period; ret: number;
+    id: string; period: string; ret: number;
     name?: string; ticker?: string; issue?: string; chartNote?: string; risk?: string;
     cur?: string; close?: number; high?: number; low?: number; offHigh?: number; offLow?: number; upRatio?: number;
   };
@@ -24,7 +23,7 @@ export async function POST(req: Request) {
   const fallback = `${b.name}은(는) 최근 ${b.period} 동안 ${fmtPct(b.ret)} ${dirWord}했습니다.${b.close != null ? ` 현재가 ${px(b.close)}로 기간 고점(${px(b.high)}) 대비 ${b.offHigh != null ? fmtPct(b.offHigh) : '-'}, ${posWord} 수준입니다.` : ''}${b.upRatio != null ? ` 해당 기간 상승 마감 비율은 약 ${b.upRatio}%였습니다.` : ''} 참고용 정보이며 매매 판단은 거래량·재무와 함께 확인하세요.`.replace(/\s+/g, ' ').trim();
 
   const text = await getOrGenerate({
-    cacheKey: `analysis:v2:${b.id}:${b.period}:${today}`,
+    cacheKey: `analysis:v3:${b.id}:${b.period}:${today}`,
     kind: 'analysis',
     system:
       '너는 한국어로 답하는 시장 분석 보조자다. 제공된 실제 수치(기간수익률·현재가·기간 고점/저점·고점 대비 위치·상승일 비율)를 반드시 근거로 인용해 차트 흐름을 2~3문장으로 구체적으로 설명한다. ' +
