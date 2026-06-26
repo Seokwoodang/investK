@@ -216,9 +216,18 @@ export async function refreshValueScreen(market: Market): Promise<number> {
   return screen.items.length;
 }
 
+// 캐시 날짜가 며칠 묵었는지(YYYY-MM-DD 기준).
+function daysOld(date: string): number {
+  const d = Date.parse(`${date}T00:00:00Z`);
+  const now = Date.parse(`${kstDate()}T00:00:00Z`);
+  return Number.isFinite(d) ? Math.round((now - d) / 86400000) : 999;
+}
+
 export async function getValueScreen(market: Market): Promise<ValueScreen> {
   const cached = await kvGet<ValueScreen>(KEY(market));
-  if (cached && cached.date === kstDate()) return cached;
+  // 사용자는 그때그때 빌드하지 않는다 — 캐시가 있으면 즉시 반환(날짜 무관). 갱신은 하루 1회 cron(18:00 KST)이 담당.
+  // 단, cron이 며칠 멈춰 캐시가 2일 넘게 묵으면 안전하게 1회만 재생성한다.
+  if (cached?.items?.length && daysOld(cached.date) <= 2) return cached;
   const screen = await buildValueScreen(market);
   await kvSet(KEY(market), screen);
   return screen;
