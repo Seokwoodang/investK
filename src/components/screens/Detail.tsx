@@ -299,7 +299,7 @@ export function Detail({ id }: { id: string }) {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
-        id: sel.id, period: '최근 6개월(일봉)', ret: dayStat.ret,
+        id: sel.id, period: '최근 일봉', ret: dayStat.ret,
         name: sel.name, ticker: sel.ticker, issue: sel.issue, chartNote: sel.chartNote, risk: sel.risk,
         cur: sel.cur,
         close: dayStat.close, high: dayStat.high, low: dayStat.low,
@@ -371,7 +371,7 @@ export function Detail({ id }: { id: string }) {
   // AI 차트 분석·폴백 문구는 고정 일봉(최근 6개월) 기준 — 수익률 기간 칩과 무관.
   const volWord = sel.risk === 'high' ? '변동성이 매우 큰' : sel.risk === 'mid' ? '변동성이 다소 있는' : '비교적 안정적인';
   const chartAnalysis = dayStat
-    ? `${sel.name}은(는) 최근 6개월(일봉) 기준 ${fmtPct(dayStat.ret)} ${dayStat.ret > 0 ? '상승' : dayStat.ret < 0 ? '하락' : '보합'}했고, 현재가는 고점 대비 ${fmtPct(dayStat.offHigh)} 수준입니다. 상승 마감 비율은 약 ${dayStat.upRatio}%로 ${volWord} 흐름입니다. (참고용)`
+    ? `${sel.name}은(는) 최근 일봉 기준 ${fmtPct(dayStat.ret)} ${dayStat.ret > 0 ? '상승' : dayStat.ret < 0 ? '하락' : '보합'}했고, 현재가는 고점 대비 ${fmtPct(dayStat.offHigh)} 수준입니다. 상승 마감 비율은 약 ${dayStat.upRatio}%로 ${volWord} 흐름입니다. (참고용)`
     : `${sel.name} 차트를 분석하는 중입니다. (참고용)`;
   const newsContext = `${sel.name}의 단기 주가에는 ${sel.issue} 이슈가 핵심 변수로 작용하고 있습니다. 아래는 현재 영향을 주고 있는 주요 뉴스입니다.`;
   // 실제 뉴스 우선, 없으면 정적(sel.news) 폴백.
@@ -518,7 +518,7 @@ export function Detail({ id }: { id: string }) {
           <div style={{ background: 'linear-gradient(135deg, var(--c-cy07), var(--c-bl05))', border: '1px solid var(--c-cy18)', borderRadius: 20, padding: 24 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
               <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.06em', padding: '3px 9px', borderRadius: 6, background: 'var(--c-cy18)', color: 'var(--c-accyanbr)' }}>AI 차트 분석</span>
-              <span style={{ fontSize: 12, color: 'var(--c-tx6)' }}>최근 6개월 · 일봉 기준</span>
+              <span style={{ fontSize: 12, color: 'var(--c-tx6)' }}>최근 일봉 기준</span>
             </div>
             <p style={{ margin: 0, fontSize: 15, lineHeight: 1.7, color: 'var(--c-tx2)' }}>{aiAnalysis || chartAnalysis}</p>
             <SourceNote text={aiAnalysis ? SRC.ai : 'AI 생성 — Claude (Anthropic) · 현재 정적 샘플 표시 중'} style={{ marginTop: 14 }} />
