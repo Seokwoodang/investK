@@ -6,6 +6,7 @@ import { fmtPct, upColor } from '../../lib/format';
 import { usePortfolio, usdKrwFromFx, useResolvedPrices, valuePortfolio } from '../../lib/portfolio';
 import { useDashboard } from '../../store/DashboardContext';
 import { SourceNote } from '../SourceNote';
+import { InlineSpinner } from '../Footer';
 
 const CARD: React.CSSProperties = {
   background: 'var(--c-w04)', border: '1px solid var(--c-w08)', borderRadius: 20,
@@ -226,13 +227,13 @@ export function Report() {
                 <button onClick={() => setSelectedId(null)} style={{ cursor: 'pointer', border: '1px solid var(--c-w10)', borderRadius: 9, padding: '9px 16px', fontSize: 13, fontWeight: 700, fontFamily: 'inherit', background: 'var(--c-w05)', color: 'var(--c-tx4)' }}>현재 포트폴리오로 →</button>
               ) : (
                 <button onClick={generate} disabled={loading} style={{ cursor: loading ? 'default' : 'pointer', border: 'none', borderRadius: 9, padding: '9px 16px', fontSize: 13, fontWeight: 700, fontFamily: 'inherit', background: 'var(--c-cy18)', color: 'var(--c-accyanbr)', opacity: loading ? 0.6 : 1 }}>
-                  {loading ? '작성 중…' : report ? '다시 작성' : '보고서 생성'}
+                  {loading && <InlineSpinner size={12} color="currentColor" />} {loading ? '작성 중…' : report ? '다시 작성' : '보고서 생성'}
                 </button>
               )}
             </div>
             {loading && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '20px 0', color: 'var(--c-tx5)', fontSize: 14 }}>
-                <span className="skeleton-pulse" style={{ width: 9, height: 9, borderRadius: '50%', background: 'var(--c-accyanbr)' }} />
+                <InlineSpinner />
                 보유 포트폴리오와 시장을 종합해 보고서를 작성하는 중입니다…
               </div>
             )}

@@ -12,6 +12,7 @@ import type { AlertKey, Candle, DetailTab, Period, Stock, Stocks, TabId } from '
 import { CandleChart } from '../CandleChart';
 import { SourceNote } from '../SourceNote';
 import { TermTip } from '../GlossaryTip';
+import { InlineSpinner } from '../Footer';
 
 const CARD: React.CSSProperties = {
   background: 'var(--c-w04)', border: '1px solid var(--c-w08)',
@@ -289,7 +290,8 @@ export function Detail({ id }: { id: string }) {
   // 직접 진입/새로고침 시 전체 유니버스(/api/universe)가 아직 도착 전이라 종목을 못 찾을 수 있다 → 잠깐 로딩 표시.
   if (!sel) {
     return (
-      <div style={{ padding: '80px 24px', textAlign: 'center', color: 'var(--c-tx5)', fontSize: 14 }}>
+      <div style={{ padding: '80px 24px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, color: 'var(--c-tx5)', fontSize: 14 }}>
+        <InlineSpinner />
         종목 정보를 불러오는 중…
       </div>
     );
@@ -511,7 +513,7 @@ export function Detail({ id }: { id: string }) {
           </div>
           {aiLoading && ai.pos.length === 0 && ai.neg.length === 0 && ai.caution.length === 0 ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '40px 24px', borderRadius: 20, border: '1px solid var(--c-w08)', background: 'var(--c-w03)', color: 'var(--c-tx4)', fontSize: 14 }}>
-              <span className="skeleton-pulse" style={{ width: 9, height: 9, borderRadius: '50%', background: 'var(--c-accyanbr)' }} />
+              <InlineSpinner />
               AI가 이 종목을 분석하는 중입니다… (처음 열 때 몇 초 걸리고, 이후에는 저장된 결과를 바로 보여줍니다)
             </div>
           ) : (

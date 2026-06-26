@@ -19,6 +19,20 @@ export function Footer() {
   );
 }
 
+// 인라인 회전 스피너 — 로딩 문구 옆에 붙인다.
+export function InlineSpinner({ size = 14, stroke = 2, color = 'var(--c-accyan)' }: { size?: number; stroke?: number; color?: string }) {
+  return (
+    <span
+      aria-label="로딩 중"
+      style={{
+        display: 'inline-block', width: size, height: size, borderRadius: '50%',
+        border: `${stroke}px solid var(--c-w10)`, borderTopColor: color,
+        animation: 'spin 800ms linear infinite', flexShrink: 0, verticalAlign: 'middle',
+      }}
+    />
+  );
+}
+
 export function Spinner() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '160px 0', gap: 18 }}>

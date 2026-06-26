@@ -7,6 +7,7 @@ import { useDashboard } from '../../store/DashboardContext';
 import { TAB_MAP, type Currency, type TabId } from '../../types';
 import { SourceNote } from '../SourceNote';
 import { TermTip } from '../GlossaryTip';
+import { InlineSpinner } from '../Footer';
 
 const CARD: React.CSSProperties = {
   background: 'var(--c-w04)', border: '1px solid var(--c-w08)', borderRadius: 20,
@@ -370,7 +371,7 @@ export function Portfolio() {
               {sellFund && (
                 <>
                   <button onClick={runSellAi} disabled={aiSellLoading || !sellRows.length} style={{ ...btn(true), marginLeft: 'auto', fontSize: 12, padding: '6px 12px' }}>
-                    {aiSellLoading ? 'AI 총평 생성 중…' : aiSell ? 'AI 총평 다시' : 'AI 매도 총평'}
+                    {aiSellLoading && <InlineSpinner size={12} color="currentColor" />} {aiSellLoading ? 'AI 총평 생성 중…' : aiSell ? 'AI 총평 다시' : 'AI 매도 총평'}
                   </button>
                   <span style={{ fontSize: 12, color: 'var(--c-tx5)' }}>
                     점검필요 <b style={{ color: 'var(--c-down)' }}>{sellCounts.review || 0}</b> · 관찰 <b style={{ color: 'var(--c-warn)' }}>{sellCounts.watch || 0}</b> · 보유 <b style={{ color: 'var(--c-up)' }}>{sellCounts.hold || 0}</b>
@@ -418,7 +419,7 @@ export function Portfolio() {
 
             {!sellFund && sellLoading && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 0', color: 'var(--c-tx5)', fontSize: 14 }}>
-                <span className="skeleton-pulse" style={{ width: 9, height: 9, borderRadius: '50%', background: 'var(--c-warn)' }} />
+                <InlineSpinner color="var(--c-warn)" />
                 보유 종목의 매도 신호를 점검하는 중입니다…
               </div>
             )}
@@ -475,7 +476,7 @@ export function Portfolio() {
                       <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.06em', padding: '3px 9px', borderRadius: 6, background: 'var(--c-cy18)', color: 'var(--c-accyanbr)' }}>AI 매도 총평</span>
                       <span style={{ fontSize: 11, color: 'var(--c-tx6)' }}>판정은 규칙, 해석은 AI</span>
                     </div>
-                    {aiSellLoading && !aiSell && <div style={{ fontSize: 13, color: 'var(--c-tx5)' }}>신호를 종합하는 중입니다…</div>}
+                    {aiSellLoading && !aiSell && <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--c-tx5)' }}><InlineSpinner size={13} />신호를 종합하는 중입니다…</div>}
                     {aiSell && (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                         <p style={{ margin: 0, fontSize: 14, lineHeight: 1.7, color: 'var(--c-tx1)' }}>{aiSell.summary}</p>
@@ -505,11 +506,11 @@ export function Portfolio() {
                 <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.06em', padding: '3px 9px', borderRadius: 6, background: 'var(--c-cy18)', color: 'var(--c-accyanbr)' }}>AI 평가</span>
                 <span style={{ fontSize: 13, color: 'var(--c-tx5)' }}>집중도 · 위험 · 종목 코멘트 · 리밸런싱 제안</span>
               </div>
-              <button style={btn(true)} onClick={runEval} disabled={loading}>{loading ? '평가 중…' : evalData ? '다시 평가' : 'AI 평가 받기'}</button>
+              <button style={btn(true)} onClick={runEval} disabled={loading}>{loading && <InlineSpinner size={12} color="currentColor" />} {loading ? '평가 중…' : evalData ? '다시 평가' : 'AI 평가 받기'}</button>
             </div>
             {loading && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '20px 0', color: 'var(--c-tx5)', fontSize: 14 }}>
-                <span className="skeleton-pulse" style={{ width: 9, height: 9, borderRadius: '50%', background: 'var(--c-accyanbr)' }} />
+                <InlineSpinner />
                 포트폴리오를 분석하는 중입니다…
               </div>
             )}

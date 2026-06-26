@@ -6,6 +6,7 @@ import { useDashboard } from '../../store/DashboardContext';
 import { useViewportLayout } from '../DashboardChrome';
 import { TabBar } from '../TabBar';
 import { SourceNote } from '../SourceNote';
+import { InlineSpinner } from '../Footer';
 
 interface NewsItem {
   title: string;
@@ -96,7 +97,7 @@ export function News() {
 
       <TabBar marginBottom={28} coinsMerged />
 
-      {news === null && <div style={{ padding: 48, textAlign: 'center', color: 'var(--c-tx6)', fontSize: 14 }}>뉴스 불러오는 중…</div>}
+      {news === null && <div style={{ padding: 48, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, color: 'var(--c-tx6)', fontSize: 14 }}><InlineSpinner />뉴스 불러오는 중…</div>}
 
       {news !== null && news.length === 0 && (
         <div style={{ padding: 48, textAlign: 'center', color: 'var(--c-tx6)', fontSize: 14, background: 'var(--c-w03)', border: '1px solid var(--c-w06)', borderRadius: 20 }}>

@@ -5,6 +5,7 @@ import { fmtPct, upColor } from '../../lib/format';
 import { useDashboard } from '../../store/DashboardContext';
 import { SourceNote } from '../SourceNote';
 import { TermTip } from '../GlossaryTip';
+import { InlineSpinner } from '../Footer';
 import type { Currency, TabId } from '../../types';
 
 type Market = 'kr' | 'us';
@@ -202,7 +203,8 @@ export function ValueStocks() {
 
       {err && items.length === 0 && <div style={{ ...CARD, padding: 40, textAlign: 'center', color: 'var(--c-tx5)' }}>데이터를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.</div>}
       {!err && items.length === 0 && loading && (
-        <div style={{ ...CARD, padding: 40, textAlign: 'center', color: 'var(--c-tx5)' }}>
+        <div style={{ ...CARD, padding: 40, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, color: 'var(--c-tx5)' }}>
+          <InlineSpinner />
           {market === 'kr' ? '국내' : '해외'} 종목 재무지표를 분석하는 중입니다… (최초 생성은 십수 초 걸릴 수 있어요)
         </div>
       )}
@@ -278,7 +280,7 @@ export function ValueStocks() {
             ))}
             {/* 바닥 감지용 센티넬 */}
             <div ref={sentinelRef} style={{ height: 1 }} />
-            {loading && <div style={{ textAlign: 'center', padding: 14, fontSize: 12, color: 'var(--c-tx6)' }}>불러오는 중…</div>}
+            {loading && <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 14, fontSize: 12, color: 'var(--c-tx6)' }}><InlineSpinner size={13} />불러오는 중…</div>}
             {hasMore && !loading && (
               <button
                 onClick={() => load(items.length)}

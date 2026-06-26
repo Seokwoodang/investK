@@ -10,6 +10,7 @@ import { useViewportLayout } from '../DashboardChrome';
 import { TAB_LABELS } from '../../types';
 import { GlossaryTip, ImpactTag } from '../GlossaryTip';
 import { SourceNote } from '../SourceNote';
+import { InlineSpinner } from '../Footer';
 
 const CARD: React.CSSProperties = {
   background: 'var(--c-w04)', border: '1px solid var(--c-w08)',
@@ -178,7 +179,7 @@ export function Dashboard() {
                 <button onClick={() => actions.gotoCalMonth(-1)} aria-label="이전 달" style={calNavBtn}>‹</button>
                 <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--c-tx1c)', whiteSpace: 'nowrap', minWidth: 96, textAlign: 'center' }}>{monthLabel}</div>
                 <button onClick={() => actions.gotoCalMonth(1)} aria-label="다음 달" style={calNavBtn}>›</button>
-                {state.calLoading && <span style={{ fontSize: 11, color: 'var(--c-tx6)' }}>불러오는 중…</span>}
+                {state.calLoading && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--c-tx6)' }}><InlineSpinner size={11} />불러오는 중…</span>}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
                 <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--c-tx4)' }}>
