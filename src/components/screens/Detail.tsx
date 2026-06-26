@@ -141,7 +141,10 @@ export function Detail({ id }: { id: string }) {
 
   // ── 기간 수익률(독립) — 칩으로 고른 기간만 별도 조회해 (시작가→종료가)로 계산. 차트와 무관. ──
   const [presetSel, setPresetSel] = useState<RangePreset>('6개월');
-  const [retData, setRetData] = useState<{ ret: number; fromMs: number; toMs: number } | null>(null);
+  const [retData, setRetData] = useState<{
+    ret: number; fromMs: number; toMs: number;
+    high: number; low: number; close: number; offHigh: number; offLow: number; upRatio: number;
+  } | null>(null);
   useEffect(() => {
     if (!selId || !selTicker) return;
     const tab = state.activeTab;
@@ -157,7 +160,19 @@ export function Detail({ id }: { id: string }) {
       if (cancelled || !c || !c.length) return;
       const f = c[0];
       const l = c[c.length - 1];
-      setRetData({ ret: ((l.c - f.o) / f.o) * 100, fromMs: (f.t as number) ?? fromMs, toMs: (l.t as number) ?? toMs });
+      const close = l.c;
+      const high = Math.max(...c.map((x) => x.h));
+      const low = Math.min(...c.map((x) => x.l));
+      const up = c.filter((x) => x.c >= x.o).length;
+      setRetData({
+        ret: ((close - f.o) / f.o) * 100,
+        fromMs: (f.t as number) ?? fromMs,
+        toMs: (l.t as number) ?? toMs,
+        high, low, close,
+        offHigh: high > 0 ? (close / high - 1) * 100 : 0,
+        offLow: low > 0 ? (close / low - 1) * 100 : 0,
+        upRatio: Math.round((up / c.length) * 100),
+      });
     };
     if (isCoin) {
       fetchCoinCandles(tab, selTicker, per, { fromMs, toMs }).then(calc).catch(() => {});
@@ -240,6 +255,9 @@ export function Detail({ id }: { id: string }) {
       body: JSON.stringify({
         id: sel.id, period: presetSel, ret: retData.ret,
         name: sel.name, ticker: sel.ticker, issue: sel.issue, chartNote: sel.chartNote, risk: sel.risk,
+        cur: sel.cur,
+        close: retData.close, high: retData.high, low: retData.low,
+        offHigh: retData.offHigh, offLow: retData.offLow, upRatio: retData.upRatio,
       }),
     })
       .then((r) => (r.ok ? r.json() : null))
@@ -308,7 +326,9 @@ export function Detail({ id }: { id: string }) {
   const periodRet = retData ? retData.ret : ret;
   const dirWord = periodRet > 0 ? '상승' : periodRet < 0 ? '하락' : '보합';
   const volWord = sel.risk === 'high' ? '변동성이 매우 큰' : sel.risk === 'mid' ? '변동성이 다소 있는' : '비교적 안정적인';
-  const chartAnalysis = `${sel.name}은(는) 최근 ${presetSel} 기준 ${fmtPct(periodRet)} ${dirWord}했습니다. ${sel.chartNote} 해당 흐름은 ${volWord} 모습으로, 매매 시 분할 접근과 손절 기준을 함께 점검하는 것이 좋습니다.`;
+  const chartAnalysis = retData
+    ? `${sel.name}은(는) 최근 ${presetSel} 기준 ${fmtPct(periodRet)} ${dirWord}했고, 현재가는 기간 고점 대비 ${fmtPct(retData.offHigh)} 수준입니다. 해당 기간 상승 마감 비율은 약 ${retData.upRatio}%로 ${volWord} 흐름입니다. (참고용)`
+    : `${sel.name}은(는) 최근 ${presetSel} 기준 ${fmtPct(periodRet)} ${dirWord}했습니다. (참고용)`;
   const newsContext = `${sel.name}의 단기 주가에는 ${sel.issue} 이슈가 핵심 변수로 작용하고 있습니다. 아래는 현재 영향을 주고 있는 주요 뉴스입니다.`;
   // 실제 뉴스 우선, 없으면 정적(sel.news) 폴백.
   const relatedList: RelatedNewsItem[] = relatedNews && relatedNews.length ? relatedNews : sel.news;
