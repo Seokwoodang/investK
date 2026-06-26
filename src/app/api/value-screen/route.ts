@@ -9,10 +9,11 @@ export async function GET(req: Request) {
   const sp = new URL(req.url).searchParams;
   const market: Market = sp.get('market') === 'us' ? 'us' : 'kr';
   const sort = sp.get('sort') ?? 'score';
+  const filter = sp.get('filter') ?? 'all';
   const offset = Math.max(0, parseInt(sp.get('offset') ?? '0', 10) || 0);
   const limit = Math.min(50, Math.max(1, parseInt(sp.get('limit') ?? '20', 10) || 20));
   try {
-    const page = await getValuePage(market, sort, offset, limit);
+    const page = await getValuePage(market, sort, offset, limit, filter);
     return NextResponse.json(page);
   } catch (e) {
     console.error('[value-screen] failed:', e);

@@ -199,11 +199,14 @@ export interface ValuePage {
   items: ScoredStock[];
 }
 
-// 정렬 + offset/limit 슬라이스. 캐시된 전체 랭킹(최대 KEEP)을 읽어 해당 페이지만 반환.
-export async function getValuePage(market: Market, sort: string, offset: number, limit: number): Promise<ValuePage> {
+// 필터(전체/그레이엄/버핏형) + 정렬 + offset/limit 슬라이스. 캐시된 전체 랭킹(최대 KEEP)을 읽어 해당 페이지만 반환.
+export async function getValuePage(market: Market, sort: string, offset: number, limit: number, filter = 'all'): Promise<ValuePage> {
   const screen = await getValueScreen(market);
+  let pool = screen.items;
+  if (filter === 'graham') pool = pool.filter((s) => s.graham);
+  else if (filter === 'buffett') pool = pool.filter((s) => s.buffett);
   const fn = SORT_FNS[sort] ?? SORT_FNS.score;
-  const sorted = [...screen.items].sort((a, b) => (fn.asc ? fn.val(a) - fn.val(b) : fn.val(b) - fn.val(a)));
+  const sorted = [...pool].sort((a, b) => (fn.asc ? fn.val(a) - fn.val(b) : fn.val(b) - fn.val(a)));
   return { date: screen.date, universe: screen.universe, total: sorted.length, offset, items: sorted.slice(offset, offset + limit) };
 }
 

@@ -54,6 +54,16 @@ function num(n: number | null, suffix = '', digits = 2): string {
 }
 
 const PAGE = 20; // 스크롤 시 서버에서 한 번에 받아오는 개수(네트워크 무한스크롤)
+const FILTERS: { key: string; label: string }[] = [
+  { key: 'all', label: '전체' },
+  { key: 'graham', label: '그레이엄' },
+  { key: 'buffett', label: '버핏형' },
+];
+const GRAHAM_DEF =
+  '벤저민 그레이엄(가치투자의 아버지)의 "안전마진" 기준을 통과한 종목. 싸고 재무가 튼튼해 손실 위험이 작은 가치주예요. 조건: PER ≤ 15(이익 대비 저렴) · PBR ≤ 1.5(자산 대비 저렴) · PER×PBR ≤ 22.5(그레이엄 넘버) · 부채비율 < 100% · ROE ≥ 10%.';
+const BUFFETT_DEF =
+  '워런 버핏 스타일 — "훌륭한 회사를 적정가에". 꾸준히 돈을 잘 버는 우량기업 기준을 통과한 종목이에요. 조건: ROE ≥ 15%(높은 자본수익 = 경쟁우위 신호) · 순이익률 ≥ 10% · 부채비율 < 100%. 단, 싼지(밸류)는 별개라 PER이 높을 수도 있어요.';
+
 const SORTS: { key: string; label: string }[] = [
   { key: 'score', label: '종합점수' },
   { key: 'value', label: '밸류' },
@@ -87,14 +97,28 @@ function Metric({ label, value, color, tip }: { label: string; value: string; co
     </div>
   );
 }
-function Badge({ text, color, bg }: { text: string; color: string; bg: string }) {
-  return <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 6, color, background: bg, whiteSpace: 'nowrap' }}>{text}</span>;
+function Badge({ text, color, bg, tip }: { text: string; color: string; bg: string; tip?: string }) {
+  const chip = <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 6, color, background: bg, whiteSpace: 'nowrap' }}>{text}</span>;
+  if (!tip) return chip;
+  return (
+    <span className="gloss" tabIndex={0} style={{ position: 'relative', display: 'inline-flex', cursor: 'help', outline: 'none' }}>
+      {chip}
+      <span
+        className="gloss-pop"
+        style={{ position: 'absolute', top: 'calc(100% + 6px)', left: 0, width: 270, background: 'var(--c-panel)', border: '1px solid var(--c-w12)', borderRadius: 12, padding: '12px 14px', boxShadow: '0 14px 36px var(--c-shadow)', zIndex: 80, textAlign: 'left', whiteSpace: 'normal' }}
+      >
+        <span style={{ display: 'block', fontSize: 11, fontWeight: 700, color, marginBottom: 5 }}>{text}</span>
+        <span style={{ display: 'block', fontSize: 12, lineHeight: 1.55, color: 'var(--c-tx3)', fontWeight: 400 }}>{tip}</span>
+      </span>
+    </span>
+  );
 }
 
 export function ValueStocks() {
   const { actions } = useDashboard();
   const [market, setMarket] = useState<Market>('kr');
   const [sortKey, setSortKey] = useState('score');
+  const [filterKey, setFilterKey] = useState('all');
   const [items, setItems] = useState<ScoredStock[]>([]);
   const [total, setTotal] = useState(0);
   const [meta, setMeta] = useState<{ date: string; universe: number } | null>(null);
@@ -112,7 +136,7 @@ export function ValueStocks() {
     const id = ++reqId.current;
     setLoading(true);
     if (offset === 0) setErr(false);
-    fetch(`/api/value-screen?market=${market}&sort=${sortKey}&offset=${offset}&limit=${PAGE}`)
+    fetch(`/api/value-screen?market=${market}&sort=${sortKey}&filter=${filterKey}&offset=${offset}&limit=${PAGE}`)
       .then((r) => (r.ok ? r.json() : Promise.reject()))
       .then((j: ValuePage) => {
         if (id !== reqId.current) return; // 더 최신 요청이 있으면 무시
@@ -126,7 +150,7 @@ export function ValueStocks() {
       .finally(() => {
         if (id === reqId.current) { loadingRef.current = false; setLoading(false); }
       });
-  }, [market, sortKey]);
+  }, [market, sortKey, filterKey]);
 
   // 시장·정렬 변경 → 처음부터 다시.
   useEffect(() => {
@@ -191,9 +215,15 @@ export function ValueStocks() {
           <div><b style={{ color: 'var(--c-tx2)' }}>안정성 20%</b> · 그레이엄·버핏 — 부채비율↓·유동성</div>
           <div><b style={{ color: 'var(--c-tx2)' }}>환원·성장 15%</b> — 배당수익률·이익성장</div>
         </div>
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 12, fontSize: 11.5, color: 'var(--c-tx5)' }}>
-          <span><Badge text="그레이엄" color="var(--c-up)" bg="color-mix(in srgb, var(--c-up) 18%, transparent)" /> PER≤15·PBR≤1.5·PER×PBR≤22.5·저부채·ROE≥10</span>
-          <span><Badge text="버핏형" color="var(--c-accyanbr)" bg="var(--c-cy16)" /> ROE≥15·순이익률≥10·저부채</span>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 10, marginTop: 12 }}>
+          <div style={{ background: 'var(--c-w04)', borderRadius: 10, padding: '11px 13px' }}>
+            <div style={{ marginBottom: 6 }}><Badge text="그레이엄" color="var(--c-up)" bg="color-mix(in srgb, var(--c-up) 18%, transparent)" /></div>
+            <div style={{ fontSize: 11.5, color: 'var(--c-tx4)', lineHeight: 1.55 }}>{GRAHAM_DEF}</div>
+          </div>
+          <div style={{ background: 'var(--c-w04)', borderRadius: 10, padding: '11px 13px' }}>
+            <div style={{ marginBottom: 6 }}><Badge text="버핏형" color="var(--c-accyanbr)" bg="var(--c-cy16)" /></div>
+            <div style={{ fontSize: 11.5, color: 'var(--c-tx4)', lineHeight: 1.55 }}>{BUFFETT_DEF}</div>
+          </div>
         </div>
         <div style={{ fontSize: 11.5, color: 'var(--c-tx6)', marginTop: 10, lineHeight: 1.5 }}>
           {market === 'kr' ? '국내 시총 상위 ~1,000' : '해외(나스닥·뉴욕) 시총 상위 ~300'}종목 대상. 적자(PER≤0)·이상치(PER&gt;60)·과다부채는 제외. 각 지표를 같은 시장 내 백분위로 환산해 가중합.
@@ -201,7 +231,32 @@ export function ValueStocks() {
         </div>
       </div>
 
+      {/* 배지 필터 (항상 노출 — 결과가 0이어도 되돌릴 수 있게) */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
+        <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--c-tx5)' }}>필터</span>
+        {FILTERS.map((f) => {
+          const on = filterKey === f.key;
+          return (
+            <button
+              key={f.key}
+              onClick={() => setFilterKey(f.key)}
+              style={{
+                cursor: 'pointer', fontFamily: 'inherit', fontSize: 12, fontWeight: 700, padding: '5px 12px', borderRadius: 8,
+                border: `1px solid ${on ? 'var(--c-cy45)' : 'var(--c-w08)'}`, background: on ? 'var(--c-cy16)' : 'var(--c-w04)', color: on ? 'var(--c-accyanbr)' : 'var(--c-tx5)',
+              }}
+            >
+              {f.label}
+            </button>
+          );
+        })}
+      </div>
+
       {err && items.length === 0 && <div style={{ ...CARD, padding: 40, textAlign: 'center', color: 'var(--c-tx5)' }}>데이터를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.</div>}
+      {!err && items.length === 0 && !loading && (
+        <div style={{ ...CARD, padding: 40, textAlign: 'center', color: 'var(--c-tx5)' }}>
+          {filterKey === 'graham' ? '그레이엄' : filterKey === 'buffett' ? '버핏형' : ''} 조건에 맞는 종목이 없습니다.
+        </div>
+      )}
       {!err && items.length === 0 && loading && (
         <div style={{ ...CARD, padding: 40, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, color: 'var(--c-tx5)' }}>
           <InlineSpinner />
@@ -250,8 +305,8 @@ export function ValueStocks() {
                     <div style={{ minWidth: 0 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                         <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--c-tx1b)' }}>{s.name}</span>
-                        {s.graham && <Badge text="그레이엄" color="var(--c-up)" bg="color-mix(in srgb, var(--c-up) 18%, transparent)" />}
-                        {s.buffett && <Badge text="버핏형" color="var(--c-accyanbr)" bg="var(--c-cy16)" />}
+                        {s.graham && <Badge text="그레이엄" color="var(--c-up)" bg="color-mix(in srgb, var(--c-up) 18%, transparent)" tip={GRAHAM_DEF} />}
+                        {s.buffett && <Badge text="버핏형" color="var(--c-accyanbr)" bg="var(--c-cy16)" tip={BUFFETT_DEF} />}
                       </div>
                       <div style={{ fontSize: 11, color: 'var(--c-tx6)', marginTop: 2 }}>{s.code} · {s.marketCapText}</div>
                     </div>
