@@ -37,7 +37,7 @@ export function DashboardChrome({ data, children }: { data: DashboardData; child
 
             <Header />
 
-            <div style={{ position: 'relative', zIndex: 1, maxWidth: 1280, margin: '0 auto', padding: `36px ${layout.padX} 96px` }}>
+            <div style={{ position: 'relative', zIndex: 1, maxWidth: 1280, margin: '0 auto', padding: `36px ${layout.padX} 20px` }}>
               {children}
               <Footer />
             </div>

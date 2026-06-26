@@ -4,7 +4,7 @@ export function Footer() {
   return (
     <div
       style={{
-        marginTop: 48, paddingTop: 24, borderTop: '1px solid var(--c-w06)',
+        marginTop: 28, paddingTop: 18, borderTop: '1px solid var(--c-w06)',
         fontSize: 12, lineHeight: 1.7, color: 'var(--c-txph)', textAlign: 'center',
       }}
     >
