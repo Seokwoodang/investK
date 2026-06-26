@@ -7,6 +7,14 @@ body:
     attributes:
       value: |
         문제를 빠르게 고칠 수 있도록 아래 항목을 채워주세요. **스크린샷**이 가장 큰 도움이 됩니다 🙏
+  - type: input
+    id: version
+    attributes:
+      label: 앱 버전
+      description: 사이트 화면 **맨 아래(푸터)**에 적힌 `v0.3.0` 형태의 버전을 그대로 적어주세요. ("latest" 대신 정확한 번호로요!)
+      placeholder: "예) v0.3.0"
+    validations:
+      required: true
   - type: dropdown
     id: area
     attributes:
