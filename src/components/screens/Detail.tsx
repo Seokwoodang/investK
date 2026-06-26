@@ -47,6 +47,8 @@ const DETAIL_TABS: { id: DetailTab; label: string }[] = [
 // 봉 단위 선택지. 코인은 거래소가 분/시간봉도 주므로 1시간 포함, 주식(KIS)은 일/주/월.
 const PERIODS_COIN: Period[] = ['1시간', '일봉', '주봉', '월봉'];
 const PERIODS_STOCK: Period[] = ['일봉', '주봉', '월봉'];
+// 차트 봉 표시 라벨(트레이딩뷰 스타일). 내부 값은 한글 Period 유지.
+const PERIOD_LABEL: Record<Period, string> = { '1시간': '1H', '일봉': '1D', '주봉': '1W', '월봉': '1M' };
 const ALERTS: { k: AlertKey; label: string }[] = [
   { k: 'target', label: '목표가 도달' },
   { k: 'swing', label: '급등락 ±5%' },
@@ -419,26 +421,29 @@ export function Detail({ id }: { id: string }) {
       {detailTab === 'chart' && (
         <div>
           <div style={{ ...CARD, borderRadius: 24, padding: 24, marginBottom: 20 }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 12, flexWrap: 'wrap' }}>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
-                <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--c-tx4)' }}><TermTip term="기간 수익률">기간 수익률</TermTip></span>
-                <span style={{ fontSize: 22, fontWeight: 800, color: upColor(shownRet) }}>{fmtPct(shownRet)}</span>
-                {shownSpan && <span style={{ fontSize: 12, color: 'var(--c-tx6)' }}>{shownSpan}</span>}
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
+              {/* 왼쪽: 기간 수익률(숫자) + 그 수익률을 계산할 기간 칩을 한 묶음으로 */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--c-tx4)' }}><TermTip term="기간 수익률">기간 수익률</TermTip></span>
+                  <span style={{ fontSize: 22, fontWeight: 800, color: upColor(shownRet) }}>{fmtPct(shownRet)}</span>
+                  {shownSpan && <span style={{ fontSize: 12, color: 'var(--c-tx6)' }}>{shownSpan}</span>}
+                </div>
+                <div style={{ display: 'inline-flex', gap: 4, padding: 4, background: 'var(--c-w04)', borderRadius: 10, alignSelf: 'flex-start' }}>
+                  {RANGE_PRESETS.map((k) => (
+                    <button key={k} onClick={() => setPresetSel(k)} style={chipStyle(presetSel === k)}>{k}</button>
+                  ))}
+                </div>
+                <span style={{ fontSize: 11, color: 'var(--c-tx6)' }}>↑ 위 수익률을 계산할 기간 (아래 차트와는 별개)</span>
               </div>
-              <div style={{ display: 'flex', gap: 4, padding: 4, background: 'var(--c-w04)', borderRadius: 12 }}>
-                {(isCoinTab ? PERIODS_COIN : PERIODS_STOCK).map((p) => (
-                  <button key={p} onClick={() => actions.setPeriod(p)} style={segStyle(state.period === p)}>{p}</button>
-                ))}
-              </div>
-            </div>
-
-            {/* 기간 수익률 전용 기간 선택(차트와 독립). 차트는 드래그·휠로 자유롭게 보면 됨. */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 4 }}>
-              <span style={{ fontSize: 11, color: 'var(--c-tx6)' }}>수익률 기간</span>
-              <div style={{ display: 'flex', gap: 4, padding: 4, background: 'var(--c-w04)', borderRadius: 10 }}>
-                {RANGE_PRESETS.map((k) => (
-                  <button key={k} onClick={() => setPresetSel(k)} style={chipStyle(presetSel === k)}>{k}</button>
-                ))}
+              {/* 오른쪽: 차트 봉 단위 */}
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
+                <div style={{ display: 'flex', gap: 4, padding: 4, background: 'var(--c-w04)', borderRadius: 12 }}>
+                  {(isCoinTab ? PERIODS_COIN : PERIODS_STOCK).map((p) => (
+                    <button key={p} onClick={() => actions.setPeriod(p)} style={segStyle(state.period === p)}>{PERIOD_LABEL[p]}</button>
+                  ))}
+                </div>
+                <span style={{ fontSize: 11, color: 'var(--c-tx6)' }}>차트 봉 단위</span>
               </div>
             </div>
             <div style={{ margin: '8px 0 0' }}>
