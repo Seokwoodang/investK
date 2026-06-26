@@ -100,9 +100,14 @@ export function ValueStocks() {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState(false);
   const reqId = useRef(0);
+  const loadingRef = useRef(false); // 동기 가드(중복 로드 방지)
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
 
   // 서버에서 (정렬 + offset/limit) 한 페이지씩 받아온다. offset=0이면 새로(시장·정렬 변경), 아니면 이어붙임.
   const load = useCallback((offset: number) => {
+    if (offset > 0 && loadingRef.current) return; // 이미 다음 페이지 로딩 중이면 무시
+    loadingRef.current = true;
     const id = ++reqId.current;
     setLoading(true);
     if (offset === 0) setErr(false);
@@ -118,7 +123,7 @@ export function ValueStocks() {
         if (id === reqId.current && offset === 0) setErr(true);
       })
       .finally(() => {
-        if (id === reqId.current) setLoading(false);
+        if (id === reqId.current) { loadingRef.current = false; setLoading(false); }
       });
   }, [market, sortKey]);
 
@@ -130,10 +135,25 @@ export function ValueStocks() {
   }, [load]);
 
   const hasMore = items.length < total;
-  const onScroll = (e: React.UIEvent<HTMLDivElement>) => {
-    const el = e.currentTarget;
-    if (!loading && hasMore && el.scrollTop + el.clientHeight >= el.scrollHeight - 280) load(items.length);
-  };
+  // 최신 상태를 옵저버 콜백에서 쓰기 위한 ref.
+  const moreRef = useRef(false); moreRef.current = hasMore;
+  const countRef = useRef(0); countRef.current = items.length;
+
+  // 바닥 센티넬이 보이면 다음 페이지 로드(컨테이너 내부 스크롤 기준).
+  const listReady = items.length > 0;
+  useEffect(() => {
+    const root = containerRef.current;
+    const target = sentinelRef.current;
+    if (!root || !target) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && moreRef.current && !loadingRef.current) load(countRef.current);
+      },
+      { root, rootMargin: '400px' },
+    );
+    io.observe(target);
+    return () => io.disconnect();
+  }, [listReady, load]);
 
   const seg = (m: Market, label: string) => (
     <button
@@ -211,8 +231,8 @@ export function ValueStocks() {
             </div>
           </div>
           <div
+            ref={containerRef}
             className="list-scroll"
-            onScroll={onScroll}
             style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: '68vh', overflowY: 'auto', overflowX: 'hidden', overscrollBehavior: 'contain', paddingRight: 4 }}
           >
             {items.map((s, i) => (
@@ -256,7 +276,17 @@ export function ValueStocks() {
                 </div>
               </button>
             ))}
+            {/* 바닥 감지용 센티넬 */}
+            <div ref={sentinelRef} style={{ height: 1 }} />
             {loading && <div style={{ textAlign: 'center', padding: 14, fontSize: 12, color: 'var(--c-tx6)' }}>불러오는 중…</div>}
+            {hasMore && !loading && (
+              <button
+                onClick={() => load(items.length)}
+                style={{ cursor: 'pointer', fontFamily: 'inherit', margin: '4px auto 8px', padding: '8px 18px', borderRadius: 9, fontSize: 13, fontWeight: 700, border: '1px solid var(--c-w10)', background: 'var(--c-w05)', color: 'var(--c-tx3)' }}
+              >
+                더 보기 ({items.length}/{total})
+              </button>
+            )}
             {!hasMore && !loading && <div style={{ textAlign: 'center', padding: 14, fontSize: 12, color: 'var(--c-tx6)' }}>전체 {total.toLocaleString('ko-KR')}개를 모두 봤습니다</div>}
           </div>
           <SourceNote
