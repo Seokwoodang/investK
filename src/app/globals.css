@@ -361,6 +361,9 @@ input::placeholder {
   border-color: var(--c-cy40);
   background: var(--c-cy05);
   transform: translateY(-2px);
+  /* 호버 카드를 형제 카드 위로 올려, 카드 안 툴팁이 다음 카드에 가리지 않게(transform이 만든 stacking context 보정) */
+  position: relative;
+  z-index: 5;
 }
 
 .stock-row {
