@@ -1,0 +1,2 @@
+# 빈 이슈 금지 → 이슈를 만들려고 하면 무조건 아래 폼 중 하나를 고르게 된다.
+blank_issues_enabled: false

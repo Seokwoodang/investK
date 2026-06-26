@@ -1,0 +1,58 @@
+name: 🐞 버그 신고
+description: 화면이 깨지거나 값이 틀리는 등 문제가 있을 때
+title: "[버그] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        문제를 빠르게 고칠 수 있도록 아래 항목을 채워주세요. **스크린샷**이 가장 큰 도움이 됩니다 🙏
+  - type: dropdown
+    id: area
+    attributes:
+      label: 어디서 생겼나요?
+      options:
+        - 대시보드
+        - 데일리 브리핑
+        - 종목 목록
+        - 종목 상세 (차트 / AI 분석)
+        - 저평가 우량주
+        - 내 자산 / 매도 점검
+        - 투자 보고서
+        - 뉴스
+        - 로그인
+        - 기타 / 잘 모르겠음
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: 무슨 일이 있었나요?
+      description: 어떤 문제가 보였는지 적어주세요.
+      placeholder: "예) 저평가 우량주에서 PER 값이 이상하게 나옵니다."
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 재현 방법
+      description: 어떤 순서로 하면 그 문제가 나오나요?
+      placeholder: |
+        1. 내 자산 페이지 접속
+        2. 매도 점검에서 ...
+        3. ...
+  - type: textarea
+    id: expected
+    attributes:
+      label: 기대한 동작
+      placeholder: "예) -15%로 표시되어야 하는데 +35%로 나옵니다."
+  - type: input
+    id: env
+    attributes:
+      label: 기기 / 브라우저
+      placeholder: "예) 아이폰 사파리 · 윈도우 크롬"
+  - type: textarea
+    id: screenshot
+    attributes:
+      label: 스크린샷 (선택)
+      description: 이미지를 끌어다 놓으면 첨부됩니다.

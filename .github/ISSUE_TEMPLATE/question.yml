@@ -1,0 +1,12 @@
+name: ❓ 질문 / 기타
+description: 사용법 질문이나 기타 문의
+title: "[질문] "
+labels: ["question"]
+body:
+  - type: textarea
+    id: question
+    attributes:
+      label: 무엇이 궁금하신가요?
+      placeholder: "예) 저평가 우량주 점수는 어떤 기준으로 계산되나요?"
+    validations:
+      required: true

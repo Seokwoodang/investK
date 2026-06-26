@@ -1,0 +1,35 @@
+name: 💡 기능 제안 / 개선
+description: 새 기능이나 개선 아이디어를 제안할 때
+title: "[제안] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        아이디어 감사합니다! 어떤 점이 좋아질지 적어주세요.
+  - type: textarea
+    id: idea
+    attributes:
+      label: 어떤 기능 / 개선인가요?
+      placeholder: "예) 종목 상세에 배당 일정 캘린더를 추가하면 좋겠어요."
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: 왜 필요한가요?
+      description: 어떤 불편을 해결하거나 무엇이 더 편해지나요?
+  - type: dropdown
+    id: area
+    attributes:
+      label: 관련 화면 (선택, 여러 개 가능)
+      multiple: true
+      options:
+        - 대시보드
+        - 데일리 브리핑
+        - 종목 목록 / 상세
+        - 저평가 우량주
+        - 내 자산 / 매도 점검
+        - 투자 보고서
+        - 뉴스
+        - 전체 / 기타
