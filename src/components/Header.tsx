@@ -64,7 +64,7 @@ const iconBtn = (active: boolean): React.CSSProperties => ({
   background: active ? 'var(--c-w08)' : 'var(--c-w05)', color: 'var(--c-tx2)',
 });
 
-export function Header() {
+export function Header({ authed = true }: { authed?: boolean }) {
   const { vw, layout } = useViewportLayout();
   const { state, actions, data } = useDashboard();
   const pathname = usePathname();
@@ -161,15 +161,24 @@ export function Header() {
         <span style={{ fontSize: 16, fontWeight: 800 }}>가</span>
         <span style={{ fontSize: 13, fontWeight: 700 }}>큰글씨 {state.largeFont ? '켜짐' : '꺼짐'}</span>
       </button>
-      <button
-        onClick={async () => {
-          await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
-          window.location.href = '/login';
-        }}
-        style={{ ...utilBtnBase, width: '100%', justifyContent: 'flex-start', padding: '11px 12px', fontSize: 13, fontWeight: 700 }}
-      >
-        로그아웃
-      </button>
+      {authed ? (
+        <button
+          onClick={async () => {
+            await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
+            window.location.href = '/login';
+          }}
+          style={{ ...utilBtnBase, width: '100%', justifyContent: 'flex-start', padding: '11px 12px', fontSize: 13, fontWeight: 700 }}
+        >
+          로그아웃
+        </button>
+      ) : (
+        <button
+          onClick={() => { window.location.href = `/login?next=${encodeURIComponent(pathname || '/')}`; }}
+          style={{ ...utilBtnBase, width: '100%', justifyContent: 'flex-start', padding: '11px 12px', fontSize: 13, fontWeight: 700, border: '1px solid var(--c-cy45)', background: 'var(--c-cy16)', color: 'var(--c-accyanbr)' }}
+        >
+          로그인
+        </button>
+      )}
     </div>
   );
 
