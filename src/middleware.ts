@@ -5,6 +5,7 @@ import { COOKIE, verifySession } from '@/lib/auth';
 // 보호 경로만 로그인 게이트. 나머지(시장 보기 페이지·읽기 API)는 비로그인 공개.
 //  보호: 개인 페이지(내자산·보고서) + 유료 AI 생성(/api/ai/*) + 개인 데이터 API(/api/portfolio, /api/report-history)
 const PROTECTED: RegExp[] = [
+  /^\/instrument(\/|$)/, // 종목 상세(차트=KIS 캔들·실시간 토큰 사용) → 로그인 전용
   /^\/portfolio(\/|$)/,
   /^\/report(\/|$)/,
   /^\/api\/ai\//,
