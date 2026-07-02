@@ -9,7 +9,11 @@ export interface KrUniverseRow {
   price: number;
   pct: number;
   vol: number; // 거래대금(원). 코인과 동일하게 거래대금 기준 정렬·표시.
+  shares: number; // 거래량(주 수)
 }
+
+// 거래량(주 수). raw 우선.
+const tradeShares = (s: NaverStock) => Number(String(s.accumulatedTradingVolumeRaw ?? s.accumulatedTradingVolume ?? '').replace(/,/g, '')) || 0;
 
 interface NaverStock {
   itemCode: string;
@@ -49,7 +53,7 @@ function toRows(stocks: NaverStock[]): KrUniverseRow[] {
     let pct = num(s.fluctuationsRatio);
     const sign = s.compareToPreviousPrice?.code;
     if ((sign === '4' || sign === '5') && pct > 0) pct = -pct;
-    return { code: s.itemCode, name: s.stockName, price: num(s.closePrice), pct, vol: tradeValue(s) };
+    return { code: s.itemCode, name: s.stockName, price: num(s.closePrice), pct, vol: tradeValue(s), shares: tradeShares(s) };
   });
 }
 
@@ -100,7 +104,7 @@ export async function getUsStockUniverse(): Promise<import('@/types').UniverseRo
         const sign = s.compareToPreviousPrice?.code;
         if ((sign === '4' || sign === '5') && pct > 0) pct = -pct;
         const code = s.symbolCode ?? s.itemCode;
-        if (code && num(s.closePrice) > 0) rows.push({ id: code, name: s.stockName, ticker: code, price: num(s.closePrice), pct, vol: tradeValue(s) });
+        if (code && num(s.closePrice) > 0) rows.push({ id: code, name: s.stockName, ticker: code, price: num(s.closePrice), pct, vol: tradeValue(s), shares: tradeShares(s) });
       });
     let first;
     try {

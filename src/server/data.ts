@@ -128,7 +128,7 @@ async function withUniverse(
     return rows
       .map((u): Stock => {
         const c = curated[u.ticker];
-        if (c) return { ...c, price: u.price, pct: u.pct, vol: u.vol };
+        if (c) return { ...c, price: u.price, pct: u.pct, vol: u.vol, shares: u.shares };
         const risk4 = proxyRisk4(u);
         const score = Math.round((risk4.vol + risk4.liq + risk4.evt) / 3);
         const risk = score < 40 ? 'low' : score < 70 ? 'mid' : 'high';
@@ -137,7 +137,7 @@ async function withUniverse(
           issue: `${u.name}의 가격·거래량 흐름을 확인하세요.`,
           chartNote: '최근 가격 흐름입니다.',
           news: [], ai: { pos: [], neg: [], caution: [] }, risk4,
-          riskNote: '시세·거래량 기반으로 자동 산출한 정량 지표입니다.', vol: u.vol,
+          riskNote: '시세·거래량 기반으로 자동 산출한 정량 지표입니다.', vol: u.vol, shares: u.shares,
         };
       })
       .sort((a, b) => (b.vol ?? 0) - (a.vol ?? 0));
@@ -168,7 +168,7 @@ function buildKrStocks(universe: KrUniverseRow[]): Stock[] {
     const c = curated[u.code];
     // 큐레이션 콘텐츠 유지 + 실시세. id·ticker는 반드시 실제 KIS 코드로 고정 —
     // 큐레이션 슬러그 id(samsung 등)를 쓰면 KIS 실시간 구독이 코드를 못 알아들어 틱이 안 온다.
-    if (c) return { ...c, id: u.code, ticker: u.code, price: u.price, pct: u.pct, vol: u.vol };
+    if (c) return { ...c, id: u.code, ticker: u.code, price: u.price, pct: u.pct, vol: u.vol, shares: u.shares };
     const risk4 = proxyRisk4(u);
     const score = Math.round((risk4.vol + risk4.liq + risk4.evt) / 3);
     const risk = score < 40 ? 'low' : score < 70 ? 'mid' : 'high';
@@ -180,6 +180,7 @@ function buildKrStocks(universe: KrUniverseRow[]): Stock[] {
       ai: { pos: [], neg: [], caution: [] },
       risk4,
       riskNote: '시세·거래량 기반으로 자동 산출한 정량 지표입니다. (이벤트·뉴스 감성은 추후 정교화)',
+      vol: u.vol, shares: u.shares, // vol 누락 버그 수정 — 비큐레이션 KR 종목도 실거래대금 사용
     };
   });
 }

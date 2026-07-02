@@ -5,7 +5,7 @@ export type Page = 'dashboard' | 'daily' | 'stocks' | 'portfolio' | 'report' | '
 export type DetailTab = 'chart' | 'news' | 'ai' | 'risk';
 // 봉(캔들) 단위. 코인은 4종 전부, 주식(KIS)은 일/주/월 지원(1시간 선택 시 일봉으로 대체).
 export type Period = '1분' | '5분' | '15분' | '1시간' | '일봉' | '주봉' | '월봉';
-export type SortKey = 'vol' | 'price' | 'pct' | 'risk';
+export type SortKey = 'vol' | 'shares' | 'price' | 'pct' | 'risk';
 export type SortDir = 'desc' | 'asc';
 export type EventView = 'list' | 'calendar';
 export type RiskLevel = 'low' | 'mid' | 'high';
@@ -135,6 +135,8 @@ export interface Stock {
   riskNote: string;
   // 실데이터 연동 시 채워지는 실거래량/거래대금. 없으면 클라이언트가 목 값을 생성(genVol).
   vol?: number;
+  // 거래량(주식=주 수, 코인=수량). 거래대금(vol)과 별개 — 이슈 #3.
+  shares?: number;
 }
 
 export type Stocks = Record<TabId, Stock[]>;
@@ -147,6 +149,7 @@ export interface UniverseRow {
   price: number;
   pct: number;
   vol: number;
+  shares?: number; // 거래량(주식=주 수, 코인=수량)
 }
 
 // The full data payload the server assembles and hands to the client shell.

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { genCandles } from '../../lib/chart';
 import { fetchCoinCandles } from '../../lib/coinCandles';
-import { fmtPrice, fmtPct, riskMeta, scoreColor, upColor } from '../../lib/format';
+import { fmtPrice, fmtPct, fmtTradeValue, formatVol, riskMeta, scoreColor, upColor } from '../../lib/format';
 import { SRC, SRC_CANDLE } from '../../lib/sources';
 import { useViewportLayout } from '../DashboardChrome';
 import { useDashboard } from '../../store/DashboardContext';
@@ -426,6 +426,13 @@ export function Detail({ id }: { id: string }) {
               <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 5, marginLeft: 8, background: 'var(--c-am16)', color: 'var(--c-warn)' }}>지연</span>
             )}
           </div>
+          {(sel.vol != null || sel.shares != null) && (
+            <div style={{ fontSize: 12, color: 'var(--c-tx6)', marginTop: 6 }}>
+              {sel.vol != null && <><TermTip term="거래대금">거래대금</TermTip> {fmtTradeValue(sel.vol, sel.cur)}</>}
+              {sel.vol != null && sel.shares != null && sel.shares > 0 && ' · '}
+              {sel.shares != null && sel.shares > 0 && <>거래량 {formatVol(sel.shares)}{state.activeTab === 'kr_stock' || state.activeTab === 'us_stock' ? '주' : ''}</>}
+            </div>
+          )}
         </div>
       </div>
 

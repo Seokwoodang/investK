@@ -59,13 +59,13 @@ export async function getBinanceUniverse(): Promise<import('@/types').UniverseRo
   // 페이지 단위 ISR 캐시가 갱신 주기를 담당하므로 시세 신선도엔 영향 없음.
   const arr = (await (
     await fetch('https://api.binance.com/api/v3/ticker/24hr', { cache: 'no-store' })
-  ).json()) as Array<{ symbol: string; lastPrice: string; priceChangePercent: string; quoteVolume: string }>;
+  ).json()) as Array<{ symbol: string; lastPrice: string; priceChangePercent: string; quoteVolume: string; volume?: string }>;
   const STABLE = new Set(['USDC', 'FDUSD', 'TUSD', 'BUSD', 'DAI', 'USDP', 'USTC', 'EUR', 'AEUR', 'EURI', 'XUSD']);
   return arr
     .filter((t) => t.symbol.endsWith('USDT') && !/(UP|DOWN|BULL|BEAR)USDT$/.test(t.symbol) && +t.quoteVolume > 0 && +t.lastPrice > 0)
     .map((t) => {
       const base = t.symbol.slice(0, -4);
-      return { id: t.symbol, name: base, ticker: base, price: +t.lastPrice, pct: +t.priceChangePercent, vol: +t.quoteVolume };
+      return { id: t.symbol, name: base, ticker: base, price: +t.lastPrice, pct: +t.priceChangePercent, vol: +t.quoteVolume, shares: +(t.volume ?? 0) };
     })
     .filter((r) => !STABLE.has(r.ticker));
 }

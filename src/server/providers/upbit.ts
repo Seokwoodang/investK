@@ -62,20 +62,20 @@ export async function getUpbitUniverse(): Promise<import('@/types').UniverseRow[
     await fetch('https://api.upbit.com/v1/market/all?isDetails=false', { next: { revalidate: REVALIDATE.quotes } })
   ).json()) as Array<{ market: string; korean_name: string }>;
   const krw = markets.filter((m) => m.market.startsWith('KRW-'));
-  const byMarket: Record<string, { trade_price: number; signed_change_rate: number; acc_trade_price_24h: number }> = {};
+  const byMarket: Record<string, { trade_price: number; signed_change_rate: number; acc_trade_price_24h: number; acc_trade_volume_24h?: number }> = {};
   const codes = krw.map((m) => m.market);
   for (let i = 0; i < codes.length; i += 100) {
     const chunk = codes.slice(i, i + 100);
     const arr = (await (
       await fetch(`https://api.upbit.com/v1/ticker?markets=${chunk.join(',')}`, { next: { revalidate: REVALIDATE.quotes } })
-    ).json()) as Array<{ market: string; trade_price: number; signed_change_rate: number; acc_trade_price_24h: number }>;
+    ).json()) as Array<{ market: string; trade_price: number; signed_change_rate: number; acc_trade_price_24h: number; acc_trade_volume_24h?: number }>;
     arr.forEach((t) => (byMarket[t.market] = t));
   }
   return krw
     .map((m) => {
       const t = byMarket[m.market];
       const base = m.market.slice(4);
-      return { id: m.market, name: m.korean_name, ticker: `${base}/KRW`, price: t?.trade_price ?? 0, pct: (t?.signed_change_rate ?? 0) * 100, vol: t?.acc_trade_price_24h ?? 0 };
+      return { id: m.market, name: m.korean_name, ticker: `${base}/KRW`, price: t?.trade_price ?? 0, pct: (t?.signed_change_rate ?? 0) * 100, vol: t?.acc_trade_price_24h ?? 0, shares: t?.acc_trade_volume_24h ?? 0 };
     })
     .filter((r) => r.price > 0);
 }

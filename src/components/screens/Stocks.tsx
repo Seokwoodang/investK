@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { genVol } from '../../lib/chart';
-import { fmtPrice, fmtPct, fmtTradeValue, scoreColor, upColor } from '../../lib/format';
+import { fmtPrice, fmtPct, fmtTradeValue, formatVol, scoreColor, upColor } from '../../lib/format';
 import { SRC_QUOTE } from '../../lib/sources';
 import { useDashboard } from '../../store/DashboardContext';
 import { useRealtime, useSubscribeStocks, useSubscribeCoins, useSubscribeUs } from '../../store/RealtimeContext';
@@ -13,6 +13,7 @@ import { useViewportLayout } from '../DashboardChrome';
 
 const SORTS: { key: SortKey; label: string }[] = [
   { key: 'vol', label: '거래대금' },
+  { key: 'shares', label: '거래량' },
   { key: 'price', label: '가격' },
   { key: 'pct', label: '변동률' },
   { key: 'risk', label: '위험도' },
@@ -47,15 +48,17 @@ export function Stocks() {
         const price = live?.price ?? s.price;
         const pct = live?.pct ?? s.pct;
         const volNum = s.vol ?? genVol(s, activeTab);
+        const sharesNum = s.shares ?? 0;
         const riskQuant = Math.round((s.risk4.vol + s.risk4.liq + s.risk4.evt) / 3);
         const riskLabel = riskQuant < 40 ? '낮음' : riskQuant < 70 ? '중간' : '높음';
         return {
           id: s.id, name: s.name, ticker: s.ticker,
           priceText: fmtPrice(price, s.cur), pctText: fmtPct(pct), pctColor: upColor(pct),
           volText: fmtTradeValue(volNum, s.cur), // 4개 자산군 모두 거래대금 기준
+          sharesText: sharesNum > 0 ? formatVol(sharesNum) + (isCoin ? '' : '주') : '', // 거래량(이슈 #3)
           riskScore: riskQuant, riskLabel, riskColor: scoreColor(riskQuant),
           starred: watchlist.includes(s.id),
-          sortVals: { vol: volNum, price, pct, risk: riskQuant } as Record<SortKey, number>,
+          sortVals: { vol: volNum, shares: sharesNum, price, pct, risk: riskQuant } as Record<SortKey, number>,
         };
       });
     list.sort((a, b) => {
@@ -238,7 +241,12 @@ export function Stocks() {
               <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--c-tx1b)', whiteSpace: 'nowrap' }}>{s.name}</span>
               <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--c-tx6)', whiteSpace: 'nowrap' }}>{s.ticker}</span>
             </div>
-            {layout.showVol && <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--c-tx3)', textAlign: 'right' }}>{s.volText}</span>}
+            {layout.showVol && (
+              <span style={{ textAlign: 'right' }}>
+                <span style={{ display: 'block', fontSize: 14, fontWeight: 600, color: 'var(--c-tx3)' }}>{s.volText}</span>
+                {s.sharesText && <span style={{ display: 'block', fontSize: 11, color: 'var(--c-tx6)', marginTop: 2 }}>{s.sharesText}</span>}
+              </span>
+            )}
             <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--c-tx1)', textAlign: 'right' }}>{s.priceText}</span>
             <span style={{ fontSize: 14, fontWeight: 700, textAlign: 'right', color: s.pctColor }}>{s.pctText}</span>
             {layout.showRisk && (
