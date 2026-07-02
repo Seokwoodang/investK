@@ -310,7 +310,8 @@ export function ValueStocks() {
           <div
             ref={containerRef}
             className="list-scroll"
-            style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: '68vh', overflowY: 'auto', overflowX: 'hidden', overscrollBehavior: 'contain', paddingRight: 4 }}
+            // paddingTop 4: 호버 시 카드가 translateY(-2px)로 떠오르는데, 첫 카드가 스크롤 컨테이너 상단에 붙어 있으면 잘림(#2)
+            style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: '68vh', overflowY: 'auto', overflowX: 'hidden', overscrollBehavior: 'contain', paddingRight: 4, paddingTop: 4 }}
           >
             {items.map((s, i) => (
               <button
