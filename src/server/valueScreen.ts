@@ -210,25 +210,31 @@ export async function getValuePage(market: Market, sort: string, offset: number,
   return { date: screen.date, universe: screen.universe, total: sorted.length, offset, items: sorted.slice(offset, offset + limit) };
 }
 
+// 인메모리 캐시(인스턴스 생존 동안) — 스크롤 페이지마다 Supabase에서 수백 KB blob을 다시 읽지 않게.
+const memScreen: Partial<Record<Market, { at: number; screen: ValueScreen }>> = {};
+const MEM_TTL = 5 * 60e3;
+
 export async function refreshValueScreen(market: Market): Promise<number> {
   const screen = await buildValueScreen(market);
   await kvSet(KEY(market), screen);
+  memScreen[market] = { at: Date.now(), screen };
   return screen.items.length;
 }
 
-// 캐시 날짜가 며칠 묵었는지(YYYY-MM-DD 기준).
-function daysOld(date: string): number {
-  const d = Date.parse(`${date}T00:00:00Z`);
-  const now = Date.parse(`${kstDate()}T00:00:00Z`);
-  return Number.isFinite(d) ? Math.round((now - d) / 86400000) : 999;
-}
-
+// 사용자 경로: 절대 재수집하지 않는다 — 메모리 → Supabase 캐시 순으로 읽고, 갱신은 cron(18:00 KST) 전담.
+// Supabase 읽기가 순간 실패해도 메모리 사본으로 응답(과거엔 이때 '캐시 없음'으로 오판해 수십 초 전체
+// 재수집을 사용자가 떠안았음). 빌드는 캐시가 어디에도 없는 최초 1회뿐.
 export async function getValueScreen(market: Market): Promise<ValueScreen> {
+  const m = memScreen[market];
+  if (m && Date.now() - m.at < MEM_TTL) return m.screen;
   const cached = await kvGet<ValueScreen>(KEY(market));
-  // 사용자는 그때그때 빌드하지 않는다 — 캐시가 있으면 즉시 반환(날짜 무관). 갱신은 하루 1회 cron(18:00 KST)이 담당.
-  // 단, cron이 며칠 멈춰 캐시가 2일 넘게 묵으면 안전하게 1회만 재생성한다.
-  if (cached?.items?.length && daysOld(cached.date) <= 2) return cached;
+  if (cached?.items?.length) {
+    memScreen[market] = { at: Date.now(), screen: cached };
+    return cached;
+  }
+  if (m) return m.screen; // kv 실패/빈값 — 묵은 메모리 사본이라도 반환(재수집 방지)
   const screen = await buildValueScreen(market);
   await kvSet(KEY(market), screen);
+  memScreen[market] = { at: Date.now(), screen };
   return screen;
 }

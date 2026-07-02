@@ -19,5 +19,7 @@ export async function GET(req: Request) {
       console.error(`[cron/value-screen] ${market} failed:`, (e as Error).message);
     }
   }
-  return NextResponse.json({ ok: true, counts: out });
+  // 한 시장이라도 실패(-1)나 0건이면 500 → GitHub Action이 빨간불로 표시(조용한 실패 방지).
+  const failed = Object.values(out).some((n) => n <= 0);
+  return NextResponse.json({ ok: !failed, counts: out }, { status: failed ? 500 : 200 });
 }
