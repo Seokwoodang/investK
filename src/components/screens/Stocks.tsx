@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { genVol } from '../../lib/chart';
 import { fmtPrice, fmtPct, fmtTradeValue, formatVol, scoreColor, upColor } from '../../lib/format';
 import { SRC_QUOTE } from '../../lib/sources';
 import { useDashboard } from '../../store/DashboardContext';
@@ -47,14 +46,15 @@ export function Stocks() {
         const live = rt[s.id]; // 실시간 소켓 틱이 있으면 우선
         const price = live?.price ?? s.price;
         const pct = live?.pct ?? s.pct;
-        const volNum = s.vol ?? genVol(s, activeTab);
+        // 거래대금은 실데이터(vol)만 표시 — 없으면 '—'. (과거엔 PRNG 가짜 값을 라벨 없이 표시했음)
+        const volNum = s.vol ?? 0;
         const sharesNum = s.shares ?? 0;
         const riskQuant = Math.round((s.risk4.vol + s.risk4.liq + s.risk4.evt) / 3);
         const riskLabel = riskQuant < 40 ? '낮음' : riskQuant < 70 ? '중간' : '높음';
         return {
           id: s.id, name: s.name, ticker: s.ticker,
           priceText: fmtPrice(price, s.cur), pctText: fmtPct(pct), pctColor: upColor(pct),
-          volText: fmtTradeValue(volNum, s.cur), // 4개 자산군 모두 거래대금 기준
+          volText: s.vol != null ? fmtTradeValue(s.vol, s.cur) : '—', // 4개 자산군 모두 거래대금 기준
           sharesText: sharesNum > 0 ? formatVol(sharesNum) + (isCoin ? '' : '주') : '', // 거래량(이슈 #3)
           riskScore: riskQuant, riskLabel, riskColor: scoreColor(riskQuant),
           starred: watchlist.includes(s.id),
@@ -75,7 +75,7 @@ export function Stocks() {
   useEffect(() => setLimit(PAGE), [activeTab, query, watchOnly, sortKey, sortDir]);
   const visible = rows.slice(0, limit);
 
-  // 보이는 종목만 실시간 구독: 국내주식=KIS SSE, 코인=거래소 ws. (나머지 탭은 구독 해제)
+  // 보이는 종목만 실시간 구독: 국내주식=KIS SSE, 코인=거래소 ws, 해외주식=30초 REST 폴링(15분 지연).
   const subscribeStocks = useSubscribeStocks();
   const subscribeCoins = useSubscribeCoins();
   const subscribeUs = useSubscribeUs();
@@ -89,6 +89,12 @@ export function Stocks() {
     if (activeTab === 'kr_stock') {
       clear();
       subscribeStocks(visible.map((s) => s.id));
+    } else if (activeTab === 'us_stock') {
+      // 과거 버그: 해외주식은 구독 배선이 빠져 있어 폴링이 데드코드였고 시세가 로드 시점에 동결됐음.
+      const us: Record<string, string> = {};
+      visible.forEach((s) => (us[s.ticker] = s.id));
+      clear();
+      subscribeUs(us);
     } else if (activeTab === 'kr_coin') {
       const up: Record<string, string> = {};
       visible.forEach((s) => (up['KRW-' + s.ticker.split('/')[0]] = s.id));
@@ -102,6 +108,8 @@ export function Stocks() {
     } else {
       clear();
     }
+    // 페이지를 떠날 때 구독 해제(소켓·폴링이 세션 내내 살아있지 않게).
+    return clear;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visKey, subscribeStocks, subscribeCoins, subscribeUs]);
 
@@ -128,7 +136,7 @@ export function Stocks() {
       <div style={{ marginBottom: 24 }}>
         <h1 style={{ margin: 0, fontSize: 28, fontWeight: 800, letterSpacing: '-0.02em' }}>종목</h1>
         <p style={{ margin: '8px 0 0', fontSize: 14, color: 'var(--c-tx5)' }}>자산군을 고르고 거래대금·가격·변동률 기준으로 정렬해 보세요.</p>
-        <UpdateNote text="국내주식·코인 실시간 · 해외주식 약 15분 지연 · 종목 목록 1시간 캐시" style={{ marginTop: 8 }} />
+        <UpdateNote text="국내주식·코인 실시간 · 해외주식 약 15분 지연 · 종목 목록 수 분 캐시" style={{ marginTop: 8 }} />
       </div>
 
       <TabBar marginBottom={activeTab === 'us_stock' ? 12 : 24} />
@@ -253,7 +261,8 @@ export function Stocks() {
               <div className="risk-cell" style={{ justifySelf: 'end', position: 'relative', textAlign: 'right', whiteSpace: 'nowrap' }}>
                 <div style={{ fontSize: 16, fontWeight: 800, lineHeight: 1, color: s.riskColor }}>{s.riskScore}</div>
                 <div style={{ fontSize: 10, fontWeight: 600, marginTop: 3, color: s.riskColor }}>{s.riskLabel}</div>
-                <div className="risk-tip" style={{ position: 'absolute', top: 'calc(100% + 8px)', right: 0, width: 250, textAlign: 'left', background: 'var(--c-panel)', border: '1px solid var(--c-w12)', borderRadius: 12, padding: '13px 15px', boxShadow: '0 14px 36px var(--c-shadow)', zIndex: 30 }}>
+                {/* 스크롤 컨테이너(.list-scroll) 안이라 아래로 펼치면 하단 행에서 잘림 → 셀 왼쪽·세로 중앙에 표시 */}
+                <div className="risk-tip" style={{ position: 'absolute', top: '50%', right: 'calc(100% + 10px)', transform: 'translateY(-50%)', width: 250, textAlign: 'left', background: 'var(--c-panel)', border: '1px solid var(--c-w12)', borderRadius: 12, padding: '13px 15px', boxShadow: '0 14px 36px var(--c-shadow)', zIndex: 30 }}>
                   <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--c-accyanbr)', marginBottom: 7 }}>정량 위험점수</div>
                   <div style={{ fontSize: 12, lineHeight: 1.6, color: 'var(--c-tx3)' }}>
                     변동성 · 유동성 · 이벤트 리스크를 시세 데이터로 자동 산출한 점수입니다. 뉴스 감성까지 반영한 정확한 <span style={{ color: 'var(--c-acblue)', fontWeight: 600 }}>AI 종합 위험도</span>는 상세 페이지에서 확인하세요.

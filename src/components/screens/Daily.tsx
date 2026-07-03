@@ -24,26 +24,29 @@ const navBtn = (disabled: boolean): React.CSSProperties => ({
   color: disabled ? 'var(--c-txdis)' : 'var(--c-tx3)', fontSize: 15, lineHeight: 1, fontFamily: 'inherit',
 });
 
+const localDate = () => {
+  const t = new Date();
+  return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
+};
+
 export function Daily() {
   const { layout } = useViewportLayout();
-  const { state, actions, data: dashData } = useDashboard();
-  const BRIEFING = dashData.briefing;
-  const mockDates = Object.keys(BRIEFING).sort();
-  // 기본 날짜 = 오늘(KST, 마운트 후). 그 전엔 가장 최근 샘플 날짜로 표시.
+  const { state, actions } = useDashboard();
+  // 기본 날짜 = 오늘(KST, 마운트 후). 정적 샘플 날짜 폴백은 제거 — 항상 실제 날짜만.
   const todayStr = state.today
     ? `${state.today.y}-${String(state.today.m + 1).padStart(2, '0')}-${String(state.today.d).padStart(2, '0')}`
-    : null;
-  const bd = state.briefDate || todayStr || mockDates[mockDates.length - 1];
+    : localDate();
+  const bd = state.briefDate || todayStr;
 
   const addDays = (iso: string, n: number) => {
     const [y, m, d] = iso.split('-').map(Number);
     const t = new Date(y, m - 1, d + n);
     return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
   };
-  const canNext = !todayStr || bd < todayStr; // 미래로는 못 감
+  const canNext = bd < todayStr; // 미래로는 못 감
 
-  // 데일리 브리핑을 서버(/api/ai/briefing)에서 가져온다. cron이 하루 2~3회 미리 생성·저장하므로
-  // 보통은 최신 슬롯을 즉시 읽는다. 로딩 동안은 스켈레톤을 보여 정적 샘플이 잠깐 비치지 않게 한다.
+  // 데일리 브리핑 — 공개 읽기 전용(/api/briefing GET). cron이 하루 3회 미리 생성·저장한 것을 읽기만 한다.
+  // 없으면(생성 전/과거 미보관) 정직하게 "없음"을 표시 — 낡은 정적 샘플을 진짜처럼 보여주지 않는다.
   const SLOT_TEXT: Record<string, string> = { am: '오전 6시 생성분', pm: '오후 5시 생성분', ny: '오후 10시 생성분' };
   const [aiBrief, setAiBrief] = useState<(BriefingDay & { _slot?: string }) | null>(null);
   const [loaded, setLoaded] = useState(false);
@@ -51,14 +54,10 @@ export function Daily() {
     let cancelled = false;
     setAiBrief(null);
     setLoaded(false);
-    fetch('/api/ai/briefing', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ date: bd }),
-    })
+    fetch(`/api/briefing?date=${bd}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((j) => {
-        if (!cancelled && j?.headline) setAiBrief(j as BriefingDay & { _slot?: string });
+        if (!cancelled && j?.brief?.headline) setAiBrief(j.brief as BriefingDay & { _slot?: string });
       })
       .catch(() => {})
       .finally(() => {
@@ -68,8 +67,7 @@ export function Daily() {
       cancelled = true;
     };
   }, [bd]);
-  const fallback = BRIEFING[bd] ?? BRIEFING[mockDates[mockDates.length - 1]];
-  const data = aiBrief ?? fallback;
+  const data = aiBrief;
   const loading = !loaded;
   const slotText = aiBrief?._slot ? SLOT_TEXT[aiBrief._slot] : '';
 
@@ -105,11 +103,19 @@ export function Daily() {
         </div>
         {loading ? (
           <div style={{ height: 34, borderRadius: 8, background: 'var(--c-w06)', maxWidth: 480 }} className="skeleton-pulse" />
-        ) : (
+        ) : data ? (
           <div style={{ fontSize: 26, fontWeight: 800, lineHeight: 1.4, letterSpacing: '-0.01em', color: 'var(--c-tx1)' }}>{data.headline}</div>
+        ) : (
+          <div style={{ fontSize: 16, lineHeight: 1.6, color: 'var(--c-tx4)' }}>
+            {bd === todayStr
+              ? '오늘 브리핑이 아직 생성되지 않았습니다. 매일 06 · 17 · 22시(KST)에 자동 생성됩니다.'
+              : '이 날짜의 브리핑이 없습니다.'}
+          </div>
         )}
       </div>
 
+      {data && (
+      <>
       {/* Facts + causes */}
       <div style={{ display: 'grid', gridTemplateColumns: layout.briefCols, gap: 16, marginBottom: 20, alignItems: 'start' }}>
         <div style={{ ...CARD, padding: 24 }}>
@@ -178,13 +184,11 @@ export function Daily() {
       </div>
 
       <SourceNote
-        text={
-          aiBrief
-            ? 'AI 생성 — Claude (Anthropic) · 실시장 데이터로 하루 3회(오전 6시·오후 5시·뉴욕장 개장 전) 자동 생성해 서버에 저장'
-            : 'AI 생성 — Claude (Anthropic) · 현재 정적 샘플 표시 중'
-        }
+        text="AI 생성 — Claude (Anthropic) · 실시장 데이터로 하루 3회(오전 6시·오후 5시·뉴욕장 개장 전) 자동 생성해 서버에 저장"
         style={{ marginTop: 24 }}
       />
+      </>
+      )}
     </div>
   );
 }

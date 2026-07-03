@@ -9,7 +9,7 @@ import { glossDef } from '../../lib/glossary';
 import { usePortfolio, usdKrwFromFx, useResolvedPrices, valuePortfolio } from '../../lib/portfolio';
 import { SRC } from '../../lib/sources';
 import { useDashboard } from '../../store/DashboardContext';
-import { useViewportLayout } from '../DashboardChrome';
+import { useAuthed, useViewportLayout } from '../DashboardChrome';
 import { TAB_LABELS } from '../../types';
 import { GlossaryTip, ImpactTag } from '../GlossaryTip';
 import { SourceNote, UpdateNote } from '../SourceNote';
@@ -63,24 +63,24 @@ function MacroCard({ title, rows, source }: { title: string; rows: { label: stri
   );
 }
 
-// ① 오늘의 한 줄 — 데일리 브리핑 헤드라인(캐시). 비로그인 등 실패 시 표시 안 함.
+// ① 오늘의 한 줄 — 데일리 브리핑 헤드라인. 공개 읽기 전용 라우트(/api/briefing)라 비로그인도 보인다.
+//    항상 오늘 날짜로 요청(과거엔 state.briefDate에 끌려가 과거 헤드라인이 뜨거나, 미설정 시 아예 안 떴음).
 function HeadlineBanner() {
-  const { state } = useDashboard();
   const [headline, setHeadline] = useState<string | null>(null);
-  const date = state.briefDate;
   useEffect(() => {
-    if (!date) return;
+    const t = new Date();
+    const date = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
     let cancelled = false;
-    fetch('/api/ai/briefing', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ date }) })
+    fetch(`/api/briefing?date=${date}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((j) => {
-        if (!cancelled && j?.headline) setHeadline(j.headline as string);
+        if (!cancelled && j?.brief?.headline) setHeadline(j.brief.headline as string);
       })
       .catch(() => {});
     return () => {
       cancelled = true;
     };
-  }, [date]);
+  }, []);
   if (!headline) return null;
   return (
     <Link
@@ -242,6 +242,7 @@ function NewsTopCard() {
 
 export function Dashboard() {
   const { vw, layout } = useViewportLayout();
+  const authed = useAuthed();
   const { state, actions, data } = useDashboard();
   const { macro, assetSummary } = data;
   const weeks = buildCalendar(state.calEvents, vw, state.calYear, state.calMonth, state.today);
@@ -258,8 +259,8 @@ export function Dashboard() {
       {/* ① 오늘의 한 줄 (데일리 헤드라인) */}
       <HeadlineBanner />
 
-      {/* ② 내 자산 스냅샷 (보유 등록 시) */}
-      <MyAssetsStrip />
+      {/* ② 내 자산 스냅샷 (로그인 + 보유 등록 시) — 비로그인은 마운트하지 않아 /api/portfolio 401 호출 자체가 없다 */}
+      {authed && <MyAssetsStrip />}
 
       {/* ③ 시장 심리 게이지 — VIX·금리·크립토 공포지수·김프 */}
       {macro.market && (() => {

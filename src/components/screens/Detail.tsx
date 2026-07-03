@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { genCandles } from '../../lib/chart';
 import { fetchCoinCandles } from '../../lib/coinCandles';
 import { fmtPrice, fmtPct, fmtTradeValue, formatVol, riskMeta, scoreColor, upColor } from '../../lib/format';
 import { SRC, SRC_CANDLE } from '../../lib/sources';
@@ -10,6 +9,7 @@ import { useDashboard } from '../../store/DashboardContext';
 import { useRealtime, useSubscribeStocks, useSubscribeCoins, useSubscribeUs } from '../../store/RealtimeContext';
 import type { AlertKey, Candle, DetailTab, Period, Stock, Stocks, TabId } from '../../types';
 import { CandleChart } from '../CandleChart';
+import { Kanalyst } from './Kanalyst';
 import { SourceNote, UpdateNote } from '../SourceNote';
 import { TermTip } from '../GlossaryTip';
 import { InlineSpinner } from '../Footer';
@@ -38,6 +38,7 @@ const IMPACT_STYLE: Record<string, { bg: string; color: string; border: string }
 };
 
 const DETAIL_TABS: { id: DetailTab; label: string }[] = [
+  { id: 'kanalyst', label: 'K-리서치' },
   { id: 'chart', label: '차트' },
   { id: 'news', label: '뉴스·정세' },
   { id: 'ai', label: 'AI 관점' },
@@ -106,9 +107,10 @@ export function Detail({ id }: { id: string }) {
   const selId = sel?.id;
 
   // ── 차트 데이터(독립) — 봉 단위별 기본 구간만 불러온다. 기간 수익률 컨트롤과 무관. ──
-  // 코인은 브라우저에서 거래소 직접 호출, 주식은 서버(/api/candles=KIS). 로딩/실패 시 mock(genCandles) 폴백.
-  const mockCandles = useMemo(() => (sel ? genCandles(sel, state.period) : []), [sel, state.period]);
+  // 코인은 브라우저에서 거래소 직접 호출, 주식은 서버(/api/candles=KIS).
+  // 실데이터만 표시 — 실패 시 명시적 에러 UI. (과거엔 가짜 캔들(genCandles) 폴백이 실데이터처럼 보였음)
   const [realCandles, setRealCandles] = useState<Candle[] | null>(null);
+  const [candleLoading, setCandleLoading] = useState(true);
   const selTicker = sel?.ticker;
   useEffect(() => {
     if (!selId || !selTicker) return;
@@ -116,11 +118,14 @@ export function Detail({ id }: { id: string }) {
     const isCoin = tab === 'kr_coin' || tab === 'global_coin';
     let cancelled = false;
     setRealCandles(null);
+    setCandleLoading(true);
     const got = (c: Candle[] | null) => {
-      if (!cancelled && c && c.length) setRealCandles(c);
+      if (cancelled) return;
+      if (c && c.length) setRealCandles(c);
+      setCandleLoading(false);
     };
     if (isCoin) {
-      fetchCoinCandles(tab, selTicker, state.period).then(got).catch(() => {});
+      fetchCoinCandles(tab, selTicker, state.period).then(got).catch(() => got(null));
     } else {
       fetch('/api/candles', {
         method: 'POST',
@@ -129,15 +134,14 @@ export function Detail({ id }: { id: string }) {
       })
         .then((r) => (r.ok ? r.json() : null))
         .then((j) => got(j?.candles ?? null))
-        .catch(() => {});
+        .catch(() => got(null));
     }
     return () => {
       cancelled = true;
     };
   }, [selId, selTicker, state.activeTab, state.period]);
   // 참조 안정화 → 다른 state 변경으로 리렌더돼도 차트 패닝/줌이 리셋되지 않음.
-  const candles = useMemo(() => realCandles ?? mockCandles, [realCandles, mockCandles]);
-  const ret = candles.length ? ((candles[candles.length - 1].c - candles[0].o) / candles[0].o) * 100 : 0;
+  const candles = useMemo(() => realCandles ?? [], [realCandles]);
 
   // ── 기간 수익률(독립) — 칩으로 고른 기간만 별도 조회해 (시작가→종료가)로 계산. 차트와 무관. ──
   const [presetSel, setPresetSel] = useState<RangePreset>('6개월');
@@ -249,6 +253,10 @@ export function Detail({ id }: { id: string }) {
     if (tab === 'kr_stock' && selId) {
       clear();
       subscribeStocks([selId]);
+    } else if (tab === 'us_stock' && sel) {
+      // 해외주식 상세: 30초 REST 폴링(15분 지연) — 과거엔 배선이 빠져 시세가 동결됐음.
+      clear();
+      subscribeUs({ [sel.ticker]: sel.id });
     } else if (tab === 'kr_coin' && sel) {
       clear();
       subscribeCoins({ ['KRW-' + sel.ticker.split('/')[0]]: sel.id }, {});
@@ -373,7 +381,11 @@ export function Detail({ id }: { id: string }) {
   const chartAnalysis = dayStat
     ? `${sel.name}은(는) 최근 일봉 기준 ${fmtPct(dayStat.ret)} ${dayStat.ret > 0 ? '상승' : dayStat.ret < 0 ? '하락' : '보합'}했고, 현재가는 고점 대비 ${fmtPct(dayStat.offHigh)} 수준입니다. 상승 마감 비율은 약 ${dayStat.upRatio}%로 ${volWord} 흐름입니다. (참고용)`
     : `${sel.name} 차트를 분석하는 중입니다. (참고용)`;
-  const newsContext = `${sel.name}의 단기 주가에는 ${sel.issue} 이슈가 핵심 변수로 작용하고 있습니다. 아래는 현재 영향을 주고 있는 주요 뉴스입니다.`;
+  // 비큐레이션 종목의 issue는 자동 생성 안내문("…흐름을 확인하세요.")이라 문장에 끼우면 비문이 됨 → 일반 문구로.
+  const isAutoIssue = sel.issue.endsWith('확인하세요.');
+  const newsContext = isAutoIssue
+    ? `${sel.name} 관련 최신 뉴스입니다. 호재·악재 판별과 중요도는 AI가 분류한 참고 정보입니다.`
+    : `${sel.name}의 단기 주가에는 ${sel.issue} 이슈가 핵심 변수로 작용하고 있습니다. 아래는 현재 영향을 주고 있는 주요 뉴스입니다.`;
   // 실제 뉴스 우선, 없으면 정적(sel.news) 폴백.
   const relatedList: RelatedNewsItem[] = relatedNews && relatedNews.length ? relatedNews : sel.news;
 
@@ -398,8 +410,8 @@ export function Detail({ id }: { id: string }) {
     return `${d.getFullYear()}.${pad2(d.getMonth() + 1)}.${pad2(d.getDate())}`;
   };
   const isCoinTab = state.activeTab === 'kr_coin' || state.activeTab === 'global_coin';
-  // 기간 수익률 = 칩으로 고른 기간 기준(차트와 독립). 로딩/실패 시 차트 로드분으로 폴백.
-  const shownRet = retData ? retData.ret : ret;
+  // 기간 수익률 = 칩으로 고른 기간 기준(차트와 독립). 실데이터 없으면 '—' (가짜 폴백 없음).
+  const shownRet = retData ? retData.ret : null;
   const shownSpan = retData ? `${fmtDay(retData.fromMs)} ~ ${fmtDay(retData.toMs)}` : '';
 
   return (
@@ -446,6 +458,7 @@ export function Detail({ id }: { id: string }) {
             <path d="M10 20a2 2 0 0 0 4 0" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
           </svg>
           알림 설정
+          <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 5, background: 'var(--c-am16)', color: 'var(--c-warn)' }}>준비 중</span>
         </span>
         {ALERTS.map((a) => {
           const active = aCur.includes(a.k);
@@ -488,6 +501,25 @@ export function Detail({ id }: { id: string }) {
         })}
       </div>
 
+      {/* K-리서치 tab (첫 탭) */}
+      {detailTab === 'kanalyst' && (
+        isCoinTab ? (
+          <div style={{ padding: '40px 24px', borderRadius: 20, border: '1px solid var(--c-w08)', background: 'var(--c-w03)', color: 'var(--c-tx5)', fontSize: 14, lineHeight: 1.7 }}>
+            코인은 기업 재무제표가 없어 애널리스트 리포트를 제공하지 않습니다.<br />
+            <span style={{ fontSize: 13, color: 'var(--c-tx6)' }}>차트·뉴스·AI 관점 탭에서 시장 정보를 확인하세요.</span>
+          </div>
+        ) : (
+          <Kanalyst
+            code={sel.ticker}
+            market={state.activeTab === 'us_stock' ? 'us' : 'kr'}
+            name={sel.name}
+            ticker={sel.ticker}
+            cur={sel.cur}
+            price={livePrice}
+          />
+        )
+      )}
+
       {/* Chart tab */}
       {detailTab === 'chart' && (
         <div>
@@ -497,7 +529,7 @@ export function Detail({ id }: { id: string }) {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
                   <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--c-tx4)' }}><TermTip term="기간 수익률">기간 수익률</TermTip></span>
-                  <span style={{ fontSize: 22, fontWeight: 800, color: upColor(shownRet) }}>{fmtPct(shownRet)}</span>
+                  <span style={{ fontSize: 22, fontWeight: 800, color: shownRet == null ? 'var(--c-tx6)' : upColor(shownRet) }}>{shownRet == null ? '—' : fmtPct(shownRet)}</span>
                   {shownSpan && <span style={{ fontSize: 12, color: 'var(--c-tx6)' }}>{shownSpan}</span>}
                 </div>
                 <div style={{ display: 'inline-flex', gap: 4, padding: 4, background: 'var(--c-w04)', borderRadius: 10, alignSelf: 'flex-start' }}>
@@ -518,7 +550,17 @@ export function Detail({ id }: { id: string }) {
               </div>
             </div>
             <div style={{ margin: '8px 0 0' }}>
-              <CandleChart candles={candles} period={state.period} cur={sel.cur} theme={state.theme} />
+              {candleLoading ? (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, height: 280, color: 'var(--c-tx5)', fontSize: 14 }}>
+                  <InlineSpinner /> 차트를 불러오는 중…
+                </div>
+              ) : candles.length ? (
+                <CandleChart candles={candles} period={state.period} cur={sel.cur} theme={state.theme} />
+              ) : (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 280, color: 'var(--c-tx5)', fontSize: 14 }}>
+                  차트 데이터를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.
+                </div>
+              )}
             </div>
             <SourceNote text={`차트 — ${SRC_CANDLE[state.activeTab]}`} style={{ marginTop: 14 }} />
           </div>
@@ -545,7 +587,8 @@ export function Detail({ id }: { id: string }) {
           )}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             {relatedList.map((n, i) => (
-              <a key={i} href={n.url || '#'} target="_blank" rel="noopener noreferrer" style={{ ...CARD, display: 'block', textDecoration: 'none', borderRadius: 20, padding: 22 }}>
+              // 원문 url이 없으면(정적 폴백 등) 링크가 아닌 카드로 — "원문 보기"가 빈 탭을 열지 않게.
+              <a key={i} {...(n.url ? { href: n.url, target: '_blank', rel: 'noopener noreferrer' } : {})} style={{ ...CARD, display: 'block', textDecoration: 'none', borderRadius: 20, padding: 22, cursor: n.url ? 'pointer' : 'default' }}>
                 {(n.impact || n.target) && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, flexWrap: 'wrap' }}>
                     {n.impact && (
@@ -571,7 +614,7 @@ export function Detail({ id }: { id: string }) {
                   </div>
                 )}
                 <p style={{ margin: '0 0 14px', fontSize: 13, lineHeight: 1.6, color: 'var(--c-tx4)' }}>{n.summary}</p>
-                <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--c-acblue)' }}>원문 보기 ↗</span>
+                {n.url && <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--c-acblue)' }}>원문 보기 ↗</span>}
               </a>
             ))}
           </div>

@@ -79,8 +79,30 @@ async function getTech(code: string, tab: TabId): Promise<Tech | null> {
   const key = `tech:${code}:${kstDate()}`;
   const cached = await kvGet<Tech>(key);
   if (cached) return cached;
+  // 120일선에는 거래일 120개가 필요한데 KIS 일봉은 1회 최대 ~100행 → 2구간으로 나눠 받아 병합
+  // (~190거래일). 과거엔 기본 130캘린더일(≈거래일 90개)만 받아 ma120이 항상 null인 죽은 신호였음.
+  const ymdOf = (d: Date) => `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+  const now = new Date();
+  const d140 = new Date(now); d140.setDate(now.getDate() - 140);
+  const d280 = new Date(now); d280.setDate(now.getDate() - 280);
+  const fetchRange = (from: string, to: string) =>
+    tab === 'kr_stock' ? getDomesticCandles(code, '일봉', { from, to }) : getOverseasCandles(code, '일봉', { from, to });
   let candles: Candle[] = [];
-  try { candles = tab === 'kr_stock' ? await getDomesticCandles(code, '일봉') : await getOverseasCandles(code, '일봉'); } catch { return null; }
+  try {
+    const [older, newer] = await Promise.all([
+      fetchRange(ymdOf(d280), ymdOf(d140)).catch(() => [] as Candle[]),
+      fetchRange(ymdOf(d140), ymdOf(now)),
+    ]);
+    const seen = new Set<number | string>();
+    candles = [...older, ...newer]
+      .filter((c) => {
+        const k = c.t ?? c.c;
+        if (seen.has(k)) return false;
+        seen.add(k);
+        return true;
+      })
+      .sort((a, b) => ((a.t as number) ?? 0) - ((b.t as number) ?? 0));
+  } catch { return null; }
   if (candles.length < 20) return null;
   const closes = candles.map((c) => c.c);
   const highs = candles.map((c) => c.h);

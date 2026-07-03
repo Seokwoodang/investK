@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
+import { COOKIE, getSessionUser } from '@/lib/auth';
 import { getKrStockNews, type NewsArticle } from '@/server/providers/naverNews';
 import { getFilteredNews } from '@/server/providers/rssNews';
 import { rankNews } from '@/server/aiNews';
@@ -6,9 +8,10 @@ import { getTabNews, CRYPTO_FOCUS } from '@/server/news';
 import type { TabId } from '@/types';
 
 // POST /api/news { tab, items? }
-// items 없음(뉴스 탭) → getTabNews: Supabase에 미리 생성된 결과를 즉시 읽음(AI 호출 없음).
-//   1시간마다 /api/cron/news가 미리 생성·저장하므로 사용자는 대기 없이 DB만 읽는다. (콜드 1회만 생성)
-// items 있음(종목 상세) → 해당 종목 뉴스 수집 + AI 판별(지연, 캐시).
+// items 없음(뉴스 탭) → getTabNews: Supabase에 미리 생성된 결과를 즉시 읽음(AI 호출 없음). 공개.
+//   /api/cron/news가 하루 4회 미리 생성·저장하므로 사용자는 대기 없이 DB만 읽는다. (콜드 1회만 생성)
+// items 있음(종목 상세) → 해당 종목 뉴스 수집 + AI 판별(지연, 캐시). 캐시키가 코드 조합별이라
+//   익명 남용 시 매 요청 Claude 토큰 소모 → 로그인 필수(미들웨어는 body를 못 보므로 라우트에서 검사).
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: Request) {
@@ -19,6 +22,11 @@ export async function POST(req: Request) {
   if (!list.length) {
     const r = await getTabNews(tab);
     return NextResponse.json(r);
+  }
+
+  // items 모드는 종목 상세(로그인 전용 페이지)에서만 쓰임 — 게이트해도 UX 영향 없음.
+  if (!(await getSessionUser(cookies().get(COOKIE)?.value))) {
+    return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   }
 
   // 종목 상세: per-stock/per-coin 뉴스 (지연 캐시)

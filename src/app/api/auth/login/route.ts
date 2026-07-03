@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import crypto from 'node:crypto';
+import { promisify } from 'node:util';
 import { AUTH_CONFIGURED, COOKIE, createSession } from '@/lib/auth';
 import { getSupabase } from '@/server/supabase';
 
@@ -8,10 +9,30 @@ import { getSupabase } from '@/server/supabase';
 // 서버가 username으로 조회 → scrypt 해시 비교. 세션은 서명 쿠키(AUTH_SECRET).  회원가입 없음.
 export const runtime = 'nodejs';
 
-function verifyPassword(stored: string, pw: string): boolean {
+const scrypt = promisify(crypto.scrypt) as (pw: string, salt: string, len: number) => Promise<Buffer>;
+
+// brute-force 완화: IP+아이디별 슬라이딩 윈도(15분에 8회). 인메모리라 인스턴스별이지만
+// 개인 사이트 규모에선 충분하고, 최소한 단일 IP의 무한 대입은 차단된다.
+const attempts = new Map<string, number[]>();
+const WINDOW_MS = 15 * 60e3;
+const MAX_TRIES = 8;
+function rateLimited(key: string): boolean {
+  const now = Date.now();
+  const arr = (attempts.get(key) ?? []).filter((t) => now - t < WINDOW_MS);
+  if (arr.length >= MAX_TRIES) {
+    attempts.set(key, arr);
+    return true;
+  }
+  arr.push(now);
+  attempts.set(key, arr);
+  if (attempts.size > 1000) attempts.clear(); // 무한 성장 방지(러프하지만 충분)
+  return false;
+}
+
+async function verifyPassword(stored: string, pw: string): Promise<boolean> {
   const [algo, salt, hash] = (stored || '').split('$');
   if (algo !== 'scrypt' || !salt || !hash) return false;
-  const calc = crypto.scryptSync(pw, salt, 32);
+  const calc = await scrypt(pw, salt, 32); // 비동기 — 이벤트루프 블로킹 없음
   const want = Buffer.from(hash, 'hex');
   return want.length === calc.length && crypto.timingSafeEqual(calc, want);
 }
@@ -30,8 +51,13 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: '아이디 또는 비밀번호가 올바르지 않습니다.' }, { status: 401 });
   }
 
+  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'local';
+  if (rateLimited(`${ip}:${id}`)) {
+    return NextResponse.json({ error: '시도가 너무 많습니다. 15분 후 다시 시도해주세요.' }, { status: 429 });
+  }
+
   const { data } = await sb.from('app_users').select('pass_hash').eq('username', id).maybeSingle();
-  if (!data?.pass_hash || !verifyPassword(data.pass_hash as string, pw)) {
+  if (!data?.pass_hash || !(await verifyPassword(data.pass_hash as string, pw))) {
     return NextResponse.json({ error: '아이디 또는 비밀번호가 올바르지 않습니다.' }, { status: 401 });
   }
 

@@ -39,7 +39,8 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
     return () => clearInterval(t);
   }, []);
 
-  // 코인 ws (보이는 코인만)
+  // 코인 ws (보이는 코인만). 끊기면 3초 백오프로 자동 재연결 — 과거엔 onclose 처리가 없어
+  // 연결이 죽으면 가격이 "실시간" 라벨을 단 채 조용히 동결됐음.
   useEffect(() => {
     if (!coinKey) return;
     const { up, bn } = JSON.parse(coinKey) as { up: Record<string, string>; bn: Record<string, string> };
@@ -48,41 +49,55 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
     let closed = false;
     let ws: WebSocket | null = null;
     let bw: WebSocket | null = null;
-    const timer = setTimeout(() => {
-      if (upMarkets.length) {
-        ws = new WebSocket('wss://api.upbit.com/websocket/v1');
-        ws.onopen = () => ws?.send(JSON.stringify([{ ticket: 'invest' }, { type: 'ticker', codes: upMarkets }]));
-        ws.onmessage = async (ev) => {
-          try {
-            const text = ev.data instanceof Blob ? await ev.data.text() : (ev.data as string);
-            const m = JSON.parse(text) as { code: string; trade_price: number; signed_change_rate: number };
-            const id = up[m.code];
-            if (id) pending.current[id] = { price: m.trade_price, pct: m.signed_change_rate * 100 };
-          } catch {
-            /* ignore */
-          }
-        };
-      }
-      if (bnSymbols.length) {
-        const streams = bnSymbols.map((s) => s.toLowerCase() + '@ticker').join('/');
-        bw = new WebSocket('wss://stream.binance.com:9443/stream?streams=' + streams);
-        bw.onmessage = (ev) => {
-          try {
-            const { data: d } = JSON.parse(ev.data as string) as { data: { s: string; c: string; P: string } };
-            const id = bn[d.s];
-            if (id) pending.current[id] = { price: Number(d.c), pct: Number(d.P) };
-          } catch {
-            /* ignore */
-          }
-        };
-      }
-    }, 400);
+    const timers: ReturnType<typeof setTimeout>[] = [];
+
+    const openUpbit = () => {
+      if (closed || !upMarkets.length) return;
+      ws = new WebSocket('wss://api.upbit.com/websocket/v1');
+      ws.onopen = () => ws?.send(JSON.stringify([{ ticket: 'invest' }, { type: 'ticker', codes: upMarkets }]));
+      ws.onmessage = async (ev) => {
+        try {
+          const text = ev.data instanceof Blob ? await ev.data.text() : (ev.data as string);
+          const m = JSON.parse(text) as { code: string; trade_price: number; signed_change_rate: number };
+          const id = up[m.code];
+          if (id) pending.current[id] = { price: m.trade_price, pct: m.signed_change_rate * 100 };
+        } catch {
+          /* ignore */
+        }
+      };
+      ws.onclose = () => {
+        if (!closed) timers.push(setTimeout(openUpbit, 3000));
+      };
+      ws.onerror = () => ws?.close();
+    };
+    const openBinance = () => {
+      if (closed || !bnSymbols.length) return;
+      const streams = bnSymbols.map((s) => s.toLowerCase() + '@ticker').join('/');
+      bw = new WebSocket('wss://stream.binance.com:9443/stream?streams=' + streams);
+      bw.onmessage = (ev) => {
+        try {
+          const { data: d } = JSON.parse(ev.data as string) as { data: { s: string; c: string; P: string } };
+          const id = bn[d.s];
+          if (id) pending.current[id] = { price: Number(d.c), pct: Number(d.P) };
+        } catch {
+          /* ignore */
+        }
+      };
+      bw.onclose = () => {
+        if (!closed) timers.push(setTimeout(openBinance, 3000));
+      };
+      bw.onerror = () => bw?.close();
+    };
+
+    timers.push(setTimeout(() => {
+      openUpbit();
+      openBinance();
+    }, 400));
     return () => {
       closed = true;
-      clearTimeout(timer);
+      timers.forEach(clearTimeout);
       ws?.close();
       bw?.close();
-      void closed;
     };
   }, [coinKey]);
 

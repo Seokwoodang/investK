@@ -98,7 +98,8 @@ export async function generateRankedNews(scope: string, candidates: NewsArticle[
     const scored = JSON.parse(txt) as Scored[];
 
     const ranked: RankedNews[] = scored
-      .filter((s) => candidates[s.i] && s.impact && s.importance)
+      // 값 화이트리스트 검증 — 모델이 '긍정'·'높음' 같은 비표준 값을 내면 정렬(NaN)·배지가 깨진 채 캐시됨.
+      .filter((s) => candidates[s.i] && ['호재', '악재', '중립'].includes(s.impact) && s.importance in IMP)
       .map((s) => ({
         ...candidates[s.i],
         title: (s.title_ko ?? '').trim() || candidates[s.i].title, // 영문 기사는 번역 제목으로

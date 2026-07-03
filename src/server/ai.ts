@@ -36,6 +36,7 @@ export async function getOrGenerate({ cacheKey, kind, system, prompt, fallback }
   }
 
   let text = fallback;
+  let generated = false; // 실제 Claude 생성 성공 여부 — 실패/키없음이면 false
   if (has.anthropic()) {
     try {
       const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
@@ -46,14 +47,18 @@ export async function getOrGenerate({ cacheKey, kind, system, prompt, fallback }
         messages: [{ role: 'user', content: prompt }],
       });
       const block = msg.content.find((b) => b.type === 'text');
-      if (block && block.type === 'text') text = block.text.trim();
+      if (block && block.type === 'text' && block.text.trim()) {
+        text = block.text.trim();
+        generated = true;
+      }
     } catch (e) {
       console.error('[ai] generation failed, using fallback:', e);
     }
   }
 
-  // Only persist real generations (don't cache the fallback as if it were AI).
-  if (has.anthropic() && text) {
+  // Only persist real generations — 생성 실패 시 fallback을 캐시하면 그 키는 영원히
+  // 재생성되지 않아 가짜 분석이 고정된다(과거 버그). 실패는 캐시하지 않고 다음 요청에서 재시도.
+  if (generated) {
     memCache.set(cacheKey, text);
     if (sb) {
       await sb.from('ai_cache').upsert({

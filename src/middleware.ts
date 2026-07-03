@@ -4,6 +4,8 @@ import { COOKIE, verifySession } from '@/lib/auth';
 
 // 보호 경로만 로그인 게이트. 나머지(시장 보기 페이지·읽기 API)는 비로그인 공개.
 //  보호: 개인 페이지(내자산·보고서) + 유료 AI 생성(/api/ai/*) + 개인 데이터 API(/api/portfolio, /api/report-history)
+//       + 상위 API 쿼터를 소비하는 데이터 API(/api/candles=KIS 캔들, /api/sell-check=KIS+재무 대량) — 게이트 페이지에서만 쓰임.
+//  참고: /api/quotes/us·/api/realtime/stocks 는 공개 종목 목록이 사용하므로 의도적으로 공개 유지(서버 캐시로 완충).
 const PROTECTED: RegExp[] = [
   /^\/instrument(\/|$)/, // 종목 상세(차트=KIS 캔들·실시간 토큰 사용) → 로그인 전용
   /^\/portfolio(\/|$)/,
@@ -11,6 +13,8 @@ const PROTECTED: RegExp[] = [
   /^\/api\/ai\//,
   /^\/api\/portfolio(\/|$)/,
   /^\/api\/report-history(\/|$)/,
+  /^\/api\/candles(\/|$)/,
+  /^\/api\/sell-check(\/|$)/,
 ];
 
 export async function middleware(req: NextRequest) {

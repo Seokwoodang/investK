@@ -3,7 +3,7 @@ import 'server-only';
 // 네이버 금융에서 종목별 재무지표(밸류·퀄리티·환원 스크리닝용)를 수집한다. 키 불필요.
 // - 후보: marketValue 엔드포인트(시총 내림차순)에서 상위 N 종목.
 // - 지표: 종목별 integration 엔드포인트의 totalInfos(PER/PBR/배당 등) + consensusInfo(목표주가).
-// ROE는 별도 제공이 없어 PBR/PER로 도출한다(ROE = EPS/BPS = PBR/PER).
+// ROE·부채비율·이익률은 finance/annual(재무제표 실측)에서 수집한다(getKrFinance).
 
 const UA = { 'User-Agent': 'Mozilla/5.0', Referer: 'https://m.stock.naver.com/' };
 
@@ -155,6 +155,56 @@ export async function getKrFinance(code: string): Promise<KrFinance | null> {
   }
 }
 
+// 국내 K-리서치용 다년 재무 시계열(실적연도만) + 업종. 재무제표 annual 엔드포인트 재사용.
+export interface KrTrendYear {
+  year: number; // 예 2025
+  revenue: number | null; // 억원
+  netIncome: number | null; // 억원
+  operMargin: number | null; // %
+  netMargin: number | null; // %
+  roe: number | null; // %
+  debtRatio: number | null; // %
+  eps: number | null;
+}
+export interface KrResearch {
+  sector: string | null;
+  trend: KrTrendYear[]; // 오래된→최신
+}
+
+export async function getKrResearch(code: string): Promise<KrResearch | null> {
+  try {
+    const finR = await fetch(`https://m.stock.naver.com/api/stock/${code}/finance/annual`, { headers: UA, next: { revalidate: 3600 } });
+    if (!finR.ok) return null;
+    const j = (await finR.json()) as {
+      financeInfo?: { trTitleList?: { isConsensus?: string; key: string }[]; rowList?: { title: string; columns: Record<string, { value?: string }> }[] };
+    };
+    const fi = j.financeInfo;
+    const titles = fi?.trTitleList ?? [];
+    const rows = fi?.rowList ?? [];
+    if (!titles.length || !rows.length) return null;
+    const actualKeys = titles.filter((t) => t.isConsensus !== 'Y').map((t) => t.key); // 실적연도만(추정 제외)
+    const cell = (title: string, key: string) => {
+      const row = rows.find((x) => x.title === title);
+      return row ? pnum(row.columns[key]?.value) : null;
+    };
+    const trend: KrTrendYear[] = actualKeys.map((k) => ({
+      year: Number(k.slice(0, 4)),
+      revenue: cell('매출액', k),
+      netIncome: cell('당기순이익', k),
+      operMargin: cell('영업이익률', k),
+      netMargin: cell('순이익률', k),
+      roe: cell('ROE', k),
+      debtRatio: cell('부채비율', k),
+      eps: cell('EPS', k),
+    }));
+
+    // 네이버 integration은 업종'코드'만 주고 업종명 필드가 없어 KR 업종은 생략(null).
+    return { sector: null, trend };
+  } catch {
+    return null;
+  }
+}
+
 export interface Fundamentals {
   per: number | null;
   fwdPer: number | null;
@@ -165,7 +215,7 @@ export interface Fundamentals {
   divYield: number | null; // 배당수익률 %
   dps: number | null; // 주당배당금
   targetPrice: number | null; // 컨센서스 목표주가
-  recommMean: number | null; // 투자의견(1매수~5매도)
+  recommMean: number | null; // 투자의견 — 주의: 네이버는 야후와 반대 스케일(높을수록 매수, 4≈매수). 표준(1=매수)으로 쓰려면 6-x 변환.
   hi52: number | null; // 52주 최고가
 }
 

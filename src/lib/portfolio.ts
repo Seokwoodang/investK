@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { TAB_MAP, type Currency, type FxRow, type RiskLevel, type Stock, type Stocks, type TabId } from '../types';
 
-// 내 보유종목(포트폴리오). 증권사 연동 없이 직접 입력/CSV로 채운다. 개인 데이터라 localStorage에만 저장.
+// 내 보유종목(포트폴리오). 증권사 연동 없이 직접 입력/CSV로 채운다. 계정별 서버 저장(/api/portfolio → Supabase).
 export interface Holding {
   id: string; // 유니버스 매칭 시 종목 id, 미매칭 수동입력은 'manual:<name>'
   name: string;

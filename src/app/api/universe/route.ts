@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server';
 import { getUniverse } from '@/server/data';
 
 // 전 종목 유니버스(수천 행). 대시보드 첫 페인트를 막지 않도록 페이지 HTML에서 분리해
-// 클라이언트가 마운트 후 한 번 받아 컨텍스트에 채운다. 미들웨어가 인증을 보증한다.
+// 클라이언트가 마운트 후 한 번 받아 컨텍스트에 채운다. 공개 라우트(시장 보기 페이지가 사용) —
+// 상위 데이터는 네이버/업비트/바이낸스 무료 API + 서버측 revalidate 캐시로 완충.
 export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
 

@@ -234,7 +234,14 @@ export function Header({ authed = true }: { authed?: boolean }) {
         )}
 
         {layout.showGSearch && (
-          <div style={{ position: 'relative', flexShrink: 0 }}>
+          <div
+            style={{ position: 'relative', flexShrink: 0 }}
+            // ESC·바깥 클릭(포커스 이탈)으로 검색 결과를 닫는다 — 과거엔 쿼리를 지워야만 닫혔음.
+            onKeyDown={(e) => e.key === 'Escape' && actions.setGQuery('')}
+            onBlur={(e) => {
+              if (!e.currentTarget.contains(e.relatedTarget as Node)) actions.setGQuery('');
+            }}
+          >
             <span style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', display: 'flex' }}>
               <SearchIcon size={15} />
             </span>
@@ -262,7 +269,8 @@ export function Header({ authed = true }: { authed?: boolean }) {
                   <div
                     key={g.id}
                     className="gsearch-result"
-                    onClick={() => actions.openStock(g.id, g.tab)}
+                    // mousedown: 입력창 blur(드롭다운 닫힘)보다 먼저 실행돼 클릭이 씹히지 않게.
+                    onMouseDown={() => actions.openStock(g.id, g.tab)}
                     style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 12px', borderRadius: 10, cursor: 'pointer' }}
                   >
                     <div style={{ minWidth: 0, flex: 1 }}>

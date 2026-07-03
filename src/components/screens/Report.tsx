@@ -77,10 +77,12 @@ export function Report() {
 
   const [report, setReport] = useState<ReportData | null>(null);
   const [loading, setLoading] = useState(false);
+  const [genErr, setGenErr] = useState(false); // 실패 무통보 방지
   const generate = () => {
     if (!rows.length) return;
     setLoading(true);
     setReport(null);
+    setGenErr(false);
     setSelectedId(null);
     const lines = liveLines;
     fetch('/api/ai/report', {
@@ -89,7 +91,10 @@ export function Report() {
     })
       .then((r) => (r.ok ? r.json() : null))
       .then((j) => {
-        if (!j?.overview) return;
+        if (!j?.overview) {
+          setGenErr(true);
+          return;
+        }
         setReport(j as ReportData);
         // 기록 저장(생성할 때마다).
         fetch('/api/report-history', {
@@ -102,7 +107,7 @@ export function Report() {
           })
           .catch(() => {});
       })
-      .catch(() => {})
+      .catch(() => setGenErr(true))
       .finally(() => setLoading(false));
   };
 
@@ -236,6 +241,11 @@ export function Report() {
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '20px 0', color: 'var(--c-tx5)', fontSize: 14 }}>
                 <InlineSpinner />
                 보유 포트폴리오와 시장을 종합해 보고서를 작성하는 중입니다…
+              </div>
+            )}
+            {genErr && !loading && (
+              <div style={{ padding: '12px 16px', borderRadius: 12, background: 'var(--c-rd06)', border: '1px solid var(--c-rd20)', fontSize: 13, color: 'var(--c-tx3)' }}>
+                보고서 생성에 실패했습니다. 잠시 후 다시 시도해주세요.
               </div>
             )}
             {disp.report && !loading && (

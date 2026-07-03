@@ -23,7 +23,9 @@ export function EventModal() {
   const { year, month, day } = modal;
   const dow = WEEKDAYS[new Date(year, month, day).getDay()];
   const title = `${month + 1}월 ${day}일 (${dow})`;
-  const events = modal.events.filter((e) => parseInt(e.date.slice(8, 10), 10) === day);
+  // 연·월·일 전체 비교 — 일(day)만 비교하면 다른 달의 같은 날짜 이벤트가 섞여 나옴.
+  const iso = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  const events = modal.events.filter((e) => e.date === iso);
 
   return (
     <div

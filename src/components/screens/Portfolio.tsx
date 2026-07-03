@@ -165,10 +165,12 @@ export function Portfolio() {
   // ── AI 평가 ──
   const [evalData, setEvalData] = useState<Evaluation | null>(null);
   const [loading, setLoading] = useState(false);
+  const [evalErr, setEvalErr] = useState(false); // 실패를 무통보로 넘기지 않기 위한 표시
   const runEval = () => {
     if (!rows.length) return;
     setLoading(true);
     setEvalData(null);
+    setEvalErr(false);
     const lines = [...rows].sort((a, b) => b.valueKrw - a.valueKrw).map((r) => ({
       name: r.name, group: r.group, weight: totalKrw > 0 ? (r.valueKrw / totalKrw) * 100 : 0, plPct: r.plPct, risk: r.risk,
     }));
@@ -177,8 +179,8 @@ export function Portfolio() {
       body: JSON.stringify({ lines, totalValueKrw: totalKrw, groupWeights }),
     })
       .then((r) => (r.ok ? r.json() : null))
-      .then((j) => { if (j?.summary) setEvalData(j as Evaluation); })
-      .catch(() => {})
+      .then((j) => { if (j?.summary) setEvalData(j as Evaluation); else setEvalErr(true); })
+      .catch(() => setEvalErr(true))
       .finally(() => setLoading(false));
   };
 
@@ -233,17 +235,18 @@ export function Portfolio() {
   const activePreset = PRESETS.find((p) => p.cfg.stopLoss === cfg.stopLoss && p.cfg.takeProfit === cfg.takeProfit)?.label;
 
   // AI 매도 총평 — 판정은 규칙(위), AI는 신호 종합 설명만.
+  const [aiSellErr, setAiSellErr] = useState(false);
   const runSellAi = () => {
     if (!sellRows.length) return;
-    setAiSellLoading(true); setAiSell(null);
+    setAiSellLoading(true); setAiSell(null); setAiSellErr(false);
     const items = sellRows.map(({ r, f, signals, verdict }) => ({
       name: r.name, verdict, plPct: r.plPct, signals: signals.map((s) => s.text),
       per: f?.per ?? null, roe: f?.roe ?? null, debtRatio: f?.debtRatio ?? null,
     }));
     fetch('/api/ai/sell', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ items }) })
       .then((r) => (r.ok ? r.json() : null))
-      .then((j) => { if (j?.summary) setAiSell(j); })
-      .catch(() => {})
+      .then((j) => { if (j?.summary) setAiSell(j); else setAiSellErr(true); })
+      .catch(() => setAiSellErr(true))
       .finally(() => setAiSellLoading(false));
   };
 
@@ -254,7 +257,7 @@ export function Portfolio() {
       <div style={{ marginBottom: 24 }}>
         <h1 style={{ margin: 0, fontSize: 28, fontWeight: 800, letterSpacing: '-0.02em' }}>내 자산</h1>
         <p style={{ margin: '8px 0 0', fontSize: 14, color: 'var(--c-tx5)' }}>보유 종목을 직접 입력하거나 CSV로 붙여넣으면 평가손익·비중과 AI 포트폴리오 평가를 보여줍니다. (증권사 무관)</p>
-        <UpdateNote text="보유 평가액은 실시간 시세 반영 · 매도 점검 재무는 하루 1회 갱신" style={{ marginTop: 8 }} />
+        <UpdateNote text="보유 평가액은 페이지 로드 시점 시세 기준 · 매도 점검 재무는 하루 1회 갱신" style={{ marginTop: 8 }} />
       </div>
 
       {/* 입력 */}
@@ -474,6 +477,11 @@ export function Portfolio() {
                     </div>
                   );
                 })}
+                {aiSellErr && !aiSellLoading && (
+                  <div style={{ marginTop: 4, padding: '12px 16px', borderRadius: 12, background: 'var(--c-rd06)', border: '1px solid var(--c-rd20)', fontSize: 13, color: 'var(--c-tx3)' }}>
+                    AI 총평 생성에 실패했습니다. 잠시 후 다시 시도해주세요.
+                  </div>
+                )}
                 {(aiSellLoading || aiSell) && (
                   <div style={{ marginTop: 4, padding: 16, borderRadius: 12, background: 'linear-gradient(135deg, var(--c-cy07), var(--c-bl05))', border: '1px solid var(--c-cy18)' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: aiSell ? 10 : 0 }}>
@@ -518,6 +526,11 @@ export function Portfolio() {
                 포트폴리오를 분석하는 중입니다…
               </div>
             )}
+            {evalErr && !loading && (
+              <div style={{ padding: '12px 16px', borderRadius: 12, background: 'var(--c-rd06)', border: '1px solid var(--c-rd20)', fontSize: 13, color: 'var(--c-tx3)' }}>
+                AI 평가 생성에 실패했습니다. 잠시 후 다시 시도해주세요.
+              </div>
+            )}
             {evalData && !loading && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                 <p style={{ margin: 0, fontSize: 15, lineHeight: 1.7, color: 'var(--c-tx1)' }}>{evalData.summary}</p>
@@ -559,7 +572,7 @@ export function Portfolio() {
         </>
       )}
 
-      <SourceNote text="보유종목 — 직접 입력/CSV(브라우저에만 저장) · 시세 — 네이버 금융 · 업비트 · 바이낸스 · 환율 frankfurter" style={{ marginTop: 4 }} />
+      <SourceNote text="보유종목 — 직접 입력/CSV · 내 계정(Supabase)에 저장 · 시세 — 네이버 금융 · 업비트 · 바이낸스 · 환율 frankfurter" style={{ marginTop: 4 }} />
     </div>
   );
 }

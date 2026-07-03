@@ -134,6 +134,13 @@ export async function buildValueScreen(market: Market): Promise<ValueScreen> {
   const candidates = market === 'kr' ? await getTopByMarketCap(KR_N) : await getTopUsByMarketCap(US_N);
   const raw = market === 'kr' ? await pool(candidates, 10, krMetrics) : await pool(candidates, 6, usMetrics);
 
+  // 수집 성공률 가드: 레이트리밋(야후 429 등)으로 절반 이상이 무음 탈락하면 남은 종목만으로
+  // 백분위를 매겨 왜곡된 랭킹이 캐시에 저장됨 → 갱신을 거부(throw)해 기존(serve-stale) 캐시 유지.
+  const okCount = raw.filter(Boolean).length;
+  if (candidates.length > 0 && okCount < candidates.length * 0.5) {
+    throw new Error(`${market} 재무 수집 성공률 저조 (${okCount}/${candidates.length}) — 왜곡 방지 위해 갱신 거부`);
+  }
+
   // 함정 회피 게이트: 흑자 + 합리적 PER + 양수 ROE + 과다부채 제외 + 핵심지표 존재.
   const rows = raw.filter(
     (m): m is Metrics =>
@@ -223,7 +230,10 @@ export async function refreshValueScreen(market: Market): Promise<number> {
 
 // 사용자 경로: 절대 재수집하지 않는다 — 메모리 → Supabase 캐시 순으로 읽고, 갱신은 cron(18:00 KST) 전담.
 // Supabase 읽기가 순간 실패해도 메모리 사본으로 응답(과거엔 이때 '캐시 없음'으로 오판해 수십 초 전체
-// 재수집을 사용자가 떠안았음). 빌드는 캐시가 어디에도 없는 최초 1회뿐.
+// 재수집을 사용자가 떠안았음). 빌드는 캐시가 어디에도 없는 최초 1회뿐 — 그마저 단일비행으로 공유해
+// 콜드 상태의 동시 요청 N개가 각자 전체 수집(수십 초×N)을 하지 않게 한다.
+const building: Partial<Record<Market, Promise<ValueScreen>>> = {};
+
 export async function getValueScreen(market: Market): Promise<ValueScreen> {
   const m = memScreen[market];
   if (m && Date.now() - m.at < MEM_TTL) return m.screen;
@@ -233,8 +243,16 @@ export async function getValueScreen(market: Market): Promise<ValueScreen> {
     return cached;
   }
   if (m) return m.screen; // kv 실패/빈값 — 묵은 메모리 사본이라도 반환(재수집 방지)
-  const screen = await buildValueScreen(market);
-  await kvSet(KEY(market), screen);
-  memScreen[market] = { at: Date.now(), screen };
-  return screen;
+  const inflight = building[market];
+  if (inflight) return inflight;
+  const p = (async () => {
+    const screen = await buildValueScreen(market);
+    await kvSet(KEY(market), screen);
+    memScreen[market] = { at: Date.now(), screen };
+    return screen;
+  })().finally(() => {
+    delete building[market];
+  });
+  building[market] = p;
+  return p;
 }

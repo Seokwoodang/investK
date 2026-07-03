@@ -18,11 +18,12 @@ export const SRC_CANDLE: Record<TabId, string> = {
 };
 
 // 자산군별 뉴스 출처 (탭=언론사 카테고리 RSS). 상세 페이지는 네이버 종목뉴스.
+// 주의: 실제 수집 경로(rssNews.ts)와 항상 일치시킬 것 — 표기만 다른 소스를 적으면 신뢰 문제.
 export const SRC_NEWS: Record<TabId, string> = {
   kr_stock: '한국경제·연합뉴스 증권/증시 RSS',
-  us_stock: '네이버 금융 해외종목 뉴스 (상위 종목 집계)',
-  kr_coin: '블록미디어 코인 RSS',
-  global_coin: '블록미디어 코인 RSS',
+  us_stock: 'CNBC 미국증시·테크 RSS',
+  kr_coin: '토큰포스트·블록미디어 코인 RSS',
+  global_coin: '토큰포스트·블록미디어 코인 RSS',
 };
 
 // 공통 출처 문구
@@ -31,6 +32,6 @@ export const SRC = {
   index: '글로벌 지수 — 한국투자증권 KIS Open API',
   calendar: '주요 경제 일정 — Nasdaq 경제지표 캘린더 (글로벌)',
   ai: 'AI 생성 — Claude (Anthropic) · 캐시 Supabase',
-  risk: '위험도 — 시세 기반 정량 산출 + AI(Claude) 뉴스 감성',
+  risk: '위험도 — 변동성·유동성은 시세 기반 정량 산출 · 이벤트·뉴스 감성은 큐레이션 종목 외 기본값(참고용)',
   assetStatus: '시세 — 네이버 금융 · 업비트 · 바이낸스 종합',
 };

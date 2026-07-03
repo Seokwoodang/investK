@@ -28,7 +28,8 @@ export async function POST(req: Request) {
   const b = (await req.json()) as Body;
   if (!b?.id || !b?.name) return NextResponse.json({ error: 'bad request' }, { status: 400 });
 
-  const today = new Date().toISOString().slice(0, 10);
+  // 캐시 '하루' 경계는 KST 기준 — UTC(toISOString)를 쓰면 실제로는 오전 9시에 갱신돼 안내 문구와 어긋남.
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul' }).format(new Date());
   const newsTitles = (b.newsTitles ?? []).slice(0, 8).map((t) => `- ${t}`).join('\n');
 
   const result = await getOrGenerateJSON<Perspective>({

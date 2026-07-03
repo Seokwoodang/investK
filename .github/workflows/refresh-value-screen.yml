@@ -13,6 +13,6 @@ jobs:
     steps:
       - name: Call value-screen refresh endpoint
         run: |
-          curl -fsS --max-time 120 -X GET \
+          curl -fsS --max-time 150 --retry 2 --retry-delay 30 -X GET \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
             "https://invest-seokwoodangs-projects.vercel.app/api/cron/value-screen"

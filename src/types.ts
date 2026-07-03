@@ -2,7 +2,7 @@
 
 export type TabId = 'kr_stock' | 'us_stock' | 'kr_coin' | 'global_coin';
 export type Page = 'dashboard' | 'daily' | 'stocks' | 'portfolio' | 'report' | 'news' | 'detail';
-export type DetailTab = 'chart' | 'news' | 'ai' | 'risk';
+export type DetailTab = 'kanalyst' | 'chart' | 'news' | 'ai' | 'risk';
 // 봉(캔들) 단위. 코인은 4종 전부, 주식(KIS)은 일/주/월 지원(1시간 선택 시 일봉으로 대체).
 export type Period = '1분' | '5분' | '15분' | '1시간' | '일봉' | '주봉' | '월봉';
 export type SortKey = 'vol' | 'shares' | 'price' | 'pct' | 'risk';
@@ -133,7 +133,7 @@ export interface Stock {
   ai: { pos: AiPoint[]; neg: AiPoint[]; caution: AiPoint[] };
   risk4: Risk4;
   riskNote: string;
-  // 실데이터 연동 시 채워지는 실거래량/거래대금. 없으면 클라이언트가 목 값을 생성(genVol).
+  // 실데이터 연동 시 채워지는 실거래량/거래대금. 없으면 '—'로 표시(가짜 값 생성 금지).
   vol?: number;
   // 거래량(주식=주 수, 코인=수량). 거래대금(vol)과 별개 — 이슈 #3.
   shares?: number;
@@ -196,3 +196,75 @@ export const TAB_MAP: Record<TabId, string> = {
   kr_coin: '국내코인',
   global_coin: '해외코인',
 };
+
+// ── K-리서치(애널리스트 보고서) — 숫자·판정은 코드, 서술만 AI(하이브리드) ──
+export type KMarket = 'kr' | 'us';
+
+export interface KTrendYear {
+  year: number;
+  revenue: number | null; // 표시단위: US=USD, KR=억원
+  netIncome: number | null;
+  eps: number | null;
+  fcf: number | null; // US(EDGAR)만
+  netMargin: number | null; // %
+}
+
+export interface KanalystData {
+  code: string;
+  name: string;
+  ticker: string;
+  market: KMarket;
+  cur: Currency;
+  revUnit: 'USD' | '억원';
+  sector: string | null;
+  industry: string | null;
+  price: number | null;
+  hi52: number | null;
+  lo52: number | null;
+  marketCapText: string | null;
+  // 밸류에이션
+  per: number | null;
+  fwdPer: number | null;
+  pbr: number | null;
+  pegRatio: number | null; // US
+  evToEbitda: number | null; // US
+  divYield: number | null; // %
+  // 퀄리티·건전성
+  roe: number | null; // %
+  netMargin: number | null; // %
+  debtRatio: number | null; // KR 부채비율 / US debtToEquity, %
+  currentRatio: number | null;
+  // 성장(%)
+  revenueGrowth: number | null;
+  earningsGrowth: number | null;
+  fwdEpsGrowth: number | null;
+  // 컨센서스
+  target: number | null;
+  targetHigh: number | null;
+  targetLow: number | null;
+  upside: number | null; // (target/price-1)*100
+  recommMean: number | null; // 1매수~5매도
+  numAnalysts: number | null;
+  dist: { strongBuy: number; buy: number; hold: number; sell: number; strongSell: number } | null;
+  trend: KTrendYear[]; // 오래된→최신
+  // 로직 판정(투자의견) — AI 아님
+  verdict: { label: string; tone: 'pos' | 'neu' | 'neg'; reasons: string[] };
+  fingerprint: string;
+  asOf: string; // 데이터 기준(KST 날짜)
+  sources: string[];
+}
+
+export interface KanalystNarrative {
+  thesis: string; // 핵심 요약
+  business: string; // 사업·경쟁력
+  bull: string[]; // 투자 포인트
+  bear: string[]; // 리스크
+  valuation: string; // 밸류에이션 코멘트
+  catalyst: string[]; // 촉매·관전 포인트
+}
+
+export interface KanalystReport {
+  data: KanalystData;
+  narrative: KanalystNarrative | null; // 미생성/실패 시 null
+  generated: boolean; // AI 서술이 실제 생성/캐시된 값인지
+}

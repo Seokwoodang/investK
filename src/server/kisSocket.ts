@@ -65,8 +65,19 @@ class KisSocket {
   private async connect(): Promise<void> {
     if (this.ws || this.connecting || !has.kis()) return;
     this.connecting = true;
-    await this.approvalKey();
-    const ws = new WebSocket(WS_URL);
+    // 승인키 발급/소켓 생성이 throw하면 connecting=true로 영구 고착돼(가드에 걸려)
+    // 프로세스 재시작 전까지 실시간이 전면 불능이 되던 버그 → 실패 시 복구 + 백오프 재시도.
+    let ws: WebSocket;
+    try {
+      const key = await this.approvalKey();
+      if (!key) throw new Error('approval key empty');
+      ws = new WebSocket(WS_URL);
+    } catch (e) {
+      console.error('[kisSocket] connect failed, retrying in 5s:', (e as Error).message);
+      this.connecting = false;
+      if (this.wanted.size) setTimeout(() => void this.connect(), 5000);
+      return;
+    }
     this.ws = ws;
     ws.onopen = () => {
       this.connecting = false;

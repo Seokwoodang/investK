@@ -3,7 +3,7 @@ import { REVALIDATE } from '../env';
 
 // 환율: frankfurter.app (ECB 기준, 키 불필요, 일 1회 고시).
 // EUR 기준 환율을 받아 우리 페어로 환산하고, 전일 대비 변동률을 계산한다.
-// DXY(달러인덱스)는 무료 깔끔 소스가 없어 여기서 제공하지 않음(목값 유지).
+// DXY(달러인덱스)는 frankfurter에 없어 Yahoo(getDxy)로 제공한다.
 export interface FxQuote {
   val: string;
   chg: number;

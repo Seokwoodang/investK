@@ -42,12 +42,17 @@ const UA = { 'User-Agent': 'Mozilla/5.0', Accept: 'application/json' };
 const pad = (n: number) => String(n).padStart(2, '0');
 const ymd = (d: Date) => `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
 
-// GMT "HH:MM" → KST "HH:MM" (+9h).
-function toKst(gmt: string): string {
-  const m = gmt?.match(/^(\d{1,2}):(\d{2})/);
-  if (!m) return gmt || '';
-  const h = (parseInt(m[1], 10) + 9) % 24;
-  return `${pad(h)}:${m[2]}`;
+// GMT "HH:MM" + 날짜 → KST {date, time}. +9h로 자정을 넘으면 날짜도 +1일 롤오버.
+// 과거 버그: 시각만 (h+9)%24 하고 날짜는 GMT 그대로 써서, GMT 15:00 이후 이벤트
+// (FOMC 19:00 GMT = KST 익일 04:00 등)가 하루 전 날짜로 표시되고 "오늘 이후" 필터에서 누락됐음.
+function toKstDateTime(gmtDate: string, gmtTime: string): { date: string; time: string } {
+  const m = gmtTime?.match(/^(\d{1,2}):(\d{2})/);
+  if (!m) return { date: gmtDate, time: gmtTime || '' };
+  const h = parseInt(m[1], 10) + 9;
+  if (h < 24) return { date: gmtDate, time: `${pad(h)}:${m[2]}` };
+  const [y, mo, d] = gmtDate.split('-').map(Number);
+  const next = new Date(Date.UTC(y, mo - 1, d + 1));
+  return { date: ymd(next), time: `${pad(h - 24)}:${m[2]}` };
 }
 
 const cache = new Map<string, { at: number; data: MacroEvent[] }>();
@@ -78,9 +83,10 @@ async function fetchDay(date: string): Promise<MacroEvent[]> {
       const previous = num(row.previous);
       const consensus = num(row.consensus);
       const nums = previous || consensus ? ` (직전 ${previous ?? '–'} · 시장 예상 ${consensus ?? '–'})` : '';
+      const kst = toKstDateTime(date, row.gmt);
       out.push({
-        date,
-        time: toKst(row.gmt) || '미정',
+        date: kst.date,
+        time: kst.time || '미정',
         name,
         tag: hit.high ? '고영향' : '중간',
         rel: { title: row.eventName, src: 'Nasdaq' },

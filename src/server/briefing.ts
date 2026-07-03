@@ -41,23 +41,23 @@ const SYSTEM =
 function buildPrompt(date: string, slot: Slot) {
   return async () => {
     const data = await getDashboardData();
+    // 자산군 등락은 반드시 실데이터 집계(assetSummary = 전체 유니버스 기준)를 쓴다.
+    // 과거 버그: data.stocks(정적 큐레이션 샘플, 등락률 고정)를 써서 매일 같은 가짜 수치로 브리핑이 생성됐음.
+    const fmt = (n: number) => (n > 0 ? '+' : '') + n.toFixed(2) + '%';
     const summaries = TAB_LABELS.map((t) => {
-      const arr = data.stocks[t.id];
-      const avg = arr.reduce((s, x) => s + x.pct, 0) / arr.length;
-      const sorted = [...arr].sort((a, b) => b.pct - a.pct);
-      const top = sorted[0];
-      const bottom = sorted[sorted.length - 1];
-      const fmt = (n: number) => (n > 0 ? '+' : '') + n.toFixed(2) + '%';
-      return `- ${t.label}: 평균 ${fmt(avg)}, 상위 ${top.name} ${fmt(top.pct)}, 하위 ${bottom.name} ${fmt(bottom.pct)}`;
+      const s = data.assetSummary[t.id];
+      const top = s.top ? `, 상위 ${s.top.name} ${fmt(s.top.pct)}` : '';
+      return `- ${t.label}: ${s.count}종목 평균 ${fmt(s.avgPct)}${top}`;
     }).join('\n');
     const fx = data.macro.fx.map((r) => `${r.pair} ${r.val}(${r.chg > 0 ? '+' : ''}${r.chg}%)`).join(', ');
+    const indices = data.macro.indices.map((r) => `${r.name} ${r.val}(${r.chg > 0 ? '+' : ''}${r.chg}%)`).join(', ');
     const events = data.macro.events
       .filter((e) => e.date >= date)
       .slice(0, 4)
       .map((e) => `${e.date} ${e.time} ${e.name} [${e.tag}]`)
       .join('\n');
     const when = SLOT_LABEL[slot];
-    return `시점: ${when}\n날짜: ${date}\n환율: ${fx}\n자산군 등락:\n${summaries}\n예정 일정:\n${events}\n\n위 실데이터로 이 시점 기준 팩트 브리핑을 JSON으로 작성해줘.`;
+    return `시점: ${when}\n날짜: ${date}\n지수: ${indices}\n환율: ${fx}\n자산군 등락:\n${summaries}\n예정 일정:\n${events}\n\n위 실데이터로 이 시점 기준 팩트 브리핑을 JSON으로 작성해줘. 제공된 수치만 인용하고 없는 수치는 지어내지 마.`;
   };
 }
 
@@ -79,6 +79,16 @@ export async function refreshBriefing(): Promise<{ date: string; slot: Slot }> {
     force: true,
   });
   return { date, slot };
+}
+
+// 읽기 전용: 그날의 가장 최신 슬롯을 반환(생성 절대 없음 → 공개 라우트에서 안전).
+// cron이 하루 3회 미리 만들어두므로 보통 항상 존재. 없으면 null(화면은 "생성 전" 안내).
+export async function readBriefing(date: string): Promise<(BriefingDay & { _slot: Slot }) | null> {
+  for (const slot of ['ny', 'pm', 'am'] as Slot[]) {
+    const cached = await readJSONCache<BriefingDay>(`briefing:${date}:${slot}`);
+    if (cached?.headline) return { ...cached, _slot: slot };
+  }
+  return null;
 }
 
 // 화면용: 그날의 가장 최신 슬롯을 반환. 미리 만들어둔 게 있으면 즉시(생성 없음).

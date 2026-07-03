@@ -36,7 +36,8 @@ export interface EventModalPayload {
 function homeYM(data: DashboardData): { y: number; m: number } {
   const d = data.macro.events[0]?.date;
   if (d) return { y: parseInt(d.slice(0, 4), 10), m: parseInt(d.slice(5, 7), 10) - 1 };
-  return { y: 2026, m: 5 };
+  const now = new Date(); // 이벤트가 없으면 현재 달(과거엔 2026-06 하드코딩이라 시간이 지나면 과거 달로 고정)
+  return { y: now.getFullYear(), m: now.getMonth() };
 }
 
 // 페이지(라우트)는 이제 URL이 소스 오브 트루스. page→경로 매핑.
@@ -81,7 +82,7 @@ export type Theme = 'system' | 'light' | 'dark';
 
 const baseState = {
   activeTab: 'kr_stock' as TabId,
-  detailTab: 'chart' as DetailTab,
+  detailTab: 'kanalyst' as DetailTab,
   period: '일봉' as Period,
   sortKey: 'vol' as SortKey,
   sortDir: 'desc' as SortDir,
@@ -235,7 +236,7 @@ export function DashboardProvider({ data, children }: { data: DashboardData; chi
     goDashboard: () => router.push('/'),
     goBack: () => router.back(),
     openStock: (id, tab) => {
-      setState((s) => ({ ...s, activeTab: tab ?? s.activeTab, detailTab: 'chart', period: '일봉', eventModal: null, gQuery: '' }));
+      setState((s) => ({ ...s, activeTab: tab ?? s.activeTab, detailTab: 'kanalyst', period: '일봉', eventModal: null, gQuery: '' }));
       router.push(`/instrument/${id}`);
     },
     setTab: (tab) => patch({ activeTab: tab }),

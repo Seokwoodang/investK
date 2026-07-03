@@ -6,8 +6,9 @@ import { refreshKisToken } from '@/server/providers/kis';
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: Request) {
+  // fail-closed: CRON_SECRET 미설정 배포에서도 절대 공개되지 않게(설정 누락 = 전부 거부).
   const secret = process.env.CRON_SECRET;
-  if (secret && req.headers.get('authorization') !== `Bearer ${secret}`) {
+  if (!secret || req.headers.get('authorization') !== `Bearer ${secret}`) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   }
   try {
