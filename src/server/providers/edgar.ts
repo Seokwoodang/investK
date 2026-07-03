@@ -57,21 +57,21 @@ interface FactUnit {
 }
 
 // 특정 태그(들)에서 연간 전사 값만 추출: form=10-K + frame이 "CY####"(분기·세그먼트 제외).
-// 여러 태그 후보를 순서대로 시도(회사마다 태그명이 다름). {연도: 값} 맵 반환.
+// 여러 태그 후보를 "병합"한다(첫 태그 우선, 이후 태그로 빈 연도만 채움).
+// 단일 태그만 보면 회사가 중간에 태그를 바꾼 경우 특정 연도가 통째로 비어버린다.
+//   예) PLTR: NetIncomeLoss는 2018~2020만, 2021~ 는 ProfitLoss로 신고 → 병합해야 전 연도가 채워짐.
 function annualSeries(gaap: Record<string, { units?: Record<string, FactUnit[]> }>, tags: string[]): Record<number, number> {
+  const m: Record<number, number> = {};
   for (const t of tags) {
-    const units = gaap[t]?.units;
-    if (!units) continue;
-    const arr = units.USD ?? units['USD/shares'];
+    const arr = gaap[t]?.units?.USD ?? gaap[t]?.units?.['USD/shares'];
     if (!arr) continue;
-    const rows = arr.filter((x) => x.form === '10-K' && x.frame && /^CY\d{4}$/.test(x.frame));
-    if (rows.length) {
-      const m: Record<number, number> = {};
-      rows.forEach((r) => (m[Number(r.frame!.slice(2))] = r.val));
-      return m;
+    for (const x of arr) {
+      if (x.form !== '10-K' || !x.frame || !/^CY\d{4}$/.test(x.frame)) continue;
+      const y = Number(x.frame.slice(2));
+      if (m[y] === undefined) m[y] = x.val; // 먼저 나온(우선순위 높은) 태그가 이긴다
     }
   }
-  return {};
+  return m;
 }
 
 // companyfacts JSON은 수 MB라 Next fetch 캐시(항목당 2MB 한도)에 안 들어간다 →
@@ -100,7 +100,8 @@ async function fetchEdgarFinance(symbol: string): Promise<EdgarFinance | null> {
     if (!g) return null;
 
     const rev = annualSeries(g, ['RevenueFromContractWithCustomerExcludingAssessedTax', 'Revenues', 'SalesRevenueNet', 'RevenuesNetOfInterestExpense']);
-    const ni = annualSeries(g, ['NetIncomeLoss']);
+    // 순이익: 지배주주 귀속(NetIncomeLoss/…AvailableToCommon) 우선, 없으면 총 순이익(ProfitLoss)로 채움.
+    const ni = annualSeries(g, ['NetIncomeLoss', 'NetIncomeLossAvailableToCommonStockholdersBasic', 'ProfitLoss']);
     const eps = annualSeries(g, ['EarningsPerShareDiluted', 'EarningsPerShareBasic']);
     const ocf = annualSeries(g, ['NetCashProvidedByUsedInOperatingActivities', 'NetCashProvidedByUsedInOperatingActivitiesContinuingOperations']);
     const capex = annualSeries(g, ['PaymentsToAcquirePropertyPlantAndEquipment']);
