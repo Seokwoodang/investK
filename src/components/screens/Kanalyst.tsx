@@ -50,10 +50,11 @@ function SectionHead({ children, tip }: { children: React.ReactNode; tip?: strin
   );
 }
 
-function Metric({ label, value, term, accent }: { label: string; value: string; term?: string; accent?: string }) {
+function Metric({ label, value, term, accent, tipAlign }: { label: string; value: string; term?: string; accent?: string; tipAlign?: 'left' | 'right' }) {
   return (
     <div style={{ background: 'var(--c-w03)', border: '1px solid var(--c-w07)', borderRadius: 14, padding: '14px 16px' }}>
-      <div style={{ fontSize: 12, color: 'var(--c-tx5)', marginBottom: 6 }}>{term ? <TermTip term={term}>{label}</TermTip> : label}</div>
+      {/* 툴팁은 위로 열어 다음 섹션 카드에 덮이지 않게 하고, 우측 셀은 오른쪽 정렬로 화면 밖 넘침 방지 */}
+      <div style={{ fontSize: 12, color: 'var(--c-tx5)', marginBottom: 6 }}>{term ? <TermTip term={term} up align={tipAlign}>{label}</TermTip> : label}</div>
       <div style={{ fontSize: 20, fontWeight: 800, letterSpacing: '-0.01em', color: accent ?? 'var(--c-tx1)' }}>{value}</div>
     </div>
   );
@@ -295,7 +296,7 @@ export function Kanalyst({ code, market, name, ticker, cur, price }: Props) {
           <Metric label="PBR" term="PBR" value={mult(data.pbr)} />
           {data.pegRatio != null && <Metric label="PEG" term="PEG" value={data.pegRatio.toFixed(2)} />}
           {data.evToEbitda != null && <Metric label="EV/EBITDA" term="EV/EBITDA" value={mult(data.evToEbitda)} />}
-          <Metric label="배당수익률" term="배당수익률" value={pctv(data.divYield, 2)} />
+          <Metric label="배당수익률" term="배당수익률" value={pctv(data.divYield, 2)} tipAlign="right" />
         </div>
       </div>
 
@@ -320,8 +321,8 @@ export function Kanalyst({ code, market, name, ticker, cur, price }: Props) {
           <Metric label="순이익률" term="순이익률" value={pctv(data.netMargin)} />
           <Metric label={market === 'us' ? '부채/자본' : '부채비율'} term="부채비율" value={pctv(data.debtRatio, 0)} accent={data.debtRatio != null && data.debtRatio > 200 ? 'var(--c-downbr)' : undefined} />
           {data.currentRatio != null && <Metric label="유동비율" term="유동비율" value={data.currentRatio.toFixed(2)} />}
-          <Metric label="EPS(최근 연도)" term="EPS" value={fmtEps(data.trend[data.trend.length - 1]?.eps ?? null, market)} />
-          {market === 'us' && <Metric label="자유현금흐름" term="자유현금흐름" value={fmtMoney(data.trend[data.trend.length - 1]?.fcf ?? null, market)} />}
+          <Metric label="EPS(최근 연도)" term="EPS" value={fmtEps(data.trend[data.trend.length - 1]?.eps ?? null, market)} tipAlign={market === 'us' ? undefined : 'right'} />
+          {market === 'us' && <Metric label="자유현금흐름" term="자유현금흐름" value={fmtMoney(data.trend[data.trend.length - 1]?.fcf ?? null, market)} tipAlign="right" />}
         </div>
       </div>
 

@@ -403,6 +403,10 @@ input::placeholder {
   transition: opacity 150ms, transform 150ms;
   pointer-events: none;
 }
+/* 위로 여는 툴팁은 아래에서 위로 슬라이드 */
+.gloss-up .gloss-pop {
+  transform: translateY(4px);
+}
 .risk-cell:hover .risk-tip,
 .gloss:hover .gloss-pop,
 .gloss:focus .gloss-pop,

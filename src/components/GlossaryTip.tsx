@@ -3,17 +3,23 @@ import type { GlossHit } from '../lib/glossary';
 import { GLOSSARY } from '../data/glossary';
 
 // 용어에 점선 밑줄 + 호버/탭 시 설명 툴팁. term이 사전에 없으면 그냥 텍스트만 보여준다.
-export function TermTip({ term, children, width = 250 }: { term: string; children?: ReactNode; width?: number }) {
+// up=위로, align='right'=오른쪽 정렬(우측 끝 셀에서 화면 밖으로 넘치지 않게).
+// 아래로 여는 기본값은 다음 섹션 카드(backdrop-filter=독립 stacking context)에 덮일 수 있어,
+// 카드형 지표 목록에서는 up을 쓰는 걸 권장.
+export function TermTip({
+  term, children, width = 250, up = false, align = 'left',
+}: { term: string; children?: ReactNode; width?: number; up?: boolean; align?: 'left' | 'right' }) {
   const def = GLOSSARY[term];
   const content = children ?? term;
   if (!def) return <>{content}</>;
   return (
-    <span className="gloss" tabIndex={0} style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', cursor: 'help', outline: 'none' }}>
+    <span className={`gloss${up ? ' gloss-up' : ''}`} tabIndex={0} style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', cursor: 'help', outline: 'none' }}>
       <span style={{ borderBottom: '1px dotted var(--c-w22)' }}>{content}</span>
       <span
         className="gloss-pop"
         style={{
-          position: 'absolute', top: 'calc(100% + 6px)', left: 0, width,
+          position: 'absolute', ...(up ? { bottom: 'calc(100% + 6px)' } : { top: 'calc(100% + 6px)' }),
+          ...(align === 'right' ? { right: 0 } : { left: 0 }), width,
           background: 'var(--c-panel)', border: '1px solid var(--c-w12)', borderRadius: 12,
           padding: '12px 14px', boxShadow: '0 14px 36px var(--c-shadow)', zIndex: 70, textAlign: 'left', whiteSpace: 'normal',
         }}
