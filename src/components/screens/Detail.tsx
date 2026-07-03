@@ -109,8 +109,37 @@ export function Detail({ id }: { id: string }) {
   const subscribeStocks = useSubscribeStocks();
   const subscribeCoins = useSubscribeCoins();
   const subscribeUs = useSubscribeUs();
-  const sel = findStock(data.stocks, id, state.activeTab);
+  const fromUniverse = findStock(data.stocks, id, state.activeTab);
 
+  // 유니버스에 없는 종목(보유한 미국 ETF·소형주 등)도 상세를 볼 수 있게 /api/resolve로 즉석 조회해
+  // 최소 정보로 합성한다. (과거엔 못 찾으면 무한 로딩이었음)
+  const [resolved, setResolved] = useState<Stock | null>(null);
+  const [notFound, setNotFound] = useState(false);
+  useEffect(() => {
+    if (fromUniverse || id.startsWith('manual:')) return; // 유니버스에 있거나 수동입력이면 조회 불필요
+    let cancelled = false;
+    setResolved(null);
+    setNotFound(false);
+    fetch(`/api/resolve?price=${encodeURIComponent(id)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        if (cancelled) return;
+        if (j?.found) {
+          setResolved({
+            id, name: j.name || id, ticker: j.ticker || id, price: j.price ?? 0, cur: j.cur === '$' ? '$' : '₩',
+            pct: j.pct ?? 0, risk: 'mid', issue: `${j.name || id}의 가격·거래량 흐름을 확인하세요.`, chartNote: '',
+            news: [], ai: { pos: [], neg: [], caution: [] },
+            risk4: { vol: 50, liq: 50, evt: 50, sent: 50 }, riskNote: '',
+          });
+        } else {
+          setNotFound(true);
+        }
+      })
+      .catch(() => { if (!cancelled) setNotFound(true); });
+    return () => { cancelled = true; };
+  }, [id, fromUniverse]);
+
+  const sel = fromUniverse ?? resolved;
   const selId = sel?.id;
 
   // ── 차트 데이터(독립) — 봉 단위별 기본 구간만 불러온다. 기간 수익률 컨트롤과 무관. ──
@@ -370,6 +399,18 @@ export function Detail({ id }: { id: string }) {
 
   // 직접 진입/새로고침 시 전체 유니버스(/api/universe)가 아직 도착 전이라 종목을 못 찾을 수 있다 → 잠깐 로딩 표시.
   if (!sel) {
+    // 조회 실패(존재하지 않는 종목/티커) → 무한 로딩 대신 안내 + 뒤로가기.
+    if (notFound || id.startsWith('manual:')) {
+      return (
+        <div style={{ padding: '72px 24px', textAlign: 'center', color: 'var(--c-tx5)' }}>
+          <div style={{ fontSize: 15, marginBottom: 6 }}>종목 정보를 찾을 수 없습니다.</div>
+          <div style={{ fontSize: 13, color: 'var(--c-tx6)', marginBottom: 20 }}>
+            {id.startsWith('manual:') ? '직접 입력한 종목은 상세 정보가 제공되지 않습니다.' : '상장 폐지되었거나 지원하지 않는 종목일 수 있습니다.'}
+          </div>
+          <button onClick={actions.goBack} style={{ cursor: 'pointer', background: 'var(--c-w05)', border: '1px solid var(--c-w10)', borderRadius: 999, padding: '9px 18px', color: 'var(--c-tx3)', fontSize: 13, fontWeight: 600, fontFamily: 'inherit' }}>← 뒤로</button>
+        </div>
+      );
+    }
     return (
       <div style={{ padding: '80px 24px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, color: 'var(--c-tx5)', fontSize: 14 }}>
         <InlineSpinner />
