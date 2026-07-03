@@ -12,6 +12,7 @@ import { useDashboard } from '../../store/DashboardContext';
 import { useAuthed, useViewportLayout } from '../DashboardChrome';
 import { TAB_LABELS } from '../../types';
 import { GlossaryTip, ImpactTag } from '../GlossaryTip';
+import { EventResult } from '../EventResult';
 import { SourceNote, UpdateNote } from '../SourceNote';
 import { InlineSpinner } from '../Footer';
 
@@ -371,9 +372,12 @@ export function Dashboard() {
                     </div>
                     <div style={{ fontSize: 11, color: 'var(--c-tx6)', marginTop: 2 }}>{e.time}</div>
                   </div>
-                  <span style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span style={{ fontSize: 14, color: 'var(--c-tx3)' }}>{e.name}</span>
-                    {g && <GlossaryTip hit={g} />}
+                  <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 1 }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ fontSize: 14, color: 'var(--c-tx3)' }}>{e.name}</span>
+                      {g && <GlossaryTip hit={g} />}
+                    </span>
+                    <EventResult e={e} compact />
                   </span>
                   <ImpactTag tag={e.tag} />
                 </div>

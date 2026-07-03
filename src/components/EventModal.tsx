@@ -3,6 +3,7 @@ import { WEEKDAYS } from '../lib/constants';
 import { glossDef } from '../lib/glossary';
 import { useDashboard } from '../store/DashboardContext';
 import { GlossaryTip, ImpactTag } from './GlossaryTip';
+import { EventResult } from './EventResult';
 
 export function EventModal() {
   const { state, actions } = useDashboard();
@@ -66,9 +67,11 @@ export function EventModal() {
                   <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--c-tx1b)', lineHeight: 1.4 }}>{e.name}</span>
                   {g && <GlossaryTip hit={g} zIndex={55} />}
                 </div>
+                {/* 발표 후엔 실제 결과를 먼저(예상 대비 상회/하회 + 호재/악재) */}
+                <EventResult e={e} />
                 {/* 경제 일정은 예정 지표라 기사 원문이 없음 → 이벤트 설명(무엇·왜 중요·직전/예상치). 없으면 용어 뜻풀이로 폴백 */}
                 {(e.desc || g) && (
-                  <div style={{ background: 'var(--c-cy06)', border: '1px solid var(--c-cy16)', borderRadius: 12, padding: '12px 14px' }}>
+                  <div style={{ background: 'var(--c-cy06)', border: '1px solid var(--c-cy16)', borderRadius: 12, padding: '12px 14px', marginTop: 10 }}>
                     <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', color: 'var(--c-accyanbr)', marginBottom: 6 }}>이 일정이란?</div>
                     <div style={{ fontSize: 13, color: 'var(--c-tx2)', lineHeight: 1.55 }}>{e.desc || g?.def}</div>
                     {e.interpret && (

@@ -36,6 +36,9 @@ export interface MacroEvent {
   interpret?: string; // 결과가 어떻게 나오면 호재/악재인지 방향 해석
   previous?: string; // 직전 발표치
   consensus?: string; // 시장 예상치(컨센서스)
+  actual?: string; // 실제 발표치(발표 후에만 존재)
+  surprise?: 'above' | 'inline' | 'below'; // 예상 대비 상회/부합/하회
+  resultImpact?: '호재' | '악재' | '중립'; // 지표 방향까지 반영한 결과 판정(판단 가능할 때만)
 }
 
 // 시장 심리·지표 게이지(VIX·美10년물·크립토 공포탐욕·김치프리미엄).
