@@ -37,8 +37,15 @@ const IMPACT_STYLE: Record<string, { bg: string; color: string; border: string }
   중립: { bg: 'var(--c-gy18)', color: 'var(--c-tx4b)', border: 'var(--c-gy40)' },
 };
 
-const DETAIL_TABS: { id: DetailTab; label: string }[] = [
+// 주식: K-리서치의 'AI 애널리스트 의견'(실재무 기반)이 AI 관점을 대체 → AI 관점 탭 생략.
+// 코인: 재무가 없어 K-리서치가 안 뜨므로 AI 관점을 유일한 AI 의견으로 유지(K-리서치 탭은 생략).
+const STOCK_TABS: { id: DetailTab; label: string }[] = [
   { id: 'kanalyst', label: 'K-리서치' },
+  { id: 'chart', label: '차트' },
+  { id: 'news', label: '뉴스·정세' },
+  { id: 'risk', label: '위험도' },
+];
+const COIN_TABS: { id: DetailTab; label: string }[] = [
   { id: 'chart', label: '차트' },
   { id: 'news', label: '뉴스·정세' },
   { id: 'ai', label: 'AI 관점' },
@@ -392,7 +399,11 @@ export function Detail({ id }: { id: string }) {
   const overall = Math.round((sel.risk4.vol + sel.risk4.liq + sel.risk4.evt + sel.risk4.sent) / 4);
   const aCur = state.alerts[sel.id] || [];
 
-  const detailTab = state.detailTab;
+  const coinTab = state.activeTab === 'kr_coin' || state.activeTab === 'global_coin';
+  const tabs = coinTab ? COIN_TABS : STOCK_TABS;
+  // 시장에 없는 탭이 활성 상태면(코인인데 'kanalyst', 주식인데 'ai') 첫 탭으로 보정.
+  const rawTab = state.detailTab;
+  const detailTab = tabs.some((t) => t.id === rawTab) ? rawTab : tabs[0].id;
 
   const segStyle = (active: boolean): React.CSSProperties => ({
     cursor: 'pointer', border: 'none', padding: '7px 16px', borderRadius: 9, fontSize: 13,
@@ -409,7 +420,7 @@ export function Detail({ id }: { id: string }) {
     const d = new Date(ms);
     return `${d.getFullYear()}.${pad2(d.getMonth() + 1)}.${pad2(d.getDate())}`;
   };
-  const isCoinTab = state.activeTab === 'kr_coin' || state.activeTab === 'global_coin';
+  const isCoinTab = coinTab;
   // 기간 수익률 = 칩으로 고른 기간 기준(차트와 독립). 실데이터 없으면 '—' (가짜 폴백 없음).
   const shownRet = retData ? retData.ret : null;
   const shownSpan = retData ? `${fmtDay(retData.fromMs)} ~ ${fmtDay(retData.toMs)}` : '';
@@ -482,7 +493,7 @@ export function Detail({ id }: { id: string }) {
 
       {/* Detail tabs */}
       <div className="no-scrollbar" style={{ display: 'flex', gap: 4, borderBottom: '1px solid var(--c-w08)', marginBottom: 28, overflowX: 'auto' }}>
-        {DETAIL_TABS.map((t) => {
+        {tabs.map((t) => {
           const active = detailTab === t.id;
           return (
             <button
@@ -501,23 +512,16 @@ export function Detail({ id }: { id: string }) {
         })}
       </div>
 
-      {/* K-리서치 tab (첫 탭) */}
+      {/* K-리서치 tab (주식 첫 탭) — 코인은 이 탭 자체가 없다 */}
       {detailTab === 'kanalyst' && (
-        isCoinTab ? (
-          <div style={{ padding: '40px 24px', borderRadius: 20, border: '1px solid var(--c-w08)', background: 'var(--c-w03)', color: 'var(--c-tx5)', fontSize: 14, lineHeight: 1.7 }}>
-            코인은 기업 재무제표가 없어 애널리스트 리포트를 제공하지 않습니다.<br />
-            <span style={{ fontSize: 13, color: 'var(--c-tx6)' }}>차트·뉴스·AI 관점 탭에서 시장 정보를 확인하세요.</span>
-          </div>
-        ) : (
-          <Kanalyst
-            code={sel.ticker}
-            market={state.activeTab === 'us_stock' ? 'us' : 'kr'}
-            name={sel.name}
-            ticker={sel.ticker}
-            cur={sel.cur}
-            price={livePrice}
-          />
-        )
+        <Kanalyst
+          code={sel.ticker}
+          market={state.activeTab === 'us_stock' ? 'us' : 'kr'}
+          name={sel.name}
+          ticker={sel.ticker}
+          cur={sel.cur}
+          price={livePrice}
+        />
       )}
 
       {/* Chart tab */}
