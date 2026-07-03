@@ -92,7 +92,6 @@ async function fetchDay(date: string): Promise<MacroEvent[]> {
       const previous = num(row.previous);
       const consensus = num(row.consensus);
       const actual = num(row.actual);
-      const nums = previous || consensus ? ` (직전 ${previous ?? '–'} · 시장 예상 ${consensus ?? '–'})` : '';
 
       // 발표 후: 실제값 vs 예상 비교 → 상회/부합/하회 + (지표 방향을 알면) 호재/악재 판정.
       let surprise: MacroEvent['surprise'];
@@ -112,7 +111,7 @@ async function fetchDay(date: string): Promise<MacroEvent[]> {
         name,
         tag: hit.high ? '고영향' : '중간',
         rel: { title: row.eventName, src: 'Nasdaq' },
-        desc: `${hit.what}${nums}`,
+        desc: hit.what,
         interpret: hit.read,
         previous,
         consensus,
