@@ -423,6 +423,14 @@ input::placeholder {
   background: var(--c-w05);
 }
 
+/* 클릭해 상세로 가는 종목명(매도 점검 등) */
+.row-link {
+  transition: color 140ms;
+}
+.row-link:hover {
+  color: var(--c-accyanbr) !important;
+}
+
 /* 탭/내비 가로 스트립: 좁은 화면 스크롤은 유지하되 스크롤바는 숨김(데스크톱에서 얇게 보이던 막대 제거). */
 .no-scrollbar {
   scrollbar-width: none; /* Firefox */

@@ -80,7 +80,7 @@ function clientSignals(plPct: number, price: number, weight: number, cfg: SellCo
 }
 
 export function Portfolio() {
-  const { data } = useDashboard();
+  const { data, actions } = useDashboard();
   const { holdings, upsert, remove, clear, setAll } = usePortfolio();
 
   // 유니버스(전 자산군) 평탄화 + id 인덱스 — 보유종목 현재가/통화/자산군 매칭용.
@@ -438,7 +438,19 @@ export function Portfolio() {
                   return (
                     <div key={r.id} style={{ background: 'var(--c-w04)', border: '1px solid var(--c-w07)', borderRadius: 12, padding: 14, borderLeft: `3px solid ${v.color}` }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                        <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--c-tx1)' }}>{r.name}</span>
+                        {/* 종목명 클릭 → 상세(K-리서치). 수동 입력(universe 미매칭)은 상세가 없어 일반 텍스트로. */}
+                        {r.id.startsWith('manual:') ? (
+                          <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--c-tx1)' }}>{r.name}</span>
+                        ) : (
+                          <button
+                            onClick={() => actions.openStock(r.id, r.tab)}
+                            className="row-link"
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: 3, cursor: 'pointer', background: 'transparent', border: 'none', padding: 0, fontFamily: 'inherit', fontSize: 14, fontWeight: 700, color: 'var(--c-tx1)' }}
+                          >
+                            {r.name}
+                            <span style={{ fontSize: 12, color: 'var(--c-tx6)' }}>›</span>
+                          </button>
+                        )}
                         <span style={{ fontSize: 11, fontWeight: 800, padding: '2px 8px', borderRadius: 6, color: v.color, background: 'color-mix(in srgb, ' + v.color + ' 16%, transparent)' }}>{v.label}</span>
                         <span style={{ fontSize: 11, fontWeight: 600, color: upColor(r.plPct) }}>{fmtPct(r.plPct)}</span>
                         <span style={{ marginLeft: 'auto', display: 'flex', gap: 12, fontSize: 11, color: 'var(--c-tx6)', flexWrap: 'wrap' }}>
