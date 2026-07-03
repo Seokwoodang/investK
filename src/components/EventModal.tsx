@@ -85,7 +85,7 @@ export function EventModal() {
               </div>
             );
           })}
-          <div style={{ fontSize: 11, color: 'var(--c-tx6)', paddingTop: 14 }}>출처 · Nasdaq 경제지표 캘린더 (예정 일정)</div>
+          <div style={{ fontSize: 11, color: 'var(--c-tx6)', paddingTop: 14 }}>출처 · Nasdaq 경제지표 캘린더 · 예상(컨센서스)·직전치·실제 결과 포함</div>
         </div>
       </div>
     </div>
