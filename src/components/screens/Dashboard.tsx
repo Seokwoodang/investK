@@ -137,14 +137,16 @@ function MyAssetsStrip() {
   );
 }
 
-// ④ 오늘의 저평가 우량주 Top 5 (국내, 종합점수순 — 캐시 즉시).
+// ④ 오늘의 저평가 우량주 Top 5 (국내/해외 토글, 종합점수순 — 캐시 즉시).
 interface VTopItem { code: string; name: string; score: number; per: number | null; roe: number | null; graham: boolean; buffett: boolean }
 function ValueTopCard() {
   const { actions } = useDashboard();
+  const [market, setMarket] = useState<'kr' | 'us'>('kr');
   const [items, setItems] = useState<VTopItem[] | null>(null);
   useEffect(() => {
     let cancelled = false;
-    fetch('/api/value-screen?market=kr&sort=score&offset=0&limit=5')
+    setItems(null);
+    fetch(`/api/value-screen?market=${market}&sort=score&offset=0&limit=5`)
       .then((r) => (r.ok ? r.json() : null))
       .then((j) => {
         if (!cancelled) setItems((j?.items as VTopItem[]) ?? []);
@@ -155,19 +157,37 @@ function ValueTopCard() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [market]);
+  const tabId = market === 'kr' ? 'kr_stock' : 'us_stock';
+  const toggle = (m: 'kr' | 'us', label: string) => (
+    <button
+      onClick={() => setMarket(m)}
+      style={{
+        cursor: 'pointer', border: 'none', padding: '3px 10px', borderRadius: 7, fontSize: 11, fontWeight: 700, fontFamily: 'inherit',
+        ...(market === m ? { background: 'var(--c-cy18)', color: 'var(--c-accyanbr)' } : { background: 'transparent', color: 'var(--c-tx5)' }),
+      }}
+    >
+      {label}
+    </button>
+  );
   return (
     <div style={{ ...CARD, padding: 22 }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 14 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'space-between', marginBottom: 14, flexWrap: 'wrap' }}>
         <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.18em', color: 'var(--c-accyan)' }}>오늘의 저평가 우량주 TOP 5</div>
-        <Link href="/value" style={{ fontSize: 12, fontWeight: 600, color: 'var(--c-accyanbr)', textDecoration: 'none', whiteSpace: 'nowrap' }}>전체 →</Link>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ display: 'flex', gap: 2, padding: 2, background: 'var(--c-w04)', borderRadius: 9 }}>
+            {toggle('kr', '국내')}
+            {toggle('us', '해외')}
+          </div>
+          <Link href="/value" style={{ fontSize: 12, fontWeight: 600, color: 'var(--c-accyanbr)', textDecoration: 'none', whiteSpace: 'nowrap' }}>전체 →</Link>
+        </div>
       </div>
       {items === null && <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '14px 0', fontSize: 13, color: 'var(--c-tx6)' }}><InlineSpinner size={13} />불러오는 중…</div>}
       {items !== null && items.length === 0 && <div style={{ padding: '14px 0', fontSize: 13, color: 'var(--c-tx6)' }}>데이터 준비 중입니다.</div>}
       {items?.map((s, i) => (
         <div
           key={s.code}
-          onClick={() => actions.openStock(s.code, 'kr_stock')}
+          onClick={() => actions.openStock(s.code, tabId)}
           className="event-row"
           style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 8px', margin: '0 -8px', borderRadius: 10, borderBottom: i < items.length - 1 ? '1px solid var(--c-w05)' : 'none', cursor: 'pointer' }}
         >
@@ -182,7 +202,7 @@ function ValueTopCard() {
           </span>
         </div>
       ))}
-      <SourceNote text="점수 — 밸류·퀄리티·안정성·환원 복합(매일 18시 갱신)" style={{ marginTop: 12 }} />
+      <SourceNote text="점수 — 밸류·퀄리티·안정성·환원 복합(매일 18시 KST 갱신)" style={{ marginTop: 12 }} />
     </div>
   );
 }
@@ -236,7 +256,7 @@ function NewsTopCard() {
           <div key={i} style={rowStyle}>{inner}</div>
         );
       })}
-      <SourceNote text="뉴스 — 언론사 RSS · AI(Claude) 호재/악재 판별 · 하루 4회 갱신" style={{ marginTop: 12 }} />
+      <SourceNote text="뉴스 — 언론사 RSS · AI(Claude) 호재/악재 판별 · 하루 4회(06·12·18·24시 KST) 갱신" style={{ marginTop: 12 }} />
     </div>
   );
 }

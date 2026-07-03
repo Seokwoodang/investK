@@ -257,7 +257,7 @@ export function Portfolio() {
       <div style={{ marginBottom: 24 }}>
         <h1 style={{ margin: 0, fontSize: 28, fontWeight: 800, letterSpacing: '-0.02em' }}>내 자산</h1>
         <p style={{ margin: '8px 0 0', fontSize: 14, color: 'var(--c-tx5)' }}>보유 종목을 직접 입력하거나 CSV로 붙여넣으면 평가손익·비중과 AI 포트폴리오 평가를 보여줍니다. (증권사 무관)</p>
-        <UpdateNote text="보유 평가액은 페이지 로드 시점 시세 기준 · 매도 점검 재무는 하루 1회 갱신" style={{ marginTop: 8 }} />
+        <UpdateNote text="보유 평가액은 페이지 로드 시점 시세 기준 · 매도 점검 재무는 하루 1회(KST 기준) 갱신" style={{ marginTop: 8 }} />
       </div>
 
       {/* 입력 */}

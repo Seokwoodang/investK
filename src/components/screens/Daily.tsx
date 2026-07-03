@@ -47,7 +47,7 @@ export function Daily() {
 
   // 데일리 브리핑 — 공개 읽기 전용(/api/briefing GET). cron이 하루 3회 미리 생성·저장한 것을 읽기만 한다.
   // 없으면(생성 전/과거 미보관) 정직하게 "없음"을 표시 — 낡은 정적 샘플을 진짜처럼 보여주지 않는다.
-  const SLOT_TEXT: Record<string, string> = { am: '오전 6시 생성분', pm: '오후 5시 생성분', ny: '오후 10시 생성분' };
+  const SLOT_TEXT: Record<string, string> = { am: '오전 6시(KST) 생성분', pm: '오후 5시(KST) 생성분', ny: '오후 10시(KST) 생성분' };
   const [aiBrief, setAiBrief] = useState<(BriefingDay & { _slot?: string }) | null>(null);
   const [loaded, setLoaded] = useState(false);
   useEffect(() => {
@@ -184,7 +184,7 @@ export function Daily() {
       </div>
 
       <SourceNote
-        text="AI 생성 — Claude (Anthropic) · 실시장 데이터로 하루 3회(오전 6시·오후 5시·뉴욕장 개장 전) 자동 생성해 서버에 저장"
+        text="AI 생성 — Claude (Anthropic) · 실시장 데이터로 하루 3회(오전 6시·오후 5시·오후 10시 KST) 자동 생성해 서버에 저장"
         style={{ marginTop: 24 }}
       />
       </>

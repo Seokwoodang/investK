@@ -459,7 +459,7 @@ export function Detail({ id }: { id: string }) {
         </div>
       </div>
 
-      <UpdateNote text="시세 실시간(국내주식·코인) · 해외주식 약 15분 지연 · AI 차트분석·관점은 하루 1회 캐시" style={{ marginBottom: 20 }} />
+      <UpdateNote text="시세 실시간(국내주식·코인) · 해외주식 약 15분 지연 · AI 차트분석·관점은 하루 1회(KST 기준) 캐시" style={{ marginBottom: 20 }} />
 
       {/* Alerts */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 24 }}>
