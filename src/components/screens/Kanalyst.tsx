@@ -77,9 +77,10 @@ function TrendBars({ data, market }: { data: KanalystData['trend']; market: KMar
   };
   return (
     <div>
+      {/* 순이익은 앰버 — 매출(시안)과 같은 한색 계열(파랑)이라 구분이 어려웠던 문제를 난색/한색 대비로 해결 */}
       <div style={{ display: 'flex', gap: 16, marginBottom: 12, fontSize: 12, color: 'var(--c-tx5)' }}>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><span style={{ width: 10, height: 10, borderRadius: 3, background: 'var(--c-accyan)' }} />매출</span>
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><span style={{ width: 10, height: 10, borderRadius: 3, background: 'var(--c-acblue)' }} />순이익</span>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><span style={{ width: 10, height: 10, borderRadius: 3, background: 'var(--c-warn)' }} />순이익 <span style={{ color: 'var(--c-tx6)' }}>(적자는 빨강)</span></span>
         <span style={{ marginLeft: 'auto', color: 'var(--c-tx6)' }}>단위: {market === 'us' ? 'USD' : '원'}</span>
       </div>
       <div style={{ display: 'flex', gap: 10, alignItems: 'stretch' }}>
@@ -87,7 +88,7 @@ function TrendBars({ data, market }: { data: KanalystData['trend']; market: KMar
           <div key={y.year} style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
             <div style={{ display: 'flex', gap: 3, height: 130, alignItems: 'flex-end' }}>
               {bar(y.revenue, 'var(--c-accyan)')}
-              {bar(y.netIncome, 'var(--c-acblue)')}
+              {bar(y.netIncome, 'var(--c-warn)')}
             </div>
             <div style={{ borderTop: '1px solid var(--c-w08)', marginTop: 6, paddingTop: 6, textAlign: 'center' }}>
               <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--c-tx3)' }}>{y.year}</div>
@@ -142,13 +143,24 @@ const DIST_SEG = [
   { key: 'strongSell', label: '적극매도', color: 'var(--c-down)' },
 ] as const;
 
-function DistDonut({ dist }: { dist: NonNullable<KanalystData['dist']> }) {
+// recommMean(1 적극매수 ~ 5 적극매도) 구간 라벨.
+function recommLabel(m: number): string {
+  if (m <= 1.5) return '적극 매수';
+  if (m <= 2.5) return '매수';
+  if (m <= 3.5) return '중립';
+  if (m <= 4.5) return '매도';
+  return '적극 매도';
+}
+
+function DistDonut({ dist, recommMean }: { dist: NonNullable<KanalystData['dist']>; recommMean: number | null }) {
   const total = DIST_SEG.reduce((s, seg) => s + dist[seg.key], 0);
   if (total === 0) return null;
   const R = 42, C = 2 * Math.PI * R;
   let acc = 0;
+  const buyCnt = dist.strongBuy + dist.buy;
+  const buyPct = Math.round((buyCnt / total) * 100);
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 28, flexWrap: 'wrap' }}>
       <svg width="110" height="110" viewBox="0 0 110 110" style={{ flexShrink: 0 }}>
         <g transform="rotate(-90 55 55)">
           {DIST_SEG.map((seg) => {
@@ -173,6 +185,38 @@ function DistDonut({ dist }: { dist: NonNullable<KanalystData['dist']> }) {
             <span style={{ marginLeft: 'auto', fontWeight: 700, color: 'var(--c-tx2)' }}>{dist[seg.key]}</span>
           </div>
         ))}
+      </div>
+      {/* 우측: 같은 데이터를 한눈에 요약(매수 우위 비율 바 + 컨센서스 등급 위치) — 추가 데이터 아님 */}
+      <div style={{ flex: '1 1 260px', minWidth: 240, display: 'flex', flexDirection: 'column', gap: 20 }}>
+        <div>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 8 }}>
+            <span style={{ fontSize: 12, color: 'var(--c-tx5)' }}>매수 의견 비중</span>
+            <span style={{ fontSize: 22, fontWeight: 800, color: buyPct >= 50 ? 'var(--c-upbr)' : 'var(--c-tx1)' }}>{buyPct}%</span>
+            <span style={{ fontSize: 11, color: 'var(--c-tx6)' }}>({buyCnt}/{total}명이 매수 이상)</span>
+          </div>
+          {/* 분포 스택 바 — 도넛과 동일 데이터의 가로 표현 */}
+          <div style={{ display: 'flex', height: 10, borderRadius: 999, overflow: 'hidden', background: 'var(--c-w06)' }}>
+            {DIST_SEG.filter((s) => dist[s.key] > 0).map((seg) => (
+              <div key={seg.key} style={{ width: `${(dist[seg.key] / total) * 100}%`, background: seg.color }} />
+            ))}
+          </div>
+        </div>
+        {recommMean != null && (
+          <div>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 10 }}>
+              <span style={{ fontSize: 12, color: 'var(--c-tx5)' }}>컨센서스 등급</span>
+              <span style={{ fontSize: 16, fontWeight: 800, color: 'var(--c-tx1)' }}>{recommMean.toFixed(2)}</span>
+              <span style={{ fontSize: 12, fontWeight: 700, color: recommMean <= 2.5 ? 'var(--c-upbr)' : recommMean >= 3.5 ? 'var(--c-downbr)' : 'var(--c-warn)' }}>{recommLabel(recommMean)}</span>
+            </div>
+            {/* 1(적극매수) ~ 5(적극매도) 스케일에 현재 평균 위치 표시 */}
+            <div style={{ position: 'relative', height: 8, borderRadius: 999, background: 'linear-gradient(90deg, var(--c-gn50), var(--c-w10), var(--c-rd50))' }}>
+              <div style={{ position: 'absolute', left: `${((Math.min(5, Math.max(1, recommMean)) - 1) / 4) * 100}%`, top: -3, transform: 'translateX(-50%)', width: 3, height: 14, borderRadius: 2, background: 'var(--c-tx1)' }} />
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--c-tx6)', marginTop: 5 }}>
+              <span>1 적극매수</span><span>3 중립</span><span>5 적극매도</span>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -331,7 +375,7 @@ export function Kanalyst({ code, market, name, ticker, cur, price }: Props) {
         <div style={{ ...CARD, borderRadius: 20, padding: 22 }}>
           {/* numAnalysts(목표가 제시 인원)와 추천분포 합계는 모집단이 달라 다를 수 있음 — 도넛 중앙 합계만 표시해 혼동 방지 */}
           <SectionHead tip="최근 투자의견 제출 기준">애널리스트 추천 분포</SectionHead>
-          <DistDonut dist={data.dist} />
+          <DistDonut dist={data.dist} recommMean={data.recommMean} />
         </div>
       )}
 
