@@ -271,8 +271,24 @@ export function Dashboard() {
   const [evFilter, setEvFilter] = useState<Impact[]>(['고영향', '중간', '실적']);
   const toggleEvFilter = (t: Impact) =>
     setEvFilter((prev) => (prev.includes(t) ? (prev.length > 1 ? prev.filter((x) => x !== t) : prev) : [...prev, t]));
-  const listEvents = useMemo(() => macro.events.filter((e) => evFilter.includes(e.tag)), [macro.events, evFilter]);
-  const calEventsF = useMemo(() => state.calEvents.filter((e) => evFilter.includes(e.tag)), [state.calEvents, evFilter]);
+
+  // 내 보유(로그인 시) + 관심(☆) 종목의 실적 이벤트는 mine=true로 주입해 테두리 강조.
+  // US 종목은 유니버스 id=심볼이라 watchlist id를 그대로 심볼로 비교할 수 있다.
+  const { holdings: myHoldings } = usePortfolio(authed);
+  const mySymbols = useMemo(() => {
+    const s = new Set<string>();
+    myHoldings.forEach((h) => h.ticker && s.add(h.ticker.toUpperCase()));
+    state.watchlist.forEach((id) => s.add(id.toUpperCase()));
+    return s;
+  }, [myHoldings, state.watchlist]);
+  const annotate = useMemo(
+    () => (evs: typeof macro.events) =>
+      evs.map((e) => (e.tag === '실적' && e.symbol && mySymbols.has(e.symbol.toUpperCase()) ? { ...e, mine: true } : e)),
+    [mySymbols],
+  );
+
+  const listEvents = useMemo(() => annotate(macro.events.filter((e) => evFilter.includes(e.tag))), [macro.events, evFilter, annotate]);
+  const calEventsF = useMemo(() => annotate(state.calEvents.filter((e) => evFilter.includes(e.tag))), [state.calEvents, evFilter, annotate]);
   const weeks = buildCalendar(calEventsF, vw, state.calYear, state.calMonth, state.today);
   const monthLabel = `${state.calYear}년 ${state.calMonth + 1}월`;
 
@@ -445,7 +461,13 @@ export function Dashboard() {
                   key={i}
                   className="event-row"
                   onClick={() => actions.openEventModal({ year: yr, month: mo - 1, day: da, events: listEvents })}
-                  style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '14px 8px', margin: '0 -8px', borderRadius: 10, borderBottom: '1px solid var(--c-w05)', cursor: 'pointer' }}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 16, padding: '14px 8px', margin: '0 -8px', borderRadius: 10, cursor: 'pointer',
+                    // 내 보유·관심 종목 실적은 테두리로 강조
+                    ...(e.mine
+                      ? { border: '1px solid var(--c-cy40)', background: 'var(--c-cy06)', marginBottom: 4, marginTop: 4 }
+                      : { borderBottom: '1px solid var(--c-w05)' }),
+                  }}
                 >
                   <div style={{ width: 60, flexShrink: 0 }}>
                     <div style={{ fontSize: 14, fontWeight: 700, color: today ? 'var(--c-accyan)' : 'var(--c-tx1c)' }}>
@@ -454,8 +476,11 @@ export function Dashboard() {
                     <div style={{ fontSize: 11, color: 'var(--c-tx6)', marginTop: 2 }}>{e.time}</div>
                   </div>
                   <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 1 }}>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                       <span style={{ fontSize: 14, color: 'var(--c-tx3)' }}>{e.name}</span>
+                      {e.mine && (
+                        <span style={{ fontSize: 9, fontWeight: 800, padding: '2px 7px', borderRadius: 999, background: 'var(--c-cy18)', color: 'var(--c-accyanbr)', whiteSpace: 'nowrap' }}>내 종목</span>
+                      )}
                       {g && <GlossaryTip hit={g} />}
                     </span>
                     <EventResult e={e} compact />
@@ -507,7 +532,7 @@ export function Dashboard() {
                             {c.showLabels && (
                               <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginTop: 6 }}>
                                 {c.chips.map((ch, idx) => (
-                                  <div key={idx} style={{ fontSize: 10, lineHeight: 1.3, padding: '2px 5px', borderRadius: 5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', background: ch.bg, color: ch.color }}>
+                                  <div key={idx} style={{ fontSize: 10, lineHeight: 1.3, padding: '2px 5px', borderRadius: 5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', background: ch.bg, color: ch.color, border: ch.border ? `1px solid ${ch.border}` : undefined }}>
                                     {ch.name}
                                   </div>
                                 ))}

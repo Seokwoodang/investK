@@ -4,6 +4,7 @@ export interface CalChip {
   name: string;
   bg: string;
   color: string;
+  border?: string; // 내 보유·관심 종목 실적이면 강조 테두리
 }
 
 export interface CalCell {
@@ -62,12 +63,18 @@ export function buildCalendar(
     const today = day === todayDay;
     const hasHigh = evs.some((e) => e.tag === '고영향');
     const hasMid = evs.some((e) => e.tag === '중간');
+    const hasMine = evs.some((e) => e.mine); // 내 보유·관심 종목 실적이 있는 날
     const dayColor = today ? 'var(--c-accyan)' : wd === 0 ? 'var(--c-rdsun)' : wd === 6 ? 'var(--c-acblue)' : 'var(--c-tx3)';
-    const chips = (showLabels ? evs.slice(0, 2) : []).map((e) => ({ name: e.name, bg: chipBg(e.tag), color: chipCol(e.tag) }));
+    // 내 종목 실적이 먼저 보이게 정렬 후 칩 2개 노출. mine 칩엔 강조 테두리.
+    const sorted = showLabels ? [...evs].sort((a, b) => Number(!!b.mine) - Number(!!a.mine)) : evs;
+    const chips = (showLabels ? sorted.slice(0, 2) : []).map((e) => ({
+      name: e.name, bg: chipBg(e.tag), color: chipCol(e.tag), border: e.mine ? 'var(--c-cy45)' : undefined,
+    }));
     const moreN = evs.length - chips.length;
     cells.push({
       show: true, day, today, dayColor,
-      cellBorder: today ? 'var(--c-cy45)' : 'var(--c-w05)',
+      // 오늘 > 내 종목 실적 > 기본 순으로 셀 테두리 강조(라벨 없는 좁은 화면에서도 보이게)
+      cellBorder: today ? 'var(--c-cy45)' : hasMine ? 'var(--c-cy30)' : 'var(--c-w05)',
       cellBg: today ? 'var(--c-cy10)' : 'var(--c-w02)',
       minHeight: minH,
       // 점 색 우선순위: 고영향(빨강) > 중간(앰버) > 실적만 있는 날(시안)

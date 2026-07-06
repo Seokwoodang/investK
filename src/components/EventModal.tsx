@@ -62,6 +62,9 @@ export function EventModal() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 9 }}>
                   <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--c-tx4)', whiteSpace: 'nowrap' }}>{e.time}</span>
                   <ImpactTag tag={e.tag} />
+                  {e.mine && (
+                    <span style={{ fontSize: 10, fontWeight: 800, padding: '2px 8px', borderRadius: 999, background: 'var(--c-cy18)', color: 'var(--c-accyanbr)', whiteSpace: 'nowrap' }}>내 종목</span>
+                  )}
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: g ? 11 : 0 }}>
                   <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--c-tx1b)', lineHeight: 1.4 }}>{e.name}</span>

@@ -102,6 +102,7 @@ async function fetchEarningsDay(date: string): Promise<MacroEvent[]> {
         date: kstDate,
         time,
         name: `${row.symbol} 실적 발표`,
+        symbol: row.symbol, // 보유·관심 종목 매칭용
         tag: '실적' as const,
         rel: { title: row.name ?? row.symbol!, src: 'Nasdaq' },
         desc: `${row.name}(${row.symbol})의 분기 실적 발표입니다(${row.fiscalQuarterEnding ?? '-'} 분기 마감 · 시총 ${capB}).${lastYear ? ` 전년 동기 EPS ${lastYear}.` : ''}`,

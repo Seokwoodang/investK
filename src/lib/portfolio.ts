@@ -19,7 +19,8 @@ const LEGACY_KEY = 'dash_portfolio'; // 예전 localStorage 저장분 → 서버
 
 // 포트폴리오를 로그인 계정에 연동: 서버(Supabase, /api/portfolio)에 유저별로 저장·조회.
 // 어느 기기서든 같은 아이디로 로그인하면 같은 포폴이 보인다.
-export function usePortfolio() {
+// enabled=false면 서버 조회를 건너뛴다(비로그인 공개 페이지에서 /api/portfolio 401 호출 방지용).
+export function usePortfolio(enabled = true) {
   const [holdings, setHoldings] = useState<Holding[]>([]);
   const [loaded, setLoaded] = useState(false);
   // 최신 holdings를 콜백에서 안전하게 참조.
@@ -32,6 +33,7 @@ export function usePortfolio() {
   const save = useCallback((h: Holding[]) => { setHoldings(h); persist(h); }, [persist]);
 
   useEffect(() => {
+    if (!enabled) { setLoaded(true); return; }
     let cancelled = false;
     fetch('/api/portfolio')
       .then((r) => (r.ok ? r.json() : { holdings: [] }))
@@ -54,7 +56,7 @@ export function usePortfolio() {
       })
       .catch(() => { if (!cancelled) setLoaded(true); });
     return () => { cancelled = true; };
-  }, [persist]);
+  }, [persist, enabled]);
 
   // 같은 id면 합치지 않고 대체(중복 입력 방지).
   const upsert = useCallback((x: Holding) => save([...holdingsRef.current.filter((p) => p.id !== x.id), x]), [save]);
