@@ -10,7 +10,7 @@ export type SortDir = 'desc' | 'asc';
 export type EventView = 'list' | 'calendar';
 export type RiskLevel = 'low' | 'mid' | 'high';
 export type Currency = '₩' | '$';
-export type Impact = '고영향' | '중간';
+export type Impact = '고영향' | '중간' | '실적';
 export type AlertKey = 'target' | 'swing' | 'risk';
 export type Direction = 'up' | 'down' | 'flat';
 

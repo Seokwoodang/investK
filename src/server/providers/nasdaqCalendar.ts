@@ -64,6 +64,56 @@ function toKstDateTime(gmtDate: string, gmtTime: string): { date: string; time: 
   return { date: ymd(next), time: `${pad(h - 24)}:${m[2]}` };
 }
 
+// ── 실적 발표 캘린더(미국) — 같은 Nasdaq API의 earnings 엔드포인트. ──
+// 하루 수십~수백 건이라 시총 대형주만 추려 달력 노이즈를 막는다. 국내는 마땅한 무료 소스가 없어 미제공.
+interface EarnRow {
+  symbol?: string;
+  name?: string;
+  marketCap?: string; // "$9,422,608,150"
+  time?: string; // time-pre-market | time-after-hours | time-not-supplied
+  epsForecast?: string; // "$0.24"
+  lastYearEPS?: string;
+  fiscalQuarterEnding?: string; // "May/2026"
+}
+const EARN_MIN_CAP = 100e9; // $1,000억(=$100B) 이상 대형주만
+const EARN_MAX_PER_DAY = 4;
+
+async function fetchEarningsDay(date: string): Promise<MacroEvent[]> {
+  try {
+    const r = await fetch(`https://api.nasdaq.com/api/calendar/earnings?date=${date}`, { headers: UA });
+    if (!r.ok) return [];
+    const j = (await r.json()) as { data?: { rows?: EarnRow[] } };
+    const rows = (j?.data?.rows ?? [])
+      .map((row) => ({ ...row, cap: Number((row.marketCap ?? '').replace(/[^0-9]/g, '')) || 0 }))
+      .filter((row) => row.symbol && row.cap >= EARN_MIN_CAP)
+      .sort((a, b) => b.cap - a.cap)
+      .slice(0, EARN_MAX_PER_DAY);
+
+    return rows.map((row) => {
+      // 발표 시점을 KST 감각으로: 美 개장 전(프리마켓) ≈ 같은 날 저녁 KST, 장 마감 후 ≈ 다음 날 새벽 KST.
+      const after = row.time === 'time-after-hours';
+      const [y, m, d] = date.split('-').map(Number);
+      const kstDate = after ? ymd(new Date(Date.UTC(y, m - 1, d + 1))) : date;
+      const time = after ? '새벽(美 장 마감 후)' : row.time === 'time-pre-market' ? '저녁(美 개장 전)' : '시간 미정';
+      const capB = `$${Math.round(row.cap / 1e9).toLocaleString('en-US')}B`;
+      const forecast = (row.epsForecast ?? '').trim() || undefined;
+      const lastYear = (row.lastYearEPS ?? '').trim() || undefined;
+      return {
+        date: kstDate,
+        time,
+        name: `${row.symbol} 실적 발표`,
+        tag: '실적' as const,
+        rel: { title: row.name ?? row.symbol!, src: 'Nasdaq' },
+        desc: `${row.name}(${row.symbol})의 분기 실적 발표입니다(${row.fiscalQuarterEnding ?? '-'} 분기 마감 · 시총 ${capB}).${lastYear ? ` 전년 동기 EPS ${lastYear}.` : ''}`,
+        interpret: '발표 EPS·가이던스가 시장 예상(컨센서스)을 웃돌면 호재, 밑돌면 악재로 반응하는 경우가 많습니다.',
+        consensus: forecast, // 예상 EPS — 발표 전 미리보기로 표시
+      };
+    });
+  } catch {
+    return [];
+  }
+}
+
 const cache = new Map<string, { at: number; data: MacroEvent[] }>();
 const CACHE_MS = 3600 * 1000; // 1시간
 
@@ -129,7 +179,8 @@ async function fetchDay(date: string): Promise<MacroEvent[]> {
 async function fetchDates(key: string, dates: string[]): Promise<MacroEvent[]> {
   const hit = cache.get(key);
   if (hit && Date.now() - hit.at < CACHE_MS) return hit.data;
-  const all = (await Promise.all(dates.map(fetchDay))).flat();
+  // 경제지표 + 대형주 실적 발표를 함께 수집.
+  const all = (await Promise.all([...dates.map(fetchDay), ...dates.map(fetchEarningsDay)])).flat();
   all.sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
   if (all.length) cache.set(key, { at: Date.now(), data: all });
   return all;

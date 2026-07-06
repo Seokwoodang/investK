@@ -26,8 +26,8 @@ export interface CalWeek {
   days: CalCell[];
 }
 
-const chipBg = (t: string) => (t === '고영향' ? 'var(--c-rd16)' : 'var(--c-am16)');
-const chipCol = (t: string) => (t === '고영향' ? 'var(--c-downchip)' : 'var(--c-warnchip)');
+const chipBg = (t: string) => (t === '고영향' ? 'var(--c-rd16)' : t === '실적' ? 'var(--c-cy16)' : 'var(--c-am16)');
+const chipCol = (t: string) => (t === '고영향' ? 'var(--c-downchip)' : t === '실적' ? 'var(--c-accyanbr)' : 'var(--c-warnchip)');
 
 // 임의 (year, month) 달의 그리드를 만든다. today가 그 달에 속할 때만 오늘 칸을 강조.
 export function buildCalendar(
@@ -61,6 +61,7 @@ export function buildCalendar(
     const wd = (startDay + day - 1) % 7;
     const today = day === todayDay;
     const hasHigh = evs.some((e) => e.tag === '고영향');
+    const hasMid = evs.some((e) => e.tag === '중간');
     const dayColor = today ? 'var(--c-accyan)' : wd === 0 ? 'var(--c-rdsun)' : wd === 6 ? 'var(--c-acblue)' : 'var(--c-tx3)';
     const chips = (showLabels ? evs.slice(0, 2) : []).map((e) => ({ name: e.name, bg: chipBg(e.tag), color: chipCol(e.tag) }));
     const moreN = evs.length - chips.length;
@@ -69,7 +70,8 @@ export function buildCalendar(
       cellBorder: today ? 'var(--c-cy45)' : 'var(--c-w05)',
       cellBg: today ? 'var(--c-cy10)' : 'var(--c-w02)',
       minHeight: minH,
-      hasDot: evs.length > 0, dotColor: hasHigh ? 'var(--c-down)' : 'var(--c-warn)',
+      // 점 색 우선순위: 고영향(빨강) > 중간(앰버) > 실적만 있는 날(시안)
+      hasDot: evs.length > 0, dotColor: hasHigh ? 'var(--c-down)' : hasMid ? 'var(--c-warn)' : 'var(--c-accyan)',
       showLabels, chips, hasMore: showLabels && moreN > 0, moreText: '+' + moreN + '건',
     });
   }

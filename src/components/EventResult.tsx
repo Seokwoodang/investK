@@ -44,6 +44,8 @@ export function EventResult({ e, compact = false }: { e: MacroEvent; compact?: b
 
   const showResult = released && !!e.actual;
   const preview = previewText(e);
+  // 실적 발표는 이 데이터 소스(Nasdaq earnings)에 실제 발표값이 없어 '결과 대기'가 영원히 남음 → 표기 생략.
+  const canHaveResult = e.tag !== '실적';
 
   // 발표 전(또는 발표됐지만 실제값 아직): 예상·직전 미리보기
   if (!showResult) {
@@ -52,13 +54,13 @@ export function EventResult({ e, compact = false }: { e: MacroEvent; compact?: b
       return (
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 3 }}>
           <span style={{ fontSize: 11, color: 'var(--c-tx6)' }}>{preview}</span>
-          {released && <span style={{ fontSize: 10, color: 'var(--c-tx6)' }}>· 결과 대기</span>}
+          {released && canHaveResult && <span style={{ fontSize: 10, color: 'var(--c-tx6)' }}>· 결과 대기</span>}
         </span>
       );
     }
     return (
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 10, padding: '10px 12px', borderRadius: 10, background: 'var(--c-w04)', border: '1px solid var(--c-w08)' }}>
-        <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.06em', color: 'var(--c-tx5)' }}>{released ? '결과 대기' : '예정'}</span>
+        <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.06em', color: 'var(--c-tx5)' }}>{released && canHaveResult ? '결과 대기' : '예정'}</span>
         <span style={{ fontSize: 13, color: 'var(--c-tx3)' }}>{preview}</span>
       </div>
     );

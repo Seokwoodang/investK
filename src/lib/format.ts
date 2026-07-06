@@ -56,9 +56,9 @@ export function fmtTradeValue(n: number, cur: Currency): string {
   return '₩' + Math.round(n).toLocaleString('ko-KR');
 }
 
-// Impact-tag pill colors (고영향 / 중간).
+// Impact-tag pill colors (고영향 / 중간 / 실적).
 export function tagColors(tag: string): { bg: string; color: string } {
-  return tag === '고영향'
-    ? { bg: 'var(--c-rd14)', color: 'var(--c-down)' }
-    : { bg: 'var(--c-am14)', color: 'var(--c-warn)' };
+  if (tag === '고영향') return { bg: 'var(--c-rd14)', color: 'var(--c-down)' };
+  if (tag === '실적') return { bg: 'var(--c-cy16)', color: 'var(--c-accyanbr)' };
+  return { bg: 'var(--c-am14)', color: 'var(--c-warn)' };
 }
