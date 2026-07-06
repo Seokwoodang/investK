@@ -30,7 +30,7 @@ export const SRC_NEWS: Record<TabId, string> = {
 export const SRC = {
   fx: '환율 — Frankfurter(ECB) · DXY Yahoo Finance',
   index: '글로벌 지수 — 한국투자증권 KIS Open API',
-  calendar: '경제 일정 · 예상(컨센서스) · 직전치 · 실제 결과 — Nasdaq 경제지표 캘린더 (글로벌)',
+  calendar: '경제 일정 · 예상(컨센서스) · 직전치 · 실제 결과 — Nasdaq 경제지표 캘린더 (글로벌) · 경제지표는 소스 특성상 약 2~3주 앞까지, 실적 일정은 수개월 앞까지 제공',
   ai: 'AI 생성 — Claude (Anthropic) · 캐시 Supabase',
   risk: '위험도 — 변동성·유동성은 시세 기반 정량 산출 · 이벤트·뉴스 감성은 큐레이션 종목 외 기본값(참고용)',
   assetStatus: '시세 — 네이버 금융 · 업비트 · 바이낸스 종합',

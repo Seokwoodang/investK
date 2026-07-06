@@ -10,7 +10,7 @@ import { usePortfolio, usdKrwFromFx, useResolvedPrices, valuePortfolio } from '.
 import { SRC } from '../../lib/sources';
 import { useDashboard } from '../../store/DashboardContext';
 import { useAuthed, useViewportLayout } from '../DashboardChrome';
-import { TAB_LABELS } from '../../types';
+import { TAB_LABELS, type Impact } from '../../types';
 import { GlossaryTip, ImpactTag } from '../GlossaryTip';
 import { EventResult } from '../EventResult';
 import { SourceNote, UpdateNote } from '../SourceNote';
@@ -267,7 +267,13 @@ export function Dashboard() {
   const authed = useAuthed();
   const { state, actions, data } = useDashboard();
   const { macro, assetSummary } = data;
-  const weeks = buildCalendar(state.calEvents, vw, state.calYear, state.calMonth, state.today);
+  // 일정 분류 필터(복수 선택, 최소 1개 유지) — 목록·달력·상세 모달에 공통 적용.
+  const [evFilter, setEvFilter] = useState<Impact[]>(['고영향', '중간', '실적']);
+  const toggleEvFilter = (t: Impact) =>
+    setEvFilter((prev) => (prev.includes(t) ? (prev.length > 1 ? prev.filter((x) => x !== t) : prev) : [...prev, t]));
+  const listEvents = useMemo(() => macro.events.filter((e) => evFilter.includes(e.tag)), [macro.events, evFilter]);
+  const calEventsF = useMemo(() => state.calEvents.filter((e) => evFilter.includes(e.tag)), [state.calEvents, evFilter]);
+  const weeks = buildCalendar(calEventsF, vw, state.calYear, state.calMonth, state.today);
   const monthLabel = `${state.calYear}년 ${state.calMonth + 1}월`;
 
   return (
@@ -387,15 +393,47 @@ export function Dashboard() {
       <div style={{ marginBottom: 36 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
           <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700, whiteSpace: 'nowrap' }}>주요 일정</h2>
-          <div style={{ display: 'flex', gap: 4, padding: 4, background: 'var(--c-w04)', border: '1px solid var(--c-w07)', borderRadius: 11 }}>
-            <button onClick={() => actions.setEventView('list')} style={segBtn(state.eventView === 'list')}>목록</button>
-            <button onClick={() => actions.setEventView('calendar')} style={segBtn(state.eventView === 'calendar')}>달력</button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            {/* 분류 필터(복수 선택) — 색 점이 있어 범례 역할도 겸한다 */}
+            <div style={{ display: 'flex', gap: 6 }}>
+              {([
+                { t: '고영향' as Impact, color: 'var(--c-down)', label: '고영향' },
+                { t: '중간' as Impact, color: 'var(--c-warn)', label: '중간' },
+                { t: '실적' as Impact, color: 'var(--c-accyan)', label: '실적(美)' },
+              ]).map(({ t, color, label }) => {
+                const on = evFilter.includes(t);
+                return (
+                  <button
+                    key={t}
+                    onClick={() => toggleEvFilter(t)}
+                    style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontFamily: 'inherit',
+                      fontSize: 11, fontWeight: 700, padding: '5px 11px', borderRadius: 999, transition: 'all 140ms',
+                      border: `1px solid ${on ? 'var(--c-w12)' : 'var(--c-w07)'}`,
+                      background: on ? 'var(--c-w06)' : 'transparent',
+                      color: on ? 'var(--c-tx2)' : 'var(--c-tx6)',
+                      opacity: on ? 1 : 0.55,
+                    }}
+                  >
+                    <span style={{ width: 7, height: 7, borderRadius: '50%', background: color, opacity: on ? 1 : 0.4 }} />
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+            <div style={{ display: 'flex', gap: 4, padding: 4, background: 'var(--c-w04)', border: '1px solid var(--c-w07)', borderRadius: 11 }}>
+              <button onClick={() => actions.setEventView('list')} style={segBtn(state.eventView === 'list')}>목록</button>
+              <button onClick={() => actions.setEventView('calendar')} style={segBtn(state.eventView === 'calendar')}>달력</button>
+            </div>
           </div>
         </div>
 
         {state.eventView === 'list' ? (
           <div style={{ ...CARD, padding: '6px 24px' }}>
-            {macro.events.map((e, i) => {
+            {listEvents.length === 0 && (
+              <div style={{ padding: '20px 0', fontSize: 13, color: 'var(--c-tx6)', textAlign: 'center' }}>선택한 분류의 일정이 없습니다.</div>
+            )}
+            {listEvents.map((e, i) => {
               const yr = parseInt(e.date.slice(0, 4), 10);
               const da = parseInt(e.date.slice(8, 10), 10);
               const mo = parseInt(e.date.slice(5, 7), 10);
@@ -406,7 +444,7 @@ export function Dashboard() {
                 <div
                   key={i}
                   className="event-row"
-                  onClick={() => actions.openEventModal({ year: yr, month: mo - 1, day: da, events: macro.events })}
+                  onClick={() => actions.openEventModal({ year: yr, month: mo - 1, day: da, events: listEvents })}
                   style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '14px 8px', margin: '0 -8px', borderRadius: 10, borderBottom: '1px solid var(--c-w05)', cursor: 'pointer' }}
                 >
                   <div style={{ width: 60, flexShrink: 0 }}>
@@ -436,17 +474,7 @@ export function Dashboard() {
                 <button onClick={() => actions.gotoCalMonth(1)} aria-label="다음 달" style={calNavBtn}>›</button>
                 {state.calLoading && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--c-tx6)' }}><InlineSpinner size={11} />불러오는 중…</span>}
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--c-tx4)' }}>
-                  <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--c-down)' }} />고영향
-                </span>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--c-tx4)' }}>
-                  <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--c-warn)' }} />중간
-                </span>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--c-tx4)' }}>
-                  <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--c-accyan)' }} />실적(美 대형주)
-                </span>
-              </div>
+              {/* 범례는 상단 필터 칩(색 점 포함)이 겸한다 */}
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 6, marginBottom: 6 }}>
               {WEEKDAYS.map((w, i) => (
@@ -462,7 +490,7 @@ export function Dashboard() {
                       <div
                         key={ci}
                         className={`cal-cell${clickable ? ' clickable' : ''}`}
-                        onClick={clickable ? () => actions.openEventModal({ year: state.calYear, month: state.calMonth, day: c.day as number, events: state.calEvents }) : undefined}
+                        onClick={clickable ? () => actions.openEventModal({ year: state.calYear, month: state.calMonth, day: c.day as number, events: calEventsF }) : undefined}
                         style={{
                           minHeight: c.minHeight, borderRadius: 10, overflow: 'hidden',
                           padding: c.show ? 8 : 0,
