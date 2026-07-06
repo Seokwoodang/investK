@@ -134,6 +134,7 @@ export interface ValuedRow extends Holding {
   pl: number; // 평가손익(해당 통화)
   plPct: number;
   matched: boolean; // 유니버스 매칭(현재가 반영) 여부
+  priced: boolean; // 실시세(유니버스/즉석조회) 또는 사용자 입력가 확보 여부. false면 아직 로딩 중(평단 폴백).
   risk?: RiskLevel;
 }
 
@@ -144,6 +145,7 @@ export interface PortfolioValuation {
   totalPlKrw: number;
   totalPlPct: number;
   groupWeights: { group: string; weight: number }[];
+  allPriced: boolean; // 모든 종목 시세 확보 완료(총계를 믿을 수 있는지)
 }
 
 // 유니버스에 없는 종목을 네이버로 즉석 조회한 시세(holding.id → 시세). useResolvedPrices가 채움.
@@ -165,9 +167,12 @@ export function valuePortfolio(holdings: Holding[], stocks: Stocks, usdkrw: numb
     const cost = h.qty * h.avg;
     const toKrw = (v: number) => (cur === '$' ? v * usdkrw : v);
     const plPct = h.avg > 0 ? ((price - h.avg) / h.avg) * 100 : 0;
+    // 실시세(유니버스/즉석조회) 또는 사용자가 직접 넣은 현재가(manualPrice)가 있어야 '확보'.
+    // 없으면 price가 평단 폴백이라 손익이 0으로 잘못 찍힘 → priced=false로 표시해 UI가 '확인 중' 처리.
+    const priced = !!u || !!ex || h.manualPrice != null;
     return {
       ...h, cur, price, tab, value, cost, valueKrw: toKrw(value), costKrw: toKrw(cost),
-      pl: value - cost, plPct, group, matched: !!u || !!ex, risk: u?.s.risk,
+      pl: value - cost, plPct, group, matched: !!u || !!ex, priced, risk: u?.s.risk,
     };
   });
   const totalKrw = rows.reduce((s, r) => s + r.valueKrw, 0);
@@ -179,12 +184,15 @@ export function valuePortfolio(holdings: Holding[], stocks: Stocks, usdkrw: numb
   const groupWeights = [...gm.entries()]
     .map(([group, v]) => ({ group, weight: totalKrw > 0 ? (v / totalKrw) * 100 : 0 }))
     .sort((a, b) => b.weight - a.weight);
-  return { rows, totalKrw, costTotalKrw, totalPlKrw, totalPlPct, groupWeights };
+  return { rows, totalKrw, costTotalKrw, totalPlKrw, totalPlPct, groupWeights, allPriced: rows.every((r) => r.priced) };
 }
 
 // 유니버스에 없는 보유종목(미국 ETF 등)의 현재가를 네이버로 즉석 조회. 페이지 로드/보유 변경 시 갱신.
-export function useResolvedPrices(holdings: Holding[], stocks: Stocks): ResolvedPrices {
+// prices: 즉석조회 시세 맵. pending: 아직 조회가 끝나지 않아 시세가 확정되지 않은 상태(초기 폴백값 노출 방지용).
+//   pending은 "조회할 게 있는데 아직 그 key로 settle되지 않음"으로 파생 → 첫 프레임 깜빡임도, 실패 시 영구 로딩도 없음.
+export function useResolvedPrices(holdings: Holding[], stocks: Stocks): { prices: ResolvedPrices; pending: boolean } {
   const [map, setMap] = useState<ResolvedPrices>(new Map());
+  const [settledKey, setSettledKey] = useState<string>('');
   const uniIds = useMemo(
     () => new Set((Object.keys(stocks) as TabId[]).flatMap((tb) => stocks[tb].map((s) => s.id))),
     [stocks],
@@ -195,6 +203,7 @@ export function useResolvedPrices(holdings: Holding[], stocks: Stocks): Resolved
   useEffect(() => {
     if (!need.length) {
       setMap(new Map());
+      setSettledKey(key); // key='' → settle
       return;
     }
     let cancelled = false;
@@ -206,12 +215,15 @@ export function useResolvedPrices(holdings: Holding[], stocks: Stocks): Resolved
           .catch(() => null),
       ),
     ).then((entries) => {
-      if (!cancelled) setMap(new Map(entries.filter(Boolean) as [string, { price: number; cur: Currency; group?: string }][]));
+      if (!cancelled) {
+        setMap(new Map(entries.filter(Boolean) as [string, { price: number; cur: Currency; group?: string }][]));
+        setSettledKey(key);
+      }
     });
     return () => {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
-  return map;
+  return { prices: map, pending: need.length > 0 && settledKey !== key };
 }

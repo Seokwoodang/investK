@@ -92,11 +92,13 @@ export function Portfolio() {
 
   // 원화 환산용 USD/KRW + 유니버스에 없는 종목(미국 ETF 등)은 네이버 즉석 시세로 보강.
   const usdkrw = useMemo(() => usdKrwFromFx(data.macro.fx), [data.macro.fx]);
-  const extra = useResolvedPrices(holdings, data.stocks);
-  const { rows, totalKrw, totalPlKrw, totalPlPct, groupWeights } = useMemo(
+  const { prices: extra, pending: pxPending } = useResolvedPrices(holdings, data.stocks);
+  const { rows, totalKrw, totalPlKrw, totalPlPct, groupWeights, allPriced } = useMemo(
     () => valuePortfolio(holdings, data.stocks, usdkrw, extra),
     [holdings, data.stocks, usdkrw, extra],
   );
+  // 총계/행을 '확인 중'으로 가릴지: 조회 진행 중이고 아직 시세가 안 갖춰진 상태에서만(실패로 영구 대기 방지).
+  const priceLoading = pxPending && !allPriced;
 
   // ── 입력(검색→수량·평단) ──
   const [q, setQ] = useState('');
@@ -324,11 +326,14 @@ export function Portfolio() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16, marginBottom: 16 }}>
             <div style={{ ...CARD, padding: 20 }}>
               <div style={{ fontSize: 12, color: 'var(--c-tx5)', marginBottom: 6 }}>총 평가액 (원 환산)</div>
-              <div style={{ fontSize: 24, fontWeight: 800 }}>{krw(totalKrw)}</div>
+              <div style={{ fontSize: 24, fontWeight: 800 }}>{priceLoading ? <span style={{ fontSize: 15, color: 'var(--c-tx5)', fontWeight: 600 }}>시세 확인 중…</span> : krw(totalKrw)}</div>
             </div>
             <div style={{ ...CARD, padding: 20 }}>
               <div style={{ fontSize: 12, color: 'var(--c-tx5)', marginBottom: 6 }}>총 평가손익</div>
-              <div style={{ fontSize: 24, fontWeight: 800, color: upColor(totalPlPct) }}>{totalPlKrw >= 0 ? '+' : '-'}{krw(Math.abs(totalPlKrw)).slice(1)}원 ({fmtPct(totalPlPct)})</div>
+              {/* 시세 조회 중엔 총계가 평단 폴백으로 잘못 계산되므로 '계산 중' 표시(0이 잠깐 찍히던 문제) */}
+              <div style={{ fontSize: 24, fontWeight: 800, color: priceLoading ? 'var(--c-tx5)' : upColor(totalPlPct) }}>
+                {priceLoading ? <span style={{ fontSize: 15, fontWeight: 600 }}>계산 중…</span> : `${totalPlKrw >= 0 ? '+' : '-'}${krw(Math.abs(totalPlKrw)).slice(1)}원 (${fmtPct(totalPlPct)})`}
+              </div>
             </div>
             <div style={{ ...CARD, padding: 20 }}>
               <div style={{ fontSize: 12, color: 'var(--c-tx5)', marginBottom: 8 }}>자산군 비중</div>
@@ -352,18 +357,27 @@ export function Portfolio() {
                   <div style={{ fontSize: 11, color: 'var(--c-tx6)' }}>{r.group} · {r.qty}주 · 평단 {fmtPrice(r.avg, r.cur)}</div>
                 </div>
                 {/* 라벨 없이 숫자만 있으면 현재가·비중을 구분 못 함(특히 비중 %는 수익률로 오해) → 각 값에 라벨 */}
-                <div style={{ flex: '1 1 120px', textAlign: 'right' }}>
-                  <div style={{ fontSize: 13, color: 'var(--c-tx2)' }}><span style={{ fontSize: 10, color: 'var(--c-tx6)' }}>현재가 </span>{fmtPrice(r.price, r.cur)}</div>
-                  <div style={{ fontSize: 11, color: 'var(--c-tx6)' }}>비중 {totalKrw > 0 ? ((r.valueKrw / totalKrw) * 100).toFixed(0) : 0}%</div>
-                </div>
-                <div style={{ flex: '1 1 150px', textAlign: 'right' }}>
-                  <div style={{ fontSize: 14, fontWeight: 700 }}><span style={{ fontSize: 10, fontWeight: 400, color: 'var(--c-tx6)' }}>평가액 </span>{krw(r.valueKrw)}</div>
-                  {/* 평가손익 금액(원) + 수익률 — % 만으론 "얼마 벌고 있는지" 감이 안 와서 금액을 함께 */}
-                  <div style={{ fontSize: 12, fontWeight: 600, color: upColor(r.plPct) }}>
-                    <span style={{ fontSize: 10, fontWeight: 400, color: 'var(--c-tx6)' }}>손익 </span>
-                    {r.valueKrw - r.costKrw >= 0 ? '+' : '-'}{krw(Math.abs(r.valueKrw - r.costKrw)).slice(1)}원 · {fmtPct(r.plPct)}
+                {/* 시세 조회 중이면 평단 폴백 값을 감추고 '확인 중'(0 손익 깜빡임 방지). 조회 끝나면(실패 포함) 값 표시. */}
+                {r.priced || !pxPending ? (
+                  <>
+                    <div style={{ flex: '1 1 120px', textAlign: 'right' }}>
+                      <div style={{ fontSize: 13, color: 'var(--c-tx2)' }}><span style={{ fontSize: 10, color: 'var(--c-tx6)' }}>현재가 </span>{fmtPrice(r.price, r.cur)}</div>
+                      <div style={{ fontSize: 11, color: 'var(--c-tx6)' }}>비중 {totalKrw > 0 ? ((r.valueKrw / totalKrw) * 100).toFixed(0) : 0}%</div>
+                    </div>
+                    <div style={{ flex: '1 1 150px', textAlign: 'right' }}>
+                      <div style={{ fontSize: 14, fontWeight: 700 }}><span style={{ fontSize: 10, fontWeight: 400, color: 'var(--c-tx6)' }}>평가액 </span>{krw(r.valueKrw)}</div>
+                      {/* 평가손익 금액(원) + 수익률 — % 만으론 "얼마 벌고 있는지" 감이 안 와서 금액을 함께 */}
+                      <div style={{ fontSize: 12, fontWeight: 600, color: upColor(r.plPct) }}>
+                        <span style={{ fontSize: 10, fontWeight: 400, color: 'var(--c-tx6)' }}>손익 </span>
+                        {r.valueKrw - r.costKrw >= 0 ? '+' : '-'}{krw(Math.abs(r.valueKrw - r.costKrw)).slice(1)}원 · {fmtPct(r.plPct)}
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div style={{ flex: '2 1 270px', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8, color: 'var(--c-tx5)', fontSize: 13 }}>
+                    <InlineSpinner size={13} /> 시세 확인 중…
                   </div>
-                </div>
+                )}
                 <button onClick={() => remove(r.id)} title="삭제" style={{ cursor: 'pointer', background: 'transparent', border: 'none', color: 'var(--c-tx6)', fontSize: 18, lineHeight: 1, fontFamily: 'inherit', padding: 4 }}>×</button>
               </div>
             ))}

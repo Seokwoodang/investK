@@ -105,9 +105,10 @@ function MyAssetsStrip() {
   const { data } = useDashboard();
   const { holdings } = usePortfolio();
   const usdkrw = useMemo(() => usdKrwFromFx(data.macro.fx), [data.macro.fx]);
-  const extra = useResolvedPrices(holdings, data.stocks);
+  const { prices: extra, pending: pxPending } = useResolvedPrices(holdings, data.stocks);
   const val = useMemo(() => valuePortfolio(holdings, data.stocks, usdkrw, extra), [holdings, data.stocks, usdkrw, extra]);
-  if (!holdings.length || val.totalKrw <= 0) return null;
+  // 시세 조회 중엔 평단 폴백으로 총계가 틀리므로 스트립을 아직 안 띄운다(잘못된 손익 깜빡임 방지). 조회 끝나면 표시.
+  if (!holdings.length || (pxPending && !val.allPriced) || val.totalKrw <= 0) return null;
   const krw = (v: number) => '₩' + Math.round(v).toLocaleString('ko-KR');
   const top = [...val.rows].sort((a, b) => b.valueKrw - a.valueKrw)[0];
   return (

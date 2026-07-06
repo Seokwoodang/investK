@@ -42,7 +42,7 @@ export function Report() {
   const { holdings } = usePortfolio();
 
   const usdkrw = useMemo(() => usdKrwFromFx(data.macro.fx), [data.macro.fx]);
-  const extra = useResolvedPrices(holdings, data.stocks);
+  const { prices: extra } = useResolvedPrices(holdings, data.stocks);
   const val = useMemo(() => valuePortfolio(holdings, data.stocks, usdkrw, extra), [holdings, data.stocks, usdkrw, extra]);
   const { rows, totalKrw, totalPlPct, groupWeights } = val;
 
