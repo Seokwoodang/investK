@@ -355,9 +355,12 @@ export function Portfolio() {
                   <div style={{ fontSize: 13, color: 'var(--c-tx2)' }}>{fmtPrice(r.price, r.cur)}</div>
                   <div style={{ fontSize: 11, color: 'var(--c-tx6)' }}>{totalKrw > 0 ? ((r.valueKrw / totalKrw) * 100).toFixed(0) : 0}%</div>
                 </div>
-                <div style={{ flex: '1 1 110px', textAlign: 'right' }}>
+                <div style={{ flex: '1 1 140px', textAlign: 'right' }}>
                   <div style={{ fontSize: 14, fontWeight: 700 }}>{krw(r.valueKrw)}</div>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: upColor(r.plPct) }}>{fmtPct(r.plPct)}</div>
+                  {/* 평가손익 금액(원) + 수익률 — % 만으론 "얼마 벌고 있는지" 감이 안 와서 금액을 함께 */}
+                  <div style={{ fontSize: 12, fontWeight: 600, color: upColor(r.plPct) }}>
+                    {r.valueKrw - r.costKrw >= 0 ? '+' : '-'}{krw(Math.abs(r.valueKrw - r.costKrw)).slice(1)}원 · {fmtPct(r.plPct)}
+                  </div>
                 </div>
                 <button onClick={() => remove(r.id)} title="삭제" style={{ cursor: 'pointer', background: 'transparent', border: 'none', color: 'var(--c-tx6)', fontSize: 18, lineHeight: 1, fontFamily: 'inherit', padding: 4 }}>×</button>
               </div>
