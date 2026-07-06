@@ -152,12 +152,27 @@ export interface PortfolioValuation {
 export type ResolvedPrices = Map<string, { price: number; cur: Currency; group?: string }>;
 
 // 보유종목을 유니버스(또는 즉석 조회) 시세로 평가(원화 환산 총계·자산군 비중 포함). 자산 페이지·보고서 공용.
-export function valuePortfolio(holdings: Holding[], stocks: Stocks, usdkrw: number, extra?: ResolvedPrices): PortfolioValuation {
+// universeReady=false면 stocks가 아직 큐레이션(정적 목가격)이므로 유니버스 매칭을 '미확보'로 처리
+// (예: 큐레이션 이더리움 목 ₩5,240,000이 라이브 시세로 교정되기 전 잘못된 평가손익이 찍히던 문제).
+export function valuePortfolio(holdings: Holding[], stocks: Stocks, usdkrw: number, extra?: ResolvedPrices, universeReady = true): PortfolioValuation {
   const byId = new Map(
     (Object.keys(stocks) as TabId[]).flatMap((tb) => stocks[tb].map((s) => [s.id, { s, tab: tb }] as const)),
   );
+  // 티커 보조 인덱스: 저장된 id가 라이브 유니버스와 안 맞을 때(예: 큐레이션 슬러그 'eth_kr' ↔ 라이브 'KRW-ETH')
+  // 티커로도 라이브 시세를 찾게 한다. 통화가 같은 경우에만 매칭해 오매칭에 의한 환산 폭증을 막는다.
+  const byTicker = new Map<string, { s: Stock; tab: TabId }>();
+  (Object.keys(stocks) as TabId[]).forEach((tb) =>
+    stocks[tb].forEach((s) => {
+      const k = s.ticker.toUpperCase();
+      if (!byTicker.has(k)) byTicker.set(k, { s, tab: tb });
+    }),
+  );
   const rows: ValuedRow[] = holdings.map((h) => {
-    const u = byId.get(h.id);
+    let u = byId.get(h.id);
+    if (!u && h.ticker) {
+      const cand = byTicker.get(h.ticker.toUpperCase());
+      if (cand && cand.s.cur === h.cur) u = cand; // 통화 일치 시에만 티커 매칭
+    }
     const ex = !u ? extra?.get(h.id) : undefined; // 유니버스에 없으면 즉석 조회 시세 사용
     const price = u ? u.s.price : ex ? ex.price : h.manualPrice ?? h.avg;
     const cur = u ? u.s.cur : ex ? ex.cur : h.cur;
@@ -167,9 +182,9 @@ export function valuePortfolio(holdings: Holding[], stocks: Stocks, usdkrw: numb
     const cost = h.qty * h.avg;
     const toKrw = (v: number) => (cur === '$' ? v * usdkrw : v);
     const plPct = h.avg > 0 ? ((price - h.avg) / h.avg) * 100 : 0;
-    // 실시세(유니버스/즉석조회) 또는 사용자가 직접 넣은 현재가(manualPrice)가 있어야 '확보'.
-    // 없으면 price가 평단 폴백이라 손익이 0으로 잘못 찍힘 → priced=false로 표시해 UI가 '확인 중' 처리.
-    const priced = !!u || !!ex || h.manualPrice != null;
+    // 라이브 시세 확보 여부: 즉석조회(ex, 항상 라이브) · 사용자 입력가(manualPrice) · 유니버스 매칭(단, 라이브 유니버스 도착 후).
+    // 유니버스 매칭이라도 universeReady 전이면 큐레이션 목가격이라 신뢰 불가 → 미확보로 본다.
+    const priced = !!ex || h.manualPrice != null || (!!u && universeReady);
     return {
       ...h, cur, price, tab, value, cost, valueKrw: toKrw(value), costKrw: toKrw(cost),
       pl: value - cost, plPct, group, matched: !!u || !!ex, priced, risk: u?.s.risk,

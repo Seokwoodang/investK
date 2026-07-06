@@ -80,7 +80,7 @@ function clientSignals(plPct: number, price: number, weight: number, cfg: SellCo
 }
 
 export function Portfolio() {
-  const { data, actions } = useDashboard();
+  const { data, actions, universeReady } = useDashboard();
   const { holdings, upsert, remove, clear, setAll } = usePortfolio();
 
   // 유니버스(전 자산군) 평탄화 + id 인덱스 — 보유종목 현재가/통화/자산군 매칭용.
@@ -94,11 +94,12 @@ export function Portfolio() {
   const usdkrw = useMemo(() => usdKrwFromFx(data.macro.fx), [data.macro.fx]);
   const { prices: extra, pending: pxPending } = useResolvedPrices(holdings, data.stocks);
   const { rows, totalKrw, totalPlKrw, totalPlPct, groupWeights, allPriced } = useMemo(
-    () => valuePortfolio(holdings, data.stocks, usdkrw, extra),
-    [holdings, data.stocks, usdkrw, extra],
+    () => valuePortfolio(holdings, data.stocks, usdkrw, extra, universeReady),
+    [holdings, data.stocks, usdkrw, extra, universeReady],
   );
-  // 총계/행을 '확인 중'으로 가릴지: 조회 진행 중이고 아직 시세가 안 갖춰진 상태에서만(실패로 영구 대기 방지).
-  const priceLoading = pxPending && !allPriced;
+  // 총계/행을 '확인 중'으로 가릴지: 라이브 유니버스가 아직이거나 즉석조회가 진행 중이고 미확보가 남은 동안만
+  // (둘 다 끝났는데도 미확보면 조회 실패 케이스 → 영구 대기 대신 값 표시).
+  const priceLoading = !allPriced && (pxPending || !universeReady);
 
   // ── 입력(검색→수량·평단) ──
   const [q, setQ] = useState('');
@@ -357,8 +358,8 @@ export function Portfolio() {
                   <div style={{ fontSize: 11, color: 'var(--c-tx6)' }}>{r.group} · {r.qty}주 · 평단 {fmtPrice(r.avg, r.cur)}</div>
                 </div>
                 {/* 라벨 없이 숫자만 있으면 현재가·비중을 구분 못 함(특히 비중 %는 수익률로 오해) → 각 값에 라벨 */}
-                {/* 시세 조회 중이면 평단 폴백 값을 감추고 '확인 중'(0 손익 깜빡임 방지). 조회 끝나면(실패 포함) 값 표시. */}
-                {r.priced || !pxPending ? (
+                {/* 시세 확보 전이면 목/평단 폴백 값을 감추고 '확인 중'. 조회가 다 끝났는데도 미확보면(실패) 값 표시. */}
+                {r.priced || !(pxPending || !universeReady) ? (
                   <>
                     <div style={{ flex: '1 1 120px', textAlign: 'right' }}>
                       <div style={{ fontSize: 13, color: 'var(--c-tx2)' }}><span style={{ fontSize: 10, color: 'var(--c-tx6)' }}>현재가 </span>{fmtPrice(r.price, r.cur)}</div>

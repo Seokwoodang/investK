@@ -38,12 +38,12 @@ const fmtDT = (iso: string) => {
 };
 
 export function Report() {
-  const { data } = useDashboard();
+  const { data, universeReady } = useDashboard();
   const { holdings } = usePortfolio();
 
   const usdkrw = useMemo(() => usdKrwFromFx(data.macro.fx), [data.macro.fx]);
   const { prices: extra } = useResolvedPrices(holdings, data.stocks);
-  const val = useMemo(() => valuePortfolio(holdings, data.stocks, usdkrw, extra), [holdings, data.stocks, usdkrw, extra]);
+  const val = useMemo(() => valuePortfolio(holdings, data.stocks, usdkrw, extra, universeReady), [holdings, data.stocks, usdkrw, extra, universeReady]);
   const { rows, totalKrw, totalPlPct, groupWeights } = val;
 
   const liveLines: Line[] = useMemo(

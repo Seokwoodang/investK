@@ -102,13 +102,13 @@ function HeadlineBanner() {
 
 // ② 내 자산 스냅샷 — 보유 등록된 로그인 사용자에게만 표시.
 function MyAssetsStrip() {
-  const { data } = useDashboard();
+  const { data, universeReady } = useDashboard();
   const { holdings } = usePortfolio();
   const usdkrw = useMemo(() => usdKrwFromFx(data.macro.fx), [data.macro.fx]);
   const { prices: extra, pending: pxPending } = useResolvedPrices(holdings, data.stocks);
-  const val = useMemo(() => valuePortfolio(holdings, data.stocks, usdkrw, extra), [holdings, data.stocks, usdkrw, extra]);
-  // 시세 조회 중엔 평단 폴백으로 총계가 틀리므로 스트립을 아직 안 띄운다(잘못된 손익 깜빡임 방지). 조회 끝나면 표시.
-  if (!holdings.length || (pxPending && !val.allPriced) || val.totalKrw <= 0) return null;
+  const val = useMemo(() => valuePortfolio(holdings, data.stocks, usdkrw, extra, universeReady), [holdings, data.stocks, usdkrw, extra, universeReady]);
+  // 시세 확보 전(라이브 유니버스 도착 전/즉석조회 중)엔 평단·목 폴백으로 총계가 틀리므로 스트립을 안 띄운다. 확보 후 표시.
+  if (!holdings.length || (!val.allPriced && (pxPending || !universeReady)) || val.totalKrw <= 0) return null;
   const krw = (v: number) => '₩' + Math.round(v).toLocaleString('ko-KR');
   const top = [...val.rows].sort((a, b) => b.valueKrw - a.valueKrw)[0];
   return (

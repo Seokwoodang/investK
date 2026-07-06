@@ -134,6 +134,7 @@ interface Ctx {
   state: DashboardState;
   actions: DashboardActions;
   data: DashboardData;
+  universeReady: boolean; // /api/universe(라이브 전 종목)가 도착했는지. 그 전엔 data.stocks가 큐레이션(목가격)이라 평가 신뢰 불가.
 }
 
 const DashboardCtx = createContext<Ctx | null>(null);
@@ -153,13 +154,14 @@ export function DashboardProvider({ data, children }: { data: DashboardData; chi
   const [state, setState] = useState<DashboardState>(() => makeInitial(data));
   // 첫 페이로드엔 큐레이션 소수만 들어온다(HTML 경량화). 전체 유니버스는 마운트 후 한 번 받아 채운다.
   const [stocks, setStocks] = useState<Stocks>(data.stocks);
+  const [universeReady, setUniverseReady] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     fetch('/api/universe')
       .then((r) => (r.ok ? r.json() : null))
       .then((j: Stocks | null) => {
-        if (!cancelled && j && j.kr_stock) setStocks(j);
+        if (!cancelled && j && j.kr_stock) { setStocks(j); setUniverseReady(true); }
       })
       .catch(() => {
         /* 실패 시 큐레이션 목록 유지(검색은 /api/resolve 원격 폴백으로 동작) */
@@ -314,7 +316,7 @@ export function DashboardProvider({ data, children }: { data: DashboardData; chi
 
   // 컨텍스트로 노출하는 data는 클라가 채운 전체 유니버스(stocks)로 덮어쓴다. macro/news/briefing/assetSummary는 서버 값 유지.
   const mergedData = useMemo<DashboardData>(() => ({ ...data, stocks }), [data, stocks]);
-  const value = useMemo(() => ({ state, actions, data: mergedData }), [state, actions, mergedData]);
+  const value = useMemo(() => ({ state, actions, data: mergedData, universeReady }), [state, actions, mergedData, universeReady]);
   return <DashboardCtx.Provider value={value}>{children}</DashboardCtx.Provider>;
 }
 
