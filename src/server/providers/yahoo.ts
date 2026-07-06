@@ -9,11 +9,23 @@ export async function getYahooQuote(symbol: string): Promise<{ price: number; ch
       next: { revalidate: REVALIDATE.fxIndex },
     });
     if (!r.ok) return null;
-    const j = (await r.json()) as { chart?: { result?: Array<{ meta?: { regularMarketPrice?: number; previousClose?: number; chartPreviousClose?: number } }> } };
-    const m = j?.chart?.result?.[0]?.meta;
+    const j = (await r.json()) as {
+      chart?: {
+        result?: Array<{
+          meta?: { regularMarketPrice?: number; previousClose?: number; chartPreviousClose?: number };
+          indicators?: { quote?: Array<{ close?: (number | null)[] }> };
+        }>;
+      };
+    };
+    const res = j?.chart?.result?.[0];
+    const m = res?.meta;
     const price = m?.regularMarketPrice;
-    const prev = m?.previousClose ?? m?.chartPreviousClose;
-    if (price == null || prev == null) return null;
+    // '전일 대비'가 정확하려면 진짜 직전 거래일 종가가 필요.
+    // previousClose 결측 시 chartPreviousClose(5일 창의 시작 전 종가=5일 전)로 폴백하면
+    // 며칠치 누적 변동이 '전일'로 잘못 표시됨 → 일봉 종가 배열의 직전 값으로 대체.
+    const closes = (res?.indicators?.quote?.[0]?.close ?? []).filter((c): c is number => c != null);
+    const prev = m?.previousClose ?? (closes.length >= 2 ? closes[closes.length - 2] : undefined);
+    if (price == null || prev == null || prev === 0) return null;
     return { price, chg: +(((price - prev) / prev) * 100).toFixed(2) };
   } catch {
     return null;

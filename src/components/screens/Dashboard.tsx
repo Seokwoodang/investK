@@ -330,7 +330,12 @@ export function Dashboard() {
                   <div style={{ fontSize: 26, fontWeight: 800, letterSpacing: '-0.01em', color: toneColor(g!.tone), marginTop: 8 }}>{g!.value}</div>
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 6 }}>
                     {g!.sub && <span style={{ fontSize: 12, fontWeight: 700, color: toneColor(g!.tone) }}>{g!.sub}</span>}
-                    {g!.chg != null && <span style={{ fontSize: 12, fontWeight: 600, color: upColor(g!.chg) }}>{fmtPct(g!.chg)}</span>}
+                    {/* 변동률은 '지수 자체의 전일 대비'라 라벨 없이는 오해(수익률 등)하기 쉬움 → '전일' 명시 */}
+                    {g!.chg != null && (
+                      <span style={{ fontSize: 12, fontWeight: 600, color: upColor(g!.chg) }}>
+                        <span style={{ fontSize: 10, fontWeight: 500, color: 'var(--c-tx6)' }}>전일 </span>{fmtPct(g!.chg)}
+                      </span>
+                    )}
                   </div>
                   {g!.hint && (
                     <span
