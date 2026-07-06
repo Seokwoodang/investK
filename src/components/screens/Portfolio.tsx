@@ -351,14 +351,16 @@ export function Portfolio() {
                   <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--c-tx1)' }}>{r.name} {!r.matched && <span style={{ fontSize: 10, color: 'var(--c-warn)' }}>· 수동</span>}</div>
                   <div style={{ fontSize: 11, color: 'var(--c-tx6)' }}>{r.group} · {r.qty}주 · 평단 {fmtPrice(r.avg, r.cur)}</div>
                 </div>
-                <div style={{ flex: '1 1 100px', textAlign: 'right' }}>
-                  <div style={{ fontSize: 13, color: 'var(--c-tx2)' }}>{fmtPrice(r.price, r.cur)}</div>
-                  <div style={{ fontSize: 11, color: 'var(--c-tx6)' }}>{totalKrw > 0 ? ((r.valueKrw / totalKrw) * 100).toFixed(0) : 0}%</div>
+                {/* 라벨 없이 숫자만 있으면 현재가·비중을 구분 못 함(특히 비중 %는 수익률로 오해) → 각 값에 라벨 */}
+                <div style={{ flex: '1 1 120px', textAlign: 'right' }}>
+                  <div style={{ fontSize: 13, color: 'var(--c-tx2)' }}><span style={{ fontSize: 10, color: 'var(--c-tx6)' }}>현재가 </span>{fmtPrice(r.price, r.cur)}</div>
+                  <div style={{ fontSize: 11, color: 'var(--c-tx6)' }}>비중 {totalKrw > 0 ? ((r.valueKrw / totalKrw) * 100).toFixed(0) : 0}%</div>
                 </div>
-                <div style={{ flex: '1 1 140px', textAlign: 'right' }}>
-                  <div style={{ fontSize: 14, fontWeight: 700 }}>{krw(r.valueKrw)}</div>
+                <div style={{ flex: '1 1 150px', textAlign: 'right' }}>
+                  <div style={{ fontSize: 14, fontWeight: 700 }}><span style={{ fontSize: 10, fontWeight: 400, color: 'var(--c-tx6)' }}>평가액 </span>{krw(r.valueKrw)}</div>
                   {/* 평가손익 금액(원) + 수익률 — % 만으론 "얼마 벌고 있는지" 감이 안 와서 금액을 함께 */}
                   <div style={{ fontSize: 12, fontWeight: 600, color: upColor(r.plPct) }}>
+                    <span style={{ fontSize: 10, fontWeight: 400, color: 'var(--c-tx6)' }}>손익 </span>
                     {r.valueKrw - r.costKrw >= 0 ? '+' : '-'}{krw(Math.abs(r.valueKrw - r.costKrw)).slice(1)}원 · {fmtPct(r.plPct)}
                   </div>
                 </div>
