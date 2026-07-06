@@ -36,7 +36,9 @@ const SYSTEM =
   'JSON만 출력(코드펜스 금지). 형식: {"headline":"한 줄 요약","facts":[{"k":"지수|환율|코인","t":"문장"}],' +
   '"causes":[["원인","과정","결과"]],"byAsset":[{"label":"국내주식","line":"한 줄","dir":"up|down|flat"}],' +
   '"checkpoints":[{"when":"오늘 21:30","name":"이벤트명","tag":"고영향|중간"}]}. ' +
-  'facts 3개, causes 2~3개, byAsset는 정확히 4개(국내주식·해외주식·국내코인·해외코인 순), 투자 권유 금지.';
+  'facts 3개, causes 2~3개, byAsset는 정확히 4개(국내주식·해외주식·국내코인·해외코인 순), 투자 권유 금지. ' +
+  'headline 원칙: 제공된 수치 중 그 시점 가장 크게 움직였거나 중요한 것 하나를 중심으로 쓴다(지수·업종·코인·VIX·금리·일정 등 무엇이든). ' +
+  '환율은 변동률이 ±0.7% 이상으로 클 때만 헤드라인 소재로 쓰고, 그 외에는 headline에 넣지 않는다(매번 환율로 시작하는 획일화 금지).';
 
 function buildPrompt(date: string, slot: Slot) {
   return async () => {
@@ -51,13 +53,21 @@ function buildPrompt(date: string, slot: Slot) {
     }).join('\n');
     const fx = data.macro.fx.map((r) => `${r.pair} ${r.val}(${r.chg > 0 ? '+' : ''}${r.chg}%)`).join(', ');
     const indices = data.macro.indices.map((r) => `${r.name} ${r.val}(${r.chg > 0 ? '+' : ''}${r.chg}%)`).join(', ');
+    // 시장지표(VIX·크립토 심리·김프) — 헤드라인 소재를 환율·지수 외로도 다양화.
+    const mk = data.macro.market;
+    const gauges = mk
+      ? [mk.vix, mk.cryptoFng, mk.kimchi]
+          .filter(Boolean)
+          .map((g) => `${g!.label} ${g!.value}${g!.sub ? `(${g!.sub})` : ''}${g!.chg != null ? ` 전일 ${g!.chg > 0 ? '+' : ''}${g!.chg}%` : ''}`)
+          .join(', ')
+      : '';
     const events = data.macro.events
       .filter((e) => e.date >= date)
       .slice(0, 4)
       .map((e) => `${e.date} ${e.time} ${e.name} [${e.tag}]`)
       .join('\n');
     const when = SLOT_LABEL[slot];
-    return `시점: ${when}\n날짜: ${date}\n지수: ${indices}\n환율: ${fx}\n자산군 등락:\n${summaries}\n예정 일정:\n${events}\n\n위 실데이터로 이 시점 기준 팩트 브리핑을 JSON으로 작성해줘. 제공된 수치만 인용하고 없는 수치는 지어내지 마.`;
+    return `시점: ${when}\n날짜: ${date}\n지수: ${indices}\n환율: ${fx}\n${gauges ? `시장지표: ${gauges}\n` : ''}자산군 등락:\n${summaries}\n예정 일정:\n${events}\n\n위 실데이터로 이 시점 기준 팩트 브리핑을 JSON으로 작성해줘. 제공된 수치만 인용하고 없는 수치는 지어내지 마.`;
   };
 }
 
