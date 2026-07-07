@@ -19,17 +19,19 @@ export default async function DashLayout({ children }: { children: React.ReactNo
   // 다음 페이지 로드 때 죽은 쿠키를 지우고 로그인 화면으로 내보낸다.
   //  - 행이 없음(=삭제) 또는 status != approved → 차단
   //  - DB 쿼리 오류(일시적) → 실사용자 오차단 방지 위해 통과(fail-open)
+  let uid: string | null = null; // GA User-ID로 쓸 불투명 식별자(이름 아님)
   if (user) {
     const sb = getSupabase();
     if (sb) {
-      const { data: row, error } = await sb.from('app_users').select('status').eq('username', user).maybeSingle();
+      const { data: row, error } = await sb.from('app_users').select('status, uid').eq('username', user).maybeSingle();
       if (!error && (!row || (row.status as string) !== 'approved')) {
         redirect('/api/auth/logout');
       }
+      if (row?.uid) uid = row.uid as string;
     }
   }
 
   const authed = !!user;
   const isAdmin = !!user && user === env.ADMIN_USER; // 관리자만 헤더에 '회원관리' 노출
-  return <DashboardChrome data={data} authed={authed} isAdmin={isAdmin}>{children}</DashboardChrome>;
+  return <DashboardChrome data={data} authed={authed} isAdmin={isAdmin} uid={uid}>{children}</DashboardChrome>;
 }

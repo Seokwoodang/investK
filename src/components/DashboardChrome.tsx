@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, type ReactNode } from 'react';
 import type { DashboardData } from '@/types';
 import { useLayout, useViewport, type Layout } from '@/lib/useViewport';
 import { DashboardProvider } from '@/store/DashboardContext';
@@ -32,9 +32,22 @@ export const useAdmin = () => useContext(AdminCtx);
 
 // 공유 셸: 데이터/실시간 프로바이더 + 헤더/푸터/모달 + 반응형 레이아웃 컨텍스트.
 // 라우트 layout에서 1회 마운트되어 페이지 이동 간에도 유지(소켓·상태 보존).
-export function DashboardChrome({ data, children, authed = true, isAdmin = false }: { data: DashboardData; children: ReactNode; authed?: boolean; isAdmin?: boolean }) {
+export function DashboardChrome({ data, children, authed = true, isAdmin = false, uid = null }: { data: DashboardData; children: ReactNode; authed?: boolean; isAdmin?: boolean; uid?: string | null }) {
   const vw = useViewport();
   const layout = useLayout(vw);
+
+  // GA User-ID: 로그인 계정의 불투명 uid를 GA에 붙여 이후 이벤트를 계정 단위로 묶는다(uuid라 PII 아님).
+  // gtag('set', {user_id}) 형태로 dataLayer에 큐잉 — GA 스크립트 로드 순서와 무관하게 적용된다.
+  useEffect(() => {
+    if (!uid || typeof window === 'undefined') return;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const w = window as any;
+    w.dataLayer = w.dataLayer || [];
+    // 로드된 gtag가 있으면 그걸, 없으면 표준 큐 함수로(스크립트 로드 전이라도 dataLayer에 큐잉).
+    // eslint-disable-next-line prefer-rest-params
+    const g = w.gtag || function () { w.dataLayer.push(arguments); };
+    g('set', { user_id: uid });
+  }, [uid]);
 
   return (
     <DashboardProvider data={data}>
