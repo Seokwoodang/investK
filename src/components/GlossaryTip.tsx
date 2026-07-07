@@ -31,6 +31,30 @@ export function TermTip({
   );
 }
 
+// 임의 문구용 호버 툴팁(용어사전과 무관). 자식(앵커)을 감싸면 호버/포커스 시 설명 팝오버를 띄운다.
+// .gloss/.gloss-pop CSS(hover·focus reveal)를 재사용한다.
+export function Tip({
+  title, body, children, width = 240, up = false, align = 'left',
+}: { title?: string; body: string; children: ReactNode; width?: number; up?: boolean; align?: 'left' | 'right' }) {
+  return (
+    <span className={`gloss${up ? ' gloss-up' : ''}`} tabIndex={0} style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', outline: 'none' }}>
+      {children}
+      <span
+        className="gloss-pop"
+        style={{
+          position: 'absolute', ...(up ? { bottom: 'calc(100% + 6px)' } : { top: 'calc(100% + 6px)' }),
+          ...(align === 'right' ? { right: 0 } : { left: 0 }), width,
+          background: 'var(--c-panel)', border: '1px solid var(--c-w12)', borderRadius: 12,
+          padding: '12px 14px', boxShadow: '0 14px 36px var(--c-shadow)', zIndex: 70, textAlign: 'left', whiteSpace: 'normal',
+        }}
+      >
+        {title && <span style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--c-accyanbr)', marginBottom: 5 }}>{title}</span>}
+        <span style={{ display: 'block', fontSize: 12, lineHeight: 1.55, color: 'var(--c-tx3)', fontWeight: 400 }}>{body}</span>
+      </span>
+    </span>
+  );
+}
+
 // The ⓘ glossary badge + hover popover (250px). Shown wherever a known term appears.
 export function GlossaryTip({ hit, zIndex = 45 }: { hit: GlossHit; zIndex?: number }) {
   return (

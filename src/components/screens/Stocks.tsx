@@ -8,6 +8,7 @@ import { useRealtime, useSubscribeStocks, useSubscribeCoins, useSubscribeUs } fr
 import type { SortKey } from '../../types';
 import { TabBar } from '../TabBar';
 import { SourceNote, UpdateNote } from '../SourceNote';
+import { Tip } from '../GlossaryTip';
 import { useViewportLayout } from '../DashboardChrome';
 
 const SORTS: { key: SortKey; label: string }[] = [
@@ -238,13 +239,19 @@ export function Stocks() {
             onClick={() => actions.openStock(s.id, activeTab)}
             style={{ display: 'grid', gridTemplateColumns: layout.rowCols, alignItems: 'center', gap: 12, padding: '16px 18px', borderBottom: '1px solid var(--c-w05)', cursor: 'pointer' }}
           >
-            <button
-              onClick={(e) => { e.stopPropagation(); actions.toggleWatch(s.id); }}
-              title="관심 종목"
-              style={{ cursor: 'pointer', background: 'none', border: 'none', padding: 0, fontSize: 18, lineHeight: 1, color: s.starred ? 'var(--c-accyan)' : 'var(--c-txph)', fontFamily: 'inherit' }}
+            <Tip
+              title={s.starred ? '관심 종목 (등록됨)' : '관심 종목'}
+              body="☆를 누르면 관심 종목으로 등록됩니다. 등록하면 ① 위 ‘★ 관심종목’ 필터로 모아 볼 수 있고, ② 대시보드 ‘주요 일정’ 달력에서 이 종목의 실적 발표일이 테두리로 강조됩니다."
+              width={230}
             >
-              {s.starred ? '★' : '☆'}
-            </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); actions.toggleWatch(s.id); }}
+                aria-label={s.starred ? '관심 종목 해제' : '관심 종목 등록'}
+                style={{ cursor: 'pointer', background: 'none', border: 'none', padding: 0, fontSize: 18, lineHeight: 1, color: s.starred ? 'var(--c-accyan)' : 'var(--c-txph)', fontFamily: 'inherit' }}
+              >
+                {s.starred ? '★' : '☆'}
+              </button>
+            </Tip>
             <div style={{ minWidth: 0, display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
               <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--c-tx1b)', whiteSpace: 'nowrap' }}>{s.name}</span>
               <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--c-tx6)', whiteSpace: 'nowrap' }}>{s.ticker}</span>
