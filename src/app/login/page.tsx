@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { DashboardSkeleton } from '@/components/DashboardSkeleton';
+import { track } from '@/lib/ga';
 
 type Mode = 'login' | 'signup';
 
@@ -30,6 +31,7 @@ export default function LoginPage() {
       body: JSON.stringify({ id, pw }),
     });
     if (r.ok) {
+      track('login_success');
       const next = new URLSearchParams(window.location.search).get('next');
       router.replace(next && next.startsWith('/') ? next : '/');
       return true; // busy 유지 — 대시보드 커밋될 때까지 스켈레톤
@@ -41,12 +43,14 @@ export default function LoginPage() {
   };
 
   const submitSignup = async () => {
+    track('signup_submit');
     const r = await fetch('/api/auth/signup', {
       method: 'POST', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ id, pw, note }),
     });
     const j = await r.json().catch(() => ({}));
     if (r.ok) {
+      track('signup_success');
       setMode('login');
       setPw('');
       setNote('');

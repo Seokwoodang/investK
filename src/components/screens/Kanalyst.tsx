@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { fmtPct, upColor } from '../../lib/format';
 import { useAdmin } from '../DashboardChrome';
+import { track } from '../../lib/ga';
 import { TermTip } from '../GlossaryTip';
 import { InlineSpinner } from '../Footer';
 import { SourceNote, UpdateNote } from '../SourceNote';
@@ -261,6 +262,7 @@ export function Kanalyst({ code, market, name, ticker, cur, price }: Props) {
   }, [code, market, name, ticker]);
 
   const regenerate = () => {
+    track('ai_kanalyst_regen', { market, ticker });
     setGenLoading(true); setNarrative(null);
     fetch(API, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ code, market, name, ticker, price, force: true }) })
       .then((r) => (r.ok ? r.json() : null))

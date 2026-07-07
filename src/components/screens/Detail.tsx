@@ -6,6 +6,7 @@ import { fmtPrice, fmtPct, fmtTradeValue, formatVol, riskMeta, scoreColor, upCol
 import { SRC, SRC_CANDLE } from '../../lib/sources';
 import { useViewportLayout } from '../DashboardChrome';
 import { useDashboard } from '../../store/DashboardContext';
+import { track } from '../../lib/ga';
 import { useRealtime, useSubscribeStocks, useSubscribeCoins, useSubscribeUs } from '../../store/RealtimeContext';
 import type { AlertKey, Candle, DetailTab, Period, Stock, Stocks, TabId } from '../../types';
 import { CandleChart } from '../CandleChart';
@@ -141,6 +142,14 @@ export function Detail({ id }: { id: string }) {
 
   const sel = fromUniverse ?? resolved;
   const selId = sel?.id;
+
+  // GA: 종목 열람·상세 탭 전환 추적(URL이 안 바뀌는 앱 내부 행동이라 페이지뷰로는 안 잡힘)
+  useEffect(() => {
+    if (sel) track('view_stock', { ticker: sel.ticker, name: sel.name });
+  }, [selId]);
+  useEffect(() => {
+    if (sel) track('stock_tab', { tab: state.detailTab, ticker: sel.ticker });
+  }, [selId, state.detailTab]);
 
   // ── 차트 데이터(독립) — 봉 단위별 기본 구간만 불러온다. 기간 수익률 컨트롤과 무관. ──
   // 코인은 브라우저에서 거래소 직접 호출, 주식은 서버(/api/candles=KIS).

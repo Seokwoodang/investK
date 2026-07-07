@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { fmtPct, upColor } from '../../lib/format';
 import { usePortfolio, usdKrwFromFx, useResolvedPrices, valuePortfolio } from '../../lib/portfolio';
 import { useDashboard } from '../../store/DashboardContext';
+import { track } from '../../lib/ga';
 import { SourceNote, UpdateNote } from '../SourceNote';
 import { InlineSpinner } from '../Footer';
 
@@ -80,6 +81,7 @@ export function Report() {
   const [genErr, setGenErr] = useState(false); // 실패 무통보 방지
   const generate = () => {
     if (!rows.length) return;
+    track('ai_report_generate', { holdings: rows.length });
     setLoading(true);
     setReport(null);
     setGenErr(false);

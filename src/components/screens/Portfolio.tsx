@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { fmtPct, fmtPrice, upColor } from '../../lib/format';
 import { parseHoldingsText, resolveStock, usdKrwFromFx, usePortfolio, useResolvedPrices, valuePortfolio } from '../../lib/portfolio';
 import { useDashboard } from '../../store/DashboardContext';
+import { track } from '../../lib/ga';
 import { TAB_MAP, type Currency, type TabId } from '../../types';
 import { SourceNote, UpdateNote } from '../SourceNote';
 import { GlossaryTip, TermTip } from '../GlossaryTip';
@@ -171,6 +172,7 @@ export function Portfolio() {
   const [evalErr, setEvalErr] = useState(false); // 실패를 무통보로 넘기지 않기 위한 표시
   const runEval = () => {
     if (!rows.length) return;
+    track('ai_portfolio_eval', { holdings: rows.length });
     setLoading(true);
     setEvalData(null);
     setEvalErr(false);
@@ -241,6 +243,7 @@ export function Portfolio() {
   const [aiSellErr, setAiSellErr] = useState(false);
   const runSellAi = () => {
     if (!sellRows.length) return;
+    track('ai_sell_summary', { holdings: sellRows.length });
     setAiSellLoading(true); setAiSell(null); setAiSellErr(false);
     const items = sellRows.map(({ r, f, signals, verdict }) => ({
       name: r.name, verdict, plPct: r.plPct, signals: signals.map((s) => s.text),
