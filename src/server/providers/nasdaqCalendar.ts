@@ -1,7 +1,7 @@
 import 'server-only';
 import type { MacroEvent } from '../../types';
 
-// 경제 캘린더 = Nasdaq 경제지표 API(키 불필요). 미국·유로존·일본 등 글로벌 지표(한국 일정은 미제공).
+// 경제 캘린더 = Nasdaq 경제지표 API(키 불필요). 미국·유로존·일본 + 한국(금통위·CPI·GDP 등) 글로벌 지표.
 // 고영향 지표만 화이트리스트로 추려 한글로 매핑. 실패 시 호출부가 mock(MACRO.events)로 폴백.
 // api.nasdaq.com/api/calendar/economicevents?date=YYYY-MM-DD → data.rows[{gmt,country,eventName,previous,consensus}]
 
@@ -45,10 +45,41 @@ function toNum(s?: string): number | null {
 const COUNTRY: Record<string, string> = {
   'United States': '美', 'Euro Zone': '유로존', Germany: '독일', Japan: '日',
   'United Kingdom': '英', Canada: '캐나다', China: '中', France: '프랑스',
+  'South Korea': '韓',
 };
 
 const UA = { 'User-Agent': 'Mozilla/5.0', Accept: 'application/json' };
 const pad = (n: number) => String(n).padStart(2, '0');
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+// Nasdaq은 버스트(월 뷰=수십 건 동시)에 빈 응답/차단으로 응수 → 동시성 제한 + 1회 재시도.
+// 과거엔 무제한 동시 호출이라 일부 날짜가 조용히 빠졌음(韓 금통위 누락 등으로 발견).
+async function mapPool(dates: string[], n: number, fn: (d: string) => Promise<MacroEvent[]>): Promise<MacroEvent[]> {
+  const out: MacroEvent[][] = new Array(dates.length);
+  let i = 0;
+  const worker = async () => {
+    while (i < dates.length) {
+      const idx = i++;
+      out[idx] = await fn(dates[idx]);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(n, dates.length) }, worker));
+  return out.flat();
+}
+
+// JSON fetch + 실패(차단·빈 응답 포함) 시 1회 재시도.
+async function fetchRows<T>(url: string): Promise<T | null> {
+  for (let att = 0; att < 2; att++) {
+    try {
+      const r = await fetch(url, { headers: UA });
+      if (!r.ok) throw new Error(String(r.status));
+      return (await r.json()) as T; // 빈 바디면 여기서 throw → 재시도
+    } catch {
+      if (att === 0) await sleep(500 + Math.random() * 700);
+    }
+  }
+  return null;
+}
 const ymd = (d: Date) => `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
 
 // GMT "HH:MM" + 날짜 → KST {date, time}. +9h로 자정을 넘으면 날짜도 +1일 롤오버.
@@ -62,6 +93,17 @@ function toKstDateTime(gmtDate: string, gmtTime: string): { date: string; time: 
   const [y, mo, d] = gmtDate.split('-').map(Number);
   const next = new Date(Date.UTC(y, mo - 1, d + 1));
   return { date: ymd(next), time: `${pad(h - 24)}:${m[2]}` };
+}
+
+// 한국(South Korea) 행 전용: Nasdaq의 한국 이벤트는 GMT+9 규칙이 안 맞는다(하루 밀림).
+// 실측 5종(CPI·고용 08:00, PMI 09:30, 금통위 ~10:00, M2 12:00, 외환보유액 06:00 KST) 전부
+// "page date = KST 날짜 그대로, KST 시각 = gmt필드 + 13h" 로 일관 → 그 규칙으로 변환한다.
+// (겨울철 ±1h 오차 가능성은 있으나 발표가 모두 오전대라 날짜는 안전. 날짜 정확성이 우선.)
+function toKstKorea(pageDate: string, gmtTime: string): { date: string; time: string } {
+  const m = gmtTime?.match(/^(\d{1,2}):(\d{2})/);
+  if (!m) return { date: pageDate, time: gmtTime || '' };
+  const h = (parseInt(m[1], 10) + 13) % 24;
+  return { date: pageDate, time: `${pad(h)}:${m[2]}` };
 }
 
 // ── 실적 발표 캘린더(미국) — 같은 Nasdaq API의 earnings 엔드포인트. ──
@@ -80,9 +122,8 @@ const EARN_MAX_PER_DAY = 4;
 
 async function fetchEarningsDay(date: string): Promise<MacroEvent[]> {
   try {
-    const r = await fetch(`https://api.nasdaq.com/api/calendar/earnings?date=${date}`, { headers: UA });
-    if (!r.ok) return [];
-    const j = (await r.json()) as { data?: { rows?: EarnRow[] } };
+    const j = await fetchRows<{ data?: { rows?: EarnRow[] } }>(`https://api.nasdaq.com/api/calendar/earnings?date=${date}`);
+    if (!j) return [];
     const rows = (j?.data?.rows ?? [])
       .map((row) => ({ ...row, cap: Number((row.marketCap ?? '').replace(/[^0-9]/g, '')) || 0 }))
       .filter((row) => row.symbol && row.cap >= EARN_MIN_CAP)
@@ -103,6 +144,7 @@ async function fetchEarningsDay(date: string): Promise<MacroEvent[]> {
         time,
         name: `${row.symbol} 실적 발표`,
         symbol: row.symbol, // 보유·관심 종목 매칭용
+        region: 'overseas' as const, // 실적 캘린더는 미국 대형주만
         tag: '실적' as const,
         rel: { title: row.name ?? row.symbol!, src: 'Nasdaq' },
         desc: `${row.name}(${row.symbol})의 분기 실적 발표입니다(${row.fiscalQuarterEnding ?? '-'} 분기 마감 · 시총 ${capB}).${lastYear ? ` 전년 동기 EPS ${lastYear}.` : ''}`,
@@ -121,9 +163,8 @@ const CACHE_MS = 3600 * 1000; // 1시간
 // 날짜 하루치 Nasdaq 경제지표를 가져와 화이트리스트 매핑된 MacroEvent 배열로 변환.
 async function fetchDay(date: string): Promise<MacroEvent[]> {
   try {
-    const r = await fetch(`https://api.nasdaq.com/api/calendar/economicevents?date=${date}`, { headers: UA });
-    if (!r.ok) return [];
-    const j = (await r.json()) as { data?: { rows?: Row[] } };
+    const j = await fetchRows<{ data?: { rows?: Row[] } }>(`https://api.nasdaq.com/api/calendar/economicevents?date=${date}`);
+    if (!j) return [];
     const rows = j?.data?.rows ?? [];
     const out: MacroEvent[] = [];
     const seen = new Set<string>();
@@ -155,11 +196,13 @@ async function fetchDay(date: string): Promise<MacroEvent[]> {
         else if (hit.good) resultImpact = (surprise === 'below') === (hit.good === 'low') ? '호재' : '악재';
       }
 
-      const kst = toKstDateTime(date, row.gmt);
+      const isKr = row.country === 'South Korea';
+      const kst = isKr ? toKstKorea(date, row.gmt) : toKstDateTime(date, row.gmt);
       out.push({
         date: kst.date,
         time: kst.time || '미정',
         name,
+        region: isKr ? 'kr' : 'overseas',
         tag: hit.high ? '고영향' : '중간',
         rel: { title: row.eventName, src: 'Nasdaq' },
         desc: hit.what,
@@ -180,8 +223,9 @@ async function fetchDay(date: string): Promise<MacroEvent[]> {
 async function fetchDates(key: string, dates: string[]): Promise<MacroEvent[]> {
   const hit = cache.get(key);
   if (hit && Date.now() - hit.at < CACHE_MS) return hit.data;
-  // 경제지표 + 대형주 실적 발표를 함께 수집.
-  const all = (await Promise.all([...dates.map(fetchDay), ...dates.map(fetchEarningsDay)])).flat();
+  // 경제지표 + 대형주 실적 발표를 함께 수집. (동시성 제한 — 무제한이면 Nasdaq이 드롭/차단)
+  const [eco, earn] = await Promise.all([mapPool(dates, 5, fetchDay), mapPool(dates, 3, fetchEarningsDay)]);
+  const all = [...eco, ...earn];
   all.sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
   if (all.length) cache.set(key, { at: Date.now(), data: all });
   return all;

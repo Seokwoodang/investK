@@ -41,6 +41,7 @@ export interface MacroEvent {
   resultImpact?: '호재' | '악재' | '중립'; // 지표 방향까지 반영한 결과 판정(판단 가능할 때만)
   symbol?: string; // 실적 이벤트의 종목 심볼(보유·관심 매칭용)
   mine?: boolean; // 클라 주입: 내 보유·관심 종목의 실적인지(테두리 강조용)
+  region?: 'kr' | 'overseas'; // 국내/해외 필터용(미지정 = 해외로 간주)
 }
 
 // 시장 심리·지표 게이지(VIX·美10년물·크립토 공포탐욕·김치프리미엄).

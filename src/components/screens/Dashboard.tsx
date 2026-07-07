@@ -341,6 +341,11 @@ export function Dashboard() {
   const [evFilter, setEvFilter] = useState<Impact[]>(['고영향', '중간', '실적']);
   const toggleEvFilter = (t: Impact) =>
     setEvFilter((prev) => (prev.includes(t) ? (prev.length > 1 ? prev.filter((x) => x !== t) : prev) : [...prev, t]));
+  // 국내/해외 필터(복수 선택, 최소 1개 유지). region 미지정 이벤트(mock 등)는 해외로 간주.
+  type Region = 'kr' | 'overseas';
+  const [regFilter, setRegFilter] = useState<Region[]>(['kr', 'overseas']);
+  const toggleRegFilter = (r: Region) =>
+    setRegFilter((prev) => (prev.includes(r) ? (prev.length > 1 ? prev.filter((x) => x !== r) : prev) : [...prev, r]));
 
   // 내 보유(로그인 시) + 관심(☆) 종목의 실적 이벤트는 mine=true로 주입해 테두리 강조.
   // US 종목은 유니버스 id=심볼이라 watchlist id를 그대로 심볼로 비교할 수 있다.
@@ -357,8 +362,15 @@ export function Dashboard() {
     [mySymbols],
   );
 
-  const listEvents = useMemo(() => annotate(macro.events.filter((e) => evFilter.includes(e.tag))), [macro.events, evFilter, annotate]);
-  const calEventsF = useMemo(() => annotate(state.calEvents.filter((e) => evFilter.includes(e.tag))), [state.calEvents, evFilter, annotate]);
+  const passReg = (e: { region?: Region }) => regFilter.includes(e.region ?? 'overseas');
+  const listEvents = useMemo(
+    () => annotate(macro.events.filter((e) => evFilter.includes(e.tag) && passReg(e))),
+    [macro.events, evFilter, regFilter, annotate], // eslint-disable-line react-hooks/exhaustive-deps
+  );
+  const calEventsF = useMemo(
+    () => annotate(state.calEvents.filter((e) => evFilter.includes(e.tag) && passReg(e))),
+    [state.calEvents, evFilter, regFilter, annotate], // eslint-disable-line react-hooks/exhaustive-deps
+  );
   const weeks = buildCalendar(calEventsF, vw, state.calYear, state.calMonth, state.today);
   const monthLabel = `${state.calYear}년 ${state.calMonth + 1}월`;
 
@@ -510,6 +522,31 @@ export function Dashboard() {
                     }}
                   >
                     <span style={{ width: 7, height: 7, borderRadius: '50%', background: color, opacity: on ? 1 : 0.4 }} />
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+            {/* 국내/해외 필터(복수 선택) */}
+            <div style={{ display: 'flex', gap: 6 }}>
+              {([
+                { r: 'kr' as const, label: '국내' },
+                { r: 'overseas' as const, label: '해외' },
+              ]).map(({ r, label }) => {
+                const on = regFilter.includes(r);
+                return (
+                  <button
+                    key={r}
+                    onClick={() => toggleRegFilter(r)}
+                    style={{
+                      display: 'inline-flex', alignItems: 'center', cursor: 'pointer', fontFamily: 'inherit',
+                      fontSize: 11, fontWeight: 700, padding: '5px 11px', borderRadius: 999, transition: 'all 140ms',
+                      border: `1px solid ${on ? 'var(--c-cy40)' : 'var(--c-w07)'}`,
+                      background: on ? 'var(--c-cy16)' : 'transparent',
+                      color: on ? 'var(--c-accyanbr)' : 'var(--c-tx6)',
+                      opacity: on ? 1 : 0.55,
+                    }}
+                  >
                     {label}
                   </button>
                 );
