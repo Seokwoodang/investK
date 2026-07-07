@@ -7,6 +7,7 @@ import { useViewportLayout } from '../DashboardChrome';
 import { TabBar } from '../TabBar';
 import { SourceNote, UpdateNote } from '../SourceNote';
 import { InlineSpinner } from '../Footer';
+import { AdSlot } from '../AdSlot';
 
 interface NewsItem {
   title: string;
@@ -155,6 +156,9 @@ export function News() {
           </button>
         </div>
       )}
+
+      {/* 광고 슬롯(애드핏) — 유닛 ID env 설정 전에는 렌더되지 않음 */}
+      <AdSlot />
 
       <SourceNote text={aiRanked ? `${SRC_NEWS[activeTab]} · AI 판별 Claude(Haiku)` : SRC_NEWS[activeTab]} style={{ marginTop: 20 }} />
     </div>

@@ -26,6 +26,11 @@ export const env = {
   // DART(금감원 전자공시) OpenAPI — 국내 종목 수주·실적 등 공시. Vercel env에도 넣어야 실서비스 동작.
   DART_API_KEY: process.env.DART_API_KEY ?? '',
 
+  // 웹푸시(VAPID). 공개키는 클라이언트 구독용(NEXT_PUBLIC), 개인키는 서버 발송용.
+  VAPID_PUBLIC_KEY: process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? '',
+  VAPID_PRIVATE_KEY: process.env.VAPID_PRIVATE_KEY ?? '',
+  VAPID_SUBJECT: process.env.VAPID_SUBJECT || 'mailto:admin@investkang.app',
+
   // Anthropic (daily AI generation)
   ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY ?? '',
   // 분석 5종(브리핑·관점·차트분석·포폴·보고서) 기본 모델. 최고 품질 Opus 4.8.
@@ -41,6 +46,7 @@ export const has = {
   supabase: () => Boolean(env.SUPABASE_URL && env.SUPABASE_SERVICE_KEY),
   anthropic: () => Boolean(env.ANTHROPIC_API_KEY),
   dart: () => Boolean(env.DART_API_KEY),
+  push: () => Boolean(env.VAPID_PUBLIC_KEY && env.VAPID_PRIVATE_KEY),
 };
 
 // Per-domain revalidate windows (seconds). Tune freely per data type.

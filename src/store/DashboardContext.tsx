@@ -192,6 +192,25 @@ export function DashboardProvider({ data, children }: { data: DashboardData; chi
       today: { y: n.getFullYear(), m: n.getMonth(), d: n.getDate() },
       briefDate: s.briefDate || todayStr,
     }));
+
+    // 서버에 저장된 알림 설정(다른 기기에서 켠 것)과 합집합 병합 — 로그인 상태에서만 성공(익명은 401 무시).
+    // 크론은 서버 사본으로 판정하므로, 병합 결과를 다시 서버에 올려 두 사본을 일치시킨다.
+    fetch('/api/alerts')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        const server = (j?.alerts ?? null) as Record<string, string[]> | null;
+        if (!server || !Object.keys(server).length) return;
+        setState((s) => {
+          const merged: Record<string, string[]> = { ...server };
+          for (const [id, keys] of Object.entries(s.alerts)) {
+            merged[id] = [...new Set([...(merged[id] ?? []), ...keys])];
+          }
+          try { localStorage.setItem(ALERTS_KEY, JSON.stringify(merged)); } catch { /* ignore */ }
+          fetch('/api/alerts', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ alerts: merged }) }).catch(() => {});
+          return { ...s, alerts: merged };
+        });
+      })
+      .catch(() => {});
   }, []);
 
   // 큰글씨(어르신) 버전: <html>에 클래스 토글 → CSS zoom으로 전체 UI 확대.
@@ -273,6 +292,8 @@ export function DashboardProvider({ data, children }: { data: DashboardData; chi
         } catch {
           /* ignore */
         }
+        // 서버 사본 동기화(크론 판정용). 알림 토글은 로그인 전용 화면(종목 상세)에서만 가능.
+        fetch('/api/alerts', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ alerts }) }).catch(() => {});
         return { ...s, alerts };
       }),
     toggleWatchOnly: () => setState((s) => ({ ...s, watchOnly: !s.watchOnly })),

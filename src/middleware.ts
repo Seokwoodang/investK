@@ -15,6 +15,8 @@ const PROTECTED: RegExp[] = [
   /^\/api\/ai\//,
   /^\/api\/portfolio(\/|$)/,
   /^\/api\/report-history(\/|$)/,
+  /^\/api\/push\//, // 웹푸시 구독 저장/해지(개인 데이터)
+  /^\/api\/alerts(\/|$)/, // 알림 설정 동기화(개인 데이터)
   /^\/api\/candles(\/|$)/,
   /^\/api\/sell-check(\/|$)/,
 ];

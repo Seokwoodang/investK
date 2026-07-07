@@ -1,0 +1,19 @@
+name: Check alerts (20m)
+
+# 20분마다 /api/cron/alerts를 호출해 알림을 판정·발송한다.
+#  - 내 보유 국내 종목 새 공시(DART), 알림 설정 종목의 급등락·목표가·위험도
+#  - 구독자(push_subs) 없으면 즉시 종료라 비용 거의 없음. 중복 발송은 push_sent가 차단.
+on:
+  schedule:
+    - cron: '*/20 * * * *' # 20분 간격(코인은 24시간 시장이라 상시)
+  workflow_dispatch: {} # 수동 실행 버튼
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call alerts check endpoint
+        run: |
+          curl -fsS --max-time 110 --retry 2 --retry-delay 20 -X GET \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "https://invest-seokwoodangs-projects.vercel.app/api/cron/alerts"

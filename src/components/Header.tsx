@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { fmtPrice, fmtPct, upColor } from '../lib/format';
+import { usePush } from '../lib/push';
 import { useDashboard } from '../store/DashboardContext';
 import { TAB_MAP, type TabId } from '../types';
 import { useViewportLayout } from './DashboardChrome';
@@ -68,6 +69,7 @@ export function Header({ authed = true, isAdmin = false }: { authed?: boolean; i
   const { vw, layout } = useViewportLayout();
   const { state, actions, data } = useDashboard();
   const pathname = usePathname();
+  const push = usePush(); // 브라우저 알림(웹푸시) — 설정 드롭다운 토글
 
   // 관리자(swoo1427)에게만 '회원관리' 메뉴 노출.
   const navItems = isAdmin ? [...NAV, { href: '/admin', label: '회원관리' }] : NAV;
@@ -164,6 +166,29 @@ export function Header({ authed = true, isAdmin = false }: { authed?: boolean; i
         <span style={{ fontSize: 16, fontWeight: 800 }}>가</span>
         <span style={{ fontSize: 13, fontWeight: 700 }}>큰글씨 {state.largeFont ? '켜짐' : '꺼짐'}</span>
       </button>
+      {/* 브라우저 알림(웹푸시) — 로그인 사용자만. 켜면 공시·급등락·목표가 알림이 기기로 도착. */}
+      {authed && push.state !== 'unsupported' && (
+        <button
+          onClick={async () => {
+            if (push.state === 'on') await push.disable();
+            else if (push.state === 'off') await push.enable();
+          }}
+          disabled={push.state === 'denied' || push.state === 'loading'}
+          title={push.state === 'denied' ? '브라우저 설정에서 알림 차단을 해제해야 합니다' : '내 종목 공시·급등락·목표가 알림을 이 기기로 받습니다'}
+          style={{
+            ...utilBtnBase, width: '100%', justifyContent: 'flex-start', padding: '11px 12px',
+            border: `1px solid ${push.state === 'on' ? 'var(--c-cy45)' : 'var(--c-w10)'}`,
+            background: push.state === 'on' ? 'var(--c-cy16)' : 'var(--c-w05)',
+            color: push.state === 'on' ? 'var(--c-accyanbr)' : 'var(--c-tx4)',
+            opacity: push.state === 'denied' ? 0.5 : 1,
+          }}
+        >
+          <span style={{ fontSize: 14 }}>🔔</span>
+          <span style={{ fontSize: 13, fontWeight: 700 }}>
+            알림 {push.state === 'on' ? '켜짐' : push.state === 'denied' ? '차단됨' : '꺼짐'}
+          </span>
+        </button>
+      )}
       {authed ? (
         <button
           onClick={async () => {

@@ -9,6 +9,7 @@ import { useViewportLayout } from '../DashboardChrome';
 import type { BriefingDay, Direction } from '../../types';
 import { GlossaryTip, ImpactTag } from '../GlossaryTip';
 import { SourceNote, UpdateNote } from '../SourceNote';
+import { AdSlot } from '../AdSlot';
 
 const CARD: React.CSSProperties = {
   background: 'var(--c-w04)', border: '1px solid var(--c-w08)',
@@ -187,6 +188,9 @@ export function Daily() {
         text="AI 생성 — Claude (Anthropic) · 실시장 데이터로 하루 3회(오전 6시·오후 5시·오후 10시 KST) 자동 생성해 서버에 저장"
         style={{ marginTop: 24 }}
       />
+
+      {/* 광고 슬롯(애드핏) — 유닛 ID env 설정 전에는 렌더되지 않음 */}
+      <AdSlot />
       </>
       )}
     </div>

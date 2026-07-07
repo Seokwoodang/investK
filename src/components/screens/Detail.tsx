@@ -541,7 +541,9 @@ export function Detail({ id }: { id: string }) {
             <path d="M10 20a2 2 0 0 0 4 0" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
           </svg>
           알림 설정
-          <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 5, background: 'var(--c-am16)', color: 'var(--c-warn)' }}>준비 중</span>
+          <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--c-tx6)', whiteSpace: 'normal' }}>
+            — 켜두면 조건 충족 시 브라우저 알림으로 도착합니다 (헤더 ⚙ 설정에서 ‘알림’을 켜주세요)
+          </span>
         </span>
         {ALERTS.map((a) => {
           const active = aCur.includes(a.k);
