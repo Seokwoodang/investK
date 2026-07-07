@@ -103,6 +103,12 @@ function presetStart(end: Date, kind: RangePreset): Date {
   return s;
 }
 
+interface DiscItem { date: string; title: string; kind: '수주' | '실적' | '공시'; url: string }
+const DISC_CHIP = (k: DiscItem['kind']) =>
+  k === '수주' ? { bg: 'var(--c-cy16)', c: 'var(--c-accyanbr)' }
+  : k === '실적' ? { bg: 'var(--c-am16)', c: 'var(--c-warnchip)' }
+  : { bg: 'var(--c-w06)', c: 'var(--c-tx4)' };
+
 export function Detail({ id }: { id: string }) {
   const { layout } = useViewportLayout();
   const { state, actions, data } = useDashboard();
@@ -339,6 +345,22 @@ export function Detail({ id }: { id: string }) {
       cancelled = true;
     };
   }, [selId, selTickerForNews, selNameForNews, state.activeTab, state.detailTab]);
+
+  // '뉴스·정세' 탭: 국내 종목(6자리 코드)의 DART 주요 공시(수주·실적 등, 최근 6개월). 미국·코인은 스킵.
+  const [disc, setDisc] = useState<DiscItem[] | null>(null);
+  useEffect(() => {
+    if (state.detailTab !== 'news' || !selId || !/^\d{6}$/.test(selId)) { setDisc(null); return; }
+    let cancelled = false;
+    setDisc(null);
+    fetch('/api/disclosures', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ codes: [selId], days: 180 }),
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => { if (!cancelled) setDisc((j?.disclosures as DiscItem[]) ?? []); })
+      .catch(() => { if (!cancelled) setDisc([]); });
+    return () => { cancelled = true; };
+  }, [selId, state.detailTab]);
 
   // 'AI 차트 분석'을 서버(/api/ai/analysis)에서 가져온다 — 캐시 히트면 즉시, 아니면 Claude 생성.
   // 로딩/실패/키 없음 시에는 아래 chartAnalysis 템플릿으로 폴백.
@@ -636,6 +658,36 @@ export function Detail({ id }: { id: string }) {
             <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.06em', color: 'var(--c-acblue)', marginBottom: 12 }}>정세 분석 · MACRO CONTEXT</div>
             <p style={{ margin: 0, fontSize: 15, lineHeight: 1.7, color: 'var(--c-tx2)' }}>{newsContext}</p>
           </div>
+
+          {/* 주요 공시(DART) — 국내 종목만, 최근 6개월 수주·실적 등. 원문은 DART 뷰어로. */}
+          {disc && disc.length > 0 && (
+            <div style={{ ...CARD, borderRadius: 20, padding: 24, marginBottom: 20 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+                <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.06em', color: 'var(--c-accyanbr)' }}>주요 공시 · DART</span>
+                <span style={{ fontSize: 11, color: 'var(--c-tx6)' }}>최근 6개월 · 수주·실적 등</span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                {disc.map((d, i) => {
+                  const c = DISC_CHIP(d.kind);
+                  return (
+                    <a
+                      key={i}
+                      href={d.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 0', borderBottom: i < disc.length - 1 ? '1px solid var(--c-w05)' : 'none', textDecoration: 'none' }}
+                    >
+                      <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 6, background: c.bg, color: c.c, whiteSpace: 'nowrap' }}>{d.kind}</span>
+                      <span style={{ flex: 1, minWidth: 0, fontSize: 13, color: 'var(--c-tx3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.title}</span>
+                      <span style={{ fontSize: 12, color: 'var(--c-tx6)', whiteSpace: 'nowrap' }}>{d.date.slice(5)}</span>
+                    </a>
+                  );
+                })}
+              </div>
+              <SourceNote text="금융감독원 전자공시(DART) · 시세 영향 큰 공시만 추림" style={{ marginTop: 14 }} />
+            </div>
+          )}
+
           {relatedNews !== null && relatedList.length === 0 && (
             <div style={{ ...CARD, borderRadius: 20, padding: 24, textAlign: 'center', color: 'var(--c-tx6)', fontSize: 14 }}>관련 뉴스가 없습니다.</div>
           )}

@@ -7,9 +7,11 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
 
 export async function POST(req: Request) {
-  const { codes } = (await req.json().catch(() => ({}))) as { codes?: unknown };
+  const { codes, days } = (await req.json().catch(() => ({}))) as { codes?: unknown; days?: unknown };
   if (!Array.isArray(codes) || !codes.length) return NextResponse.json({ disclosures: [] });
-  // 대시보드 '주요 공시'는 최근 7일 속보만(방금 터진 수주·실적). 이력·미래는 상세/캘린더가 담당.
-  const disclosures = await getDisclosures(codes.map(String), 7);
+  // days 미지정 = 대시보드 속보(7일). 상세 페이지는 이력용으로 길게(최대 365) 요청.
+  const win = typeof days === 'number' && days > 0 ? Math.min(Math.floor(days), 365) : 7;
+  const perStock = win > 30 ? 20 : 6; // 긴 창(상세)은 종목당 더 많이
+  const disclosures = await getDisclosures(codes.map(String), win, perStock);
   return NextResponse.json({ disclosures });
 }
