@@ -23,6 +23,9 @@ export const env = {
   // 관리자 아이디(회원가입 승인 페이지 접근 권한). 기본 swoo1427, env로 교체 가능.
   ADMIN_USER: process.env.ADMIN_USER || 'swoo1427',
 
+  // DART(금감원 전자공시) OpenAPI — 국내 종목 수주·실적 등 공시. Vercel env에도 넣어야 실서비스 동작.
+  DART_API_KEY: process.env.DART_API_KEY ?? '',
+
   // Anthropic (daily AI generation)
   ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY ?? '',
   // 분석 5종(브리핑·관점·차트분석·포폴·보고서) 기본 모델. 최고 품질 Opus 4.8.
@@ -37,6 +40,7 @@ export const has = {
   naver: () => Boolean(env.NAVER_CLIENT_ID && env.NAVER_CLIENT_SECRET),
   supabase: () => Boolean(env.SUPABASE_URL && env.SUPABASE_SERVICE_KEY),
   anthropic: () => Boolean(env.ANTHROPIC_API_KEY),
+  dart: () => Boolean(env.DART_API_KEY),
 };
 
 // Per-domain revalidate windows (seconds). Tune freely per data type.

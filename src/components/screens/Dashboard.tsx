@@ -262,6 +262,76 @@ function NewsTopCard() {
   );
 }
 
+interface Disc { code: string; date: string; title: string; kind: '수주' | '실적' | '공시'; url: string }
+
+// 내 보유·관심 '국내' 종목의 최근 주요 공시(DART) — 수주·실적 등. 국내 종목이 없거나 공시가 없으면 숨김.
+function DisclosureCard() {
+  const authed = useAuthed();
+  const { state, data } = useDashboard();
+  const { holdings } = usePortfolio(authed);
+  const codes = useMemo(() => {
+    const s = new Set<string>();
+    state.watchlist.forEach((id) => { if (/^\d{6}$/.test(id)) s.add(id); });
+    holdings.forEach((h) => { if (h.ticker && /^\d{6}$/.test(h.ticker)) s.add(h.ticker); });
+    return [...s];
+  }, [state.watchlist, holdings]);
+  const nameByCode = useMemo(() => {
+    const m: Record<string, string> = {};
+    Object.values(data.stocks).flat().forEach((sx) => { if (/^\d{6}$/.test(sx.id)) m[sx.id] = sx.name; });
+    return m;
+  }, [data.stocks]);
+  const [items, setItems] = useState<Disc[] | null>(null);
+  const key = codes.join(',');
+  useEffect(() => {
+    if (!codes.length) { setItems([]); return; }
+    let cancelled = false;
+    fetch('/api/disclosures', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ codes }) })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => { if (!cancelled) setItems(((j?.disclosures as Disc[]) ?? []).slice(0, 8)); })
+      .catch(() => { if (!cancelled) setItems([]); });
+    return () => { cancelled = true; };
+  }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (!codes.length || (items && items.length === 0)) return null;
+
+  const chip = (k: Disc['kind']) => k === '수주'
+    ? { bg: 'var(--c-cy16)', c: 'var(--c-accyanbr)' }
+    : k === '실적' ? { bg: 'var(--c-am16)', c: 'var(--c-warnchip)' }
+    : { bg: 'var(--c-w06)', c: 'var(--c-tx4)' };
+
+  return (
+    <div style={{ ...CARD, padding: 22, marginBottom: 20 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+        <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>내 종목 주요 공시</h2>
+        <span style={{ fontSize: 11, color: 'var(--c-tx6)' }}>보유·관심 국내 종목 · DART</span>
+      </div>
+      {items == null ? (
+        <div style={{ fontSize: 13, color: 'var(--c-tx5)', padding: '8px 0' }}>불러오는 중…</div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
+          {items.map((it, i) => {
+            const c = chip(it.kind);
+            return (
+              <a
+                key={i}
+                href={it.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 0', borderBottom: i < items.length - 1 ? '1px solid var(--c-w05)' : 'none', textDecoration: 'none' }}
+              >
+                <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 6, background: c.bg, color: c.c, whiteSpace: 'nowrap' }}>{it.kind}</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--c-tx1b)', whiteSpace: 'nowrap' }}>{nameByCode[it.code] ?? it.code}</span>
+                <span style={{ flex: 1, minWidth: 0, fontSize: 13, color: 'var(--c-tx3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.title}</span>
+                <span style={{ fontSize: 12, color: 'var(--c-tx6)', whiteSpace: 'nowrap' }}>{it.date.slice(5)}</span>
+              </a>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function Dashboard() {
   const { vw, layout } = useViewportLayout();
   const authed = useAuthed();
@@ -305,6 +375,9 @@ export function Dashboard() {
 
       {/* ② 내 자산 스냅샷 (로그인 + 보유 등록 시) — 비로그인은 마운트하지 않아 /api/portfolio 401 호출 자체가 없다 */}
       {authed && <MyAssetsStrip />}
+
+      {/* ②-b 내 종목 주요 공시(DART) — 보유·관심 국내 종목 있고 공시 있을 때만 표시 */}
+      <DisclosureCard />
 
       {/* ③ 시장 심리 게이지 — VIX·금리·크립토 공포지수·김프 */}
       {macro.market && (() => {
