@@ -16,6 +16,7 @@ export default function LoginPage() {
   const [err, setErr] = useState('');
   const [done, setDone] = useState(''); // 회원가입 신청 완료 안내
   const [busy, setBusy] = useState(false);
+  const [entering, setEntering] = useState(false); // 로그인 성공 확정 후에만 대시보드 스켈레톤 표시(요청 대기 중엔 폼 유지)
 
   const switchMode = (m: Mode) => {
     setMode(m);
@@ -32,9 +33,10 @@ export default function LoginPage() {
     });
     if (r.ok) {
       track('login_success');
+      setEntering(true); // 성공 확정 → 이제부터 스켈레톤(진입 연출)
       const next = new URLSearchParams(window.location.search).get('next');
       router.replace(next && next.startsWith('/') ? next : '/');
-      return true; // busy 유지 — 대시보드 커밋될 때까지 스켈레톤
+      return true; // entering 유지 — 대시보드 커밋될 때까지 스켈레톤
     }
     const j = await r.json().catch(() => ({}));
     setErr(j.error || '로그인에 실패했습니다.');
@@ -75,8 +77,9 @@ export default function LoginPage() {
     }
   };
 
-  // 로그인 성공 후 전환 중에는 폼 대신 대시보드 스켈레톤(멈춤·풀리로드 없이 매끄럽게).
-  if (busy && mode === 'login' && !err) return <DashboardSkeleton />;
+  // 로그인 '성공 확정' 후에만 스켈레톤(진입 연출). 요청 대기 중(busy)엔 폼을 유지해,
+  // 실패 시 스켈레톤이 잠깐 떴다 사라지는 '진입했다 튕김' 플래시가 없다.
+  if (entering) return <DashboardSkeleton />;
 
   const input: React.CSSProperties = {
     width: '100%', boxSizing: 'border-box', background: 'var(--c-w04)', border: '1px solid var(--c-w10)',
