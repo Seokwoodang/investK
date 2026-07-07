@@ -9,6 +9,7 @@ export const maxDuration = 30;
 export async function POST(req: Request) {
   const { codes } = (await req.json().catch(() => ({}))) as { codes?: unknown };
   if (!Array.isArray(codes) || !codes.length) return NextResponse.json({ disclosures: [] });
-  const disclosures = await getDisclosures(codes.map(String));
+  // 대시보드 '주요 공시'는 최근 30일만(오래된 공시는 캘린더/상세가 아닌 여기선 노이즈).
+  const disclosures = await getDisclosures(codes.map(String), 30);
   return NextResponse.json({ disclosures });
 }
