@@ -10,6 +10,8 @@ const PROTECTED: RegExp[] = [
   /^\/instrument(\/|$)/, // 종목 상세(차트=KIS 캔들·실시간 토큰 사용) → 로그인 전용
   /^\/portfolio(\/|$)/,
   /^\/report(\/|$)/,
+  /^\/admin(\/|$)/, // 회원 관리(로그인 필수 + 관리자 신원은 페이지/라우트에서 재검증)
+  /^\/api\/admin\//, // 회원 관리 API(로그인 필수 + 라우트에서 관리자 신원 검증)
   /^\/api\/ai\//,
   /^\/api\/portfolio(\/|$)/,
   /^\/api\/report-history(\/|$)/,

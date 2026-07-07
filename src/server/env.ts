@@ -20,6 +20,9 @@ export const env = {
   SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL ?? '',
   SUPABASE_SERVICE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY ?? '',
 
+  // 관리자 아이디(회원가입 승인 페이지 접근 권한). 기본 swoo1427, env로 교체 가능.
+  ADMIN_USER: process.env.ADMIN_USER || 'swoo1427',
+
   // Anthropic (daily AI generation)
   ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY ?? '',
   // 분석 5종(브리핑·관점·차트분석·포폴·보고서) 기본 모델. 최고 품질 Opus 4.8.

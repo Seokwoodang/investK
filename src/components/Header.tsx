@@ -64,10 +64,13 @@ const iconBtn = (active: boolean): React.CSSProperties => ({
   background: active ? 'var(--c-w08)' : 'var(--c-w05)', color: 'var(--c-tx2)',
 });
 
-export function Header({ authed = true }: { authed?: boolean }) {
+export function Header({ authed = true, isAdmin = false }: { authed?: boolean; isAdmin?: boolean }) {
   const { vw, layout } = useViewportLayout();
   const { state, actions, data } = useDashboard();
   const pathname = usePathname();
+
+  // 관리자(swoo1427)에게만 '회원관리' 메뉴 노출.
+  const navItems = isAdmin ? [...NAV, { href: '/admin', label: '회원관리' }] : NAV;
 
   // 좁은 화면에선 메뉴를 햄버거(≡)로 접는다. 다크/큰글씨/로그아웃은 항상 ⚙ 설정 드롭다운으로 묶어 공간 절약.
   const navInline = vw >= 1340;
@@ -212,7 +215,7 @@ export function Header({ authed = true }: { authed?: boolean }) {
 
         {navInline ? (
           <nav className="no-scrollbar" style={{ display: 'flex', alignItems: 'center', gap: 22, flex: 1, overflowX: 'auto' }}>
-            {NAV.map((n) => {
+            {navItems.map((n) => {
               const active = activeHref === n.href;
               return (
                 <Link
@@ -352,7 +355,7 @@ export function Header({ authed = true }: { authed?: boolean }) {
             }}
           >
             <nav style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              {NAV.map((n) => {
+              {navItems.map((n) => {
                 const active = activeHref === n.href;
                 return (
                   <Link
