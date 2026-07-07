@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { fmtPct, upColor } from '../../lib/format';
+import { useAdmin } from '../DashboardChrome';
 import { TermTip } from '../GlossaryTip';
 import { InlineSpinner } from '../Footer';
 import { SourceNote, UpdateNote } from '../SourceNote';
@@ -225,6 +226,7 @@ function DistDonut({ dist, recommMean }: { dist: NonNullable<KanalystData['dist'
 interface Props { code: string; market: KMarket; name: string; ticker: string; cur: string; price?: number }
 
 export function Kanalyst({ code, market, name, ticker, cur, price }: Props) {
+  const isAdmin = useAdmin(); // '다시 분석'(강제 재생성=비용)은 관리자만
   const [data, setData] = useState<KanalystData | null>(null);
   const [narrative, setNarrative] = useState<KanalystNarrative | null>(null);
   const [phase, setPhase] = useState<'loading' | 'ready' | 'error'>('loading');
@@ -384,7 +386,9 @@ export function Kanalyst({ code, market, name, ticker, cur, price }: Props) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
           <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.06em', padding: '3px 9px', borderRadius: 6, background: 'var(--c-cy18)', color: 'var(--c-accyanbr)' }}>AI 애널리스트 의견</span>
           <span style={{ fontSize: 12, color: 'var(--c-tx6)' }}>위 실제 수치를 Claude가 해석·서술</span>
-          <button onClick={regenerate} disabled={genLoading} style={{ marginLeft: 'auto', cursor: genLoading ? 'default' : 'pointer', fontFamily: 'inherit', fontSize: 12, fontWeight: 600, padding: '6px 12px', borderRadius: 8, border: '1px solid var(--c-w10)', background: 'var(--c-w05)', color: 'var(--c-tx4)', opacity: genLoading ? 0.5 : 1 }}>다시 분석</button>
+          {isAdmin && (
+            <button onClick={regenerate} disabled={genLoading} style={{ marginLeft: 'auto', cursor: genLoading ? 'default' : 'pointer', fontFamily: 'inherit', fontSize: 12, fontWeight: 600, padding: '6px 12px', borderRadius: 8, border: '1px solid var(--c-w10)', background: 'var(--c-w05)', color: 'var(--c-tx4)', opacity: genLoading ? 0.5 : 1 }}>다시 분석</button>
+          )}
         </div>
 
         {genLoading && !narrative ? (
@@ -427,7 +431,7 @@ export function Kanalyst({ code, market, name, ticker, cur, price }: Props) {
           </div>
         ) : (
           <p style={{ margin: 0, fontSize: 14, lineHeight: 1.7, color: 'var(--c-tx4)' }}>
-            AI 서술을 불러오지 못했습니다. 위의 숫자·차트는 실제 데이터이며, ‘다시 분석’으로 서술을 생성할 수 있습니다.
+            AI 서술은 아직 준비되지 않았습니다. 위의 숫자·차트는 모두 실제 데이터입니다.{isAdmin ? ' ‘다시 분석’으로 서술을 생성할 수 있습니다.' : ''}
           </p>
         )}
       </div>

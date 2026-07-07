@@ -1,5 +1,9 @@
 import type { Metadata, Viewport } from 'next';
+import { GoogleAnalytics } from '@next/third-parties/google';
 import './globals.css';
+
+// GA4 측정 ID. env로 덮어쓸 수 있고(없으면 기본값), 측정 ID는 공개 정보라 노출돼도 무방.
+const GA_ID = process.env.NEXT_PUBLIC_GA_ID || 'G-EB6L1EW9Q5';
 
 export const metadata: Metadata = {
   title: 'InvestKang — Investment Dashboard',
@@ -24,6 +28,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body>{children}</body>
+      <GoogleAnalytics gaId={GA_ID} />
     </html>
   );
 }

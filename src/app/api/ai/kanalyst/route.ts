@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
 import { getKanalyst, buildKanalystData } from '@/server/kanalyst';
+import { COOKIE, getSessionUser } from '@/lib/auth';
+import { env } from '@/server/env';
 import type { KMarket } from '@/types';
 
 export const dynamic = 'force-dynamic';
@@ -26,7 +29,13 @@ export async function POST(req: Request) {
       if (!data) return NextResponse.json({ error: 'no data' }, { status: 404 });
       return NextResponse.json({ data, narrative: null, generated: false });
     }
-    const report = await getKanalyst(market as KMarket, b.code, b.name, b.ticker, b.price, !!b.force);
+    // 강제 재생성(force)은 비용을 새로 태우므로 관리자만 허용. 남이 요청을 직접 쏴도 무시된다.
+    let force = false;
+    if (b.force) {
+      const user = await getSessionUser(cookies().get(COOKIE)?.value);
+      force = !!user && user === env.ADMIN_USER;
+    }
+    const report = await getKanalyst(market as KMarket, b.code, b.name, b.ticker, b.price, force);
     if (!report) return NextResponse.json({ error: 'no data' }, { status: 404 });
     return NextResponse.json(report);
   } catch (e) {
