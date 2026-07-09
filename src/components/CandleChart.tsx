@@ -25,15 +25,19 @@ function fmtAxisPrice(p: number): string {
 export function CandleChart({
   candles,
   theme,
+  fit = false,
 }: {
   candles: Candle[];
   period?: Period;
   cur?: Currency;
   theme?: string; // 테마 변경 시 색 재적용 트리거
+  fit?: boolean; // true면 리사이즈 때도 전체 구간을 fit(모달 등 갓 열린 컨테이너용 — 팬/줌 보존 안 함)
 }) {
   const elRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
+  const fitRef = useRef(fit);
+  fitRef.current = fit;
 
   // 캔버스 색을 현재 테마 토큰으로 적용.
   const applyTheme = () => {
@@ -73,7 +77,12 @@ export function CandleChart({
     chartRef.current = chart;
     seriesRef.current = series;
 
-    const ro = new ResizeObserver(() => chart.applyOptions({ width: el.clientWidth }));
+    const ro = new ResizeObserver(() => {
+      chart.applyOptions({ width: el.clientWidth });
+      // 모달처럼 마운트 직후 폭이 커지는 컨테이너: 좁은 폭 기준 fitContent가 이미 실행돼
+      // 데이터가 오른쪽에 뭉침 → fit 모드에선 리사이즈마다 전체 구간을 다시 맞춘다.
+      if (fitRef.current) chart.timeScale().fitContent();
+    });
     ro.observe(el);
     return () => {
       ro.disconnect();

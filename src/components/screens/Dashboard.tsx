@@ -12,6 +12,7 @@ import { useDashboard } from '../../store/DashboardContext';
 import { useAuthed, useViewportLayout } from '../DashboardChrome';
 import { TAB_LABELS, type Impact } from '../../types';
 import { GlossaryTip, ImpactTag } from '../GlossaryTip';
+import { IndexModal } from '../IndexModal';
 import { EventResult } from '../EventResult';
 import { SourceNote, UpdateNote } from '../SourceNote';
 import { InlineSpinner } from '../Footer';
@@ -46,13 +47,22 @@ function SectionHead({ title, href, linkLabel }: { title: string; href?: string;
   );
 }
 
-function MacroCard({ title, rows, source }: { title: string; rows: { label: string; val: string; chg: number }[]; source: string }) {
+function MacroCard({ title, rows, source, onRow }: { title: string; rows: { label: string; val: string; chg: number }[]; source: string; onRow?: (label: string) => void }) {
   return (
     <div style={{ ...CARD, padding: 24 }}>
       <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.18em', color: 'var(--c-accyan)', marginBottom: 18 }}>{title}</div>
       {rows.map((r, i) => (
-        <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '9px 0', borderBottom: '1px solid var(--c-w05)' }}>
-          <span style={{ fontSize: 14, color: 'var(--c-tx3)', whiteSpace: 'nowrap' }}>{r.label}</span>
+        <div
+          key={i}
+          onClick={onRow ? () => onRow(r.label) : undefined}
+          className={onRow ? 'stock-row' : undefined}
+          title={onRow ? `${r.label} 차트·매매동향 보기` : undefined}
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '9px 0', borderBottom: '1px solid var(--c-w05)', cursor: onRow ? 'pointer' : 'default' }}
+        >
+          <span style={{ fontSize: 14, color: 'var(--c-tx3)', whiteSpace: 'nowrap' }}>
+            {r.label}
+            {onRow && <span style={{ fontSize: 11, color: 'var(--c-tx6)', marginLeft: 7 }}>›</span>}
+          </span>
           <span style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
             <span style={{ fontSize: 15, fontWeight: 600 }}>{r.val}</span>
             <span style={{ fontSize: 12, fontWeight: 600, width: 56, textAlign: 'right', color: upColor(r.chg) }}>{fmtPct(r.chg)}</span>
@@ -341,6 +351,8 @@ export function Dashboard() {
   const [evFilter, setEvFilter] = useState<Impact[]>(['고영향', '중간', '실적']);
   const toggleEvFilter = (t: Impact) =>
     setEvFilter((prev) => (prev.includes(t) ? (prev.length > 1 ? prev.filter((x) => x !== t) : prev) : [...prev, t]));
+  // 지수 상세 모달(글로벌 지수 행 클릭). null = 닫힘.
+  const [selIndex, setSelIndex] = useState<string | null>(null);
   // 국내/해외 필터(복수 선택, 최소 1개 유지). region 미지정 이벤트(mock 등)는 해외로 간주.
   type Region = 'kr' | 'overseas';
   const [regFilter, setRegFilter] = useState<Region[]>(['kr', 'overseas']);
@@ -455,7 +467,12 @@ export function Dashboard() {
         <h2 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 700 }}>오늘의 매크로 브리핑</h2>
         <div style={{ display: 'grid', gridTemplateColumns: layout.macroCols2, gap: 16 }}>
           <MacroCard title="환율 · FX" rows={macro.fx.map((r) => ({ label: r.pair, val: r.val, chg: r.chg }))} source={SRC.fx} />
-          <MacroCard title="글로벌 지수 · INDEX" rows={macro.indices.map((r) => ({ label: r.name, val: r.val, chg: r.chg }))} source={SRC.index} />
+          <MacroCard
+            title="글로벌 지수 · INDEX"
+            rows={macro.indices.map((r) => ({ label: r.name, val: r.val, chg: r.chg }))}
+            source={SRC.index}
+            onRow={setSelIndex} // 지수 클릭 → 차트·투자자별 매매동향 모달
+          />
         </div>
       </div>
 
@@ -666,6 +683,9 @@ export function Dashboard() {
         )}
         <SourceNote text={SRC.calendar} style={{ marginTop: 12 }} />
       </div>
+
+      {/* 지수 상세 모달(차트 + 코스피·코스닥 투자자별 매매동향) */}
+      {selIndex && <IndexModal name={selIndex} onClose={() => setSelIndex(null)} />}
     </div>
   );
 }
