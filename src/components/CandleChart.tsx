@@ -1,7 +1,7 @@
 'use client';
 
 import { createChart, CandlestickSeries, ColorType, CrosshairMode } from 'lightweight-charts';
-import type { IChartApi, ISeriesApi, UTCTimestamp } from 'lightweight-charts';
+import type { IChartApi, ISeriesApi, Time, UTCTimestamp } from 'lightweight-charts';
 import { useEffect, useRef } from 'react';
 import type { Candle, Currency, Period } from '../types';
 
@@ -24,6 +24,7 @@ function fmtAxisPrice(p: number): string {
 
 export function CandleChart({
   candles,
+  period,
   theme,
   fit = false,
 }: {
@@ -33,6 +34,8 @@ export function CandleChart({
   theme?: string; // 테마 변경 시 색 재적용 트리거
   fit?: boolean; // true면 리사이즈 때도 전체 구간을 fit(모달 등 갓 열린 컨테이너용 — 팬/줌 보존 안 함)
 }) {
+  // 분/시간봉만 시각 표시. 일봉+(또는 period 미지정=지수 모달)은 날짜만 → business-day 포인트 사용.
+  const intraday = period === '1분' || period === '5분' || period === '15분' || period === '1시간';
   const elRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
@@ -93,19 +96,32 @@ export function CandleChart({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // 데이터 갱신. (candles 참조가 바뀔 때만 — 부모에서 useMemo로 안정화해 패닝/줌이 리셋되지 않음)
+  // 데이터 갱신. (candles/봉종류가 바뀔 때 — 부모에서 useMemo로 안정화해 패닝/줌이 리셋되지 않음)
   useEffect(() => {
     const series = seriesRef.current;
     if (!series) return;
-    // LW는 time 오름차순·중복 없음을 요구 → 초 단위로 변환 후 dedupe.
-    const byTime = new Map<number, Candle>();
-    for (const c of candles) if (c.t != null) byTime.set(Math.floor((c.t as number) / 1000), c);
-    const data = [...byTime.entries()]
-      .sort((a, b) => a[0] - b[0])
-      .map(([t, c]) => ({ time: t as UTCTimestamp, open: c.o, high: c.h, low: c.l, close: c.c }));
+    // 일봉+ 는 business-day({year,month,day})로 매핑 → 축에 '00:00'·시각 없이 날짜만 깔끔히.
+    //   (타임스탬프+timeVisible 조합이 일봉에서 "02 7월 '26 00:00" 같은 라벨을 냈음)
+    // 분/시간봉은 UTCTimestamp(초)로 시각까지 표시. LW는 time 오름차순·중복 없음 요구 → key로 dedupe.
+    const rows: { key: string; sec: number; time: Time; o: number; h: number; l: number; c: number }[] = [];
+    for (const c of candles) {
+      if (c.t == null) continue;
+      const sec = Math.floor(c.t / 1000);
+      const d = new Date(c.t);
+      const time: Time = intraday
+        ? (sec as UTCTimestamp)
+        : { year: d.getUTCFullYear(), month: d.getUTCMonth() + 1, day: d.getUTCDate() };
+      const key = intraday ? String(sec) : `${d.getUTCFullYear()}-${d.getUTCMonth()}-${d.getUTCDate()}`;
+      rows.push({ key, sec, time, o: c.o, h: c.h, l: c.l, c: c.c });
+    }
+    const dedup = new Map<string, (typeof rows)[number]>();
+    for (const r of rows) dedup.set(r.key, r);
+    const data = [...dedup.values()]
+      .sort((a, b) => a.sec - b.sec)
+      .map((r) => ({ time: r.time, open: r.o, high: r.h, low: r.l, close: r.c }));
     series.setData(data);
     chartRef.current?.timeScale().fitContent();
-  }, [candles]);
+  }, [candles, intraday]);
 
   // 테마 변경 시 색 재적용(클래스 토글) + OS 설정 변경 구독.
   useEffect(() => {
