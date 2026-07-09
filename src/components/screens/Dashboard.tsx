@@ -10,7 +10,7 @@ import { usePortfolio, usdKrwFromFx, useResolvedPrices, valuePortfolio } from '.
 import { SRC } from '../../lib/sources';
 import { useDashboard } from '../../store/DashboardContext';
 import { useAuthed, useViewportLayout } from '../DashboardChrome';
-import { TAB_LABELS, type Impact } from '../../types';
+import { TAB_LABELS, type Impact, type SectorRow } from '../../types';
 import { GlossaryTip, ImpactTag } from '../GlossaryTip';
 import { IndexModal } from '../IndexModal';
 import { AdSlot } from '../AdSlot';
@@ -343,6 +343,73 @@ function DisclosureCard() {
   );
 }
 
+// 업종(섹터) 흐름 — 대표 ETF 종가 기준 오늘 등락 + 연속 추세('N일째'). 국내/해외 토글.
+function SectorFlowCard() {
+  const { vw } = useViewportLayout();
+  const [market, setMarket] = useState<'kr' | 'us'>('kr');
+  const [rows, setRows] = useState<SectorRow[] | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    setRows(null);
+    fetch(`/api/sectors?market=${market}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => { if (!cancelled) setRows((j?.rows as SectorRow[]) ?? []); })
+      .catch(() => { if (!cancelled) setRows([]); });
+    return () => { cancelled = true; };
+  }, [market]);
+
+  const toggle = (m: 'kr' | 'us', label: string) => (
+    <button
+      onClick={() => setMarket(m)}
+      style={{
+        cursor: 'pointer', border: 'none', padding: '3px 10px', borderRadius: 7, fontSize: 11, fontWeight: 700, fontFamily: 'inherit',
+        ...(market === m ? { background: 'var(--c-cy18)', color: 'var(--c-accyanbr)' } : { background: 'transparent', color: 'var(--c-tx5)' }),
+      }}
+    >
+      {label}
+    </button>
+  );
+
+  return (
+    <div style={{ marginBottom: 36 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
+          <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>업종 흐름</h2>
+          <span style={{ fontSize: 12, color: 'var(--c-tx6)' }}>어떤 섹터가 움직이는지 · 연속 추세</span>
+        </div>
+        <div style={{ display: 'flex', gap: 2, padding: 2, background: 'var(--c-w04)', borderRadius: 9 }}>
+          {toggle('kr', '국내')}
+          {toggle('us', '해외')}
+        </div>
+      </div>
+      <div style={{ ...CARD, padding: 22 }}>
+        {rows === null && <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '14px 2px', fontSize: 13, color: 'var(--c-tx6)' }}><InlineSpinner size={13} />불러오는 중…</div>}
+        {rows !== null && rows.length === 0 && <div style={{ padding: '14px 2px', fontSize: 13, color: 'var(--c-tx6)' }}>데이터 준비 중입니다.</div>}
+        <div style={{ display: 'grid', gridTemplateColumns: vw >= 720 ? '1fr 1fr' : '1fr', gap: '2px 28px' }}>
+          {rows?.map((s, i) => {
+            const trend = s.streakDays >= 2; // 2거래일 이상 같은 방향일 때만 추세 배지
+            const arrow = s.streakDir === 'up' ? '▲' : s.streakDir === 'down' ? '▼' : '·';
+            return (
+              <div key={s.name} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 2px', borderBottom: `1px solid var(--c-w05)` }}>
+                <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--c-tx6)', width: 16, flexShrink: 0 }}>{i + 1}</span>
+                <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--c-tx1b)', whiteSpace: 'nowrap' }}>{s.name}</span>
+                <span style={{ fontSize: 11, color: 'var(--c-tx6)', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.proxy}</span>
+                <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                  {trend && (
+                    <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 6, whiteSpace: 'nowrap', color: upColor(s.streakDir === 'up' ? 1 : -1), background: `color-mix(in srgb, ${upColor(s.streakDir === 'up' ? 1 : -1)} 15%, transparent)` }}>{arrow} {s.streakDays}일째</span>
+                  )}
+                  <span style={{ fontSize: 14, fontWeight: 800, color: upColor(s.changePct), width: 62, textAlign: 'right' }}>{fmtPct(s.changePct)}</span>
+                </span>
+              </div>
+            );
+          })}
+        </div>
+        <SourceNote text="각 섹터 대표 ETF 종가 기준 · Yahoo Finance · 'N일째'는 같은 방향 연속 거래일" style={{ marginTop: 14 }} />
+      </div>
+    </div>
+  );
+}
+
 export function Dashboard() {
   const { vw, layout } = useViewportLayout();
   const authed = useAuthed();
@@ -462,6 +529,9 @@ export function Dashboard() {
         <ValueTopCard />
         <NewsTopCard />
       </div>
+
+      {/* ⑤-2 업종 흐름 — 어떤 섹터가 며칠째 움직이는지(대표 ETF 종가 기준) */}
+      <SectorFlowCard />
 
       {/* ⑥ 환율·지수(+넓은 화면에선 광고 카드 3열) — 광고를 별도 줄이 아닌 카드 문법 안에 */}
       <div style={{ marginBottom: 36 }}>

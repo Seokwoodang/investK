@@ -167,6 +167,15 @@ export interface AssetSummary {
   top: { name: string; pct: number } | null;
 }
 
+// 업종(섹터) 흐름 — 대표 ETF 종가 기준(모두 실제 매매되는 펀드, 추측 아님).
+export interface SectorRow {
+  name: string; // 섹터명 (예: 반도체)
+  proxy: string; // 대표 ETF 이름 (예: KODEX 반도체) — 근거 표시용
+  changePct: number; // 전일 대비 등락률(%)
+  streakDir: Direction; // 연속 방향(up/down/flat)
+  streakDays: number; // 같은 방향 연속 거래일 수(1=오늘만)
+}
+
 export interface DashboardData {
   macro: Macro;
   news: News;
