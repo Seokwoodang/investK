@@ -177,7 +177,12 @@ export interface SectorRow {
   change20d: number; // 1개월(20거래일) 등락률(%)
   streakDir: Direction; // 연속 방향(up/down/flat)
   streakDays: number; // 같은 방향 연속 거래일 수(1=오늘만)
+  phase: SectorPhase; // 추세(1개월)×단기방향 조합으로 판정한 상태
 }
+
+// 섹터 상태: 추세(1개월) 방향과 단기 모멘텀(연속 방향)의 조합.
+//  up 올라가는중 · down 내려가는중 · rebound 반등중(하락추세+단기상승) · rollover 꺾이는중(상승추세+단기하락) · flat 횡보중
+export type SectorPhase = 'up' | 'down' | 'rebound' | 'rollover' | 'flat';
 
 export interface DashboardData {
   macro: Macro;

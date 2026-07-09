@@ -10,7 +10,7 @@ import { usePortfolio, usdKrwFromFx, useResolvedPrices, valuePortfolio } from '.
 import { SRC } from '../../lib/sources';
 import { useDashboard } from '../../store/DashboardContext';
 import { useAuthed, useViewportLayout } from '../DashboardChrome';
-import { TAB_LABELS, type Impact, type SectorRow } from '../../types';
+import { TAB_LABELS, type Impact, type SectorRow, type SectorPhase } from '../../types';
 import { GlossaryTip, ImpactTag } from '../GlossaryTip';
 import { IndexModal } from '../IndexModal';
 import { SectorModal } from '../SectorModal';
@@ -344,7 +344,16 @@ function DisclosureCard() {
   );
 }
 
-// 업종(섹터) 흐름 — 대표 ETF 종가 기준 오늘 등락 + 연속 추세('N일째'). 국내/해외 토글.
+// 섹터 상태 칩 스타일 — 추세 확정(올라/내려)은 초록/빨강, 전환(반등/꺾임)은 주황, 횡보는 회색.
+const PHASE_META: Record<SectorPhase, { label: string; arrow: string; c: string; bg: string }> = {
+  up: { label: '올라가는중', arrow: '↗', c: 'var(--c-upbr)', bg: 'var(--c-gn22)' },
+  down: { label: '내려가는중', arrow: '↘', c: 'var(--c-downbr)', bg: 'var(--c-rd22)' },
+  rebound: { label: '반등중', arrow: '↗', c: 'var(--c-warnchip)', bg: 'var(--c-am16)' },
+  rollover: { label: '꺾이는중', arrow: '↘', c: 'var(--c-warnchip)', bg: 'var(--c-am16)' },
+  flat: { label: '횡보중', arrow: '→', c: 'var(--c-tx4b)', bg: 'var(--c-gy18)' },
+};
+
+// 업종(섹터) 흐름 — 대표 ETF 종가 기준 오늘/1주/1개월 등락 + 상태(올라·내려·반등·꺾임). 국내/해외 토글.
 function SectorFlowCard() {
   const { vw } = useViewportLayout();
   const [market, setMarket] = useState<'kr' | 'us'>('kr');
@@ -389,8 +398,8 @@ function SectorFlowCard() {
         {rows !== null && rows.length === 0 && <div style={{ padding: '14px 2px', fontSize: 13, color: 'var(--c-tx6)' }}>데이터 준비 중입니다.</div>}
         <div style={{ display: 'grid', gridTemplateColumns: vw >= 720 ? '1fr 1fr' : '1fr', gap: '2px 28px' }}>
           {rows?.map((s, i) => {
-            const trend = s.streakDays >= 2; // 2거래일 이상 같은 방향일 때만 추세 배지
-            const arrow = s.streakDir === 'up' ? '▲' : s.streakDir === 'down' ? '▼' : '·';
+            const ph = PHASE_META[s.phase];
+            const dayTxt = s.phase !== 'flat' && s.streakDays >= 2 ? ` ${s.streakDays}일째` : '';
             const pcell = (label: string, v: number, strong: boolean) => (
               <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', width: 50, flexShrink: 0 }}>
                 <span style={{ fontSize: 9, color: 'var(--c-tx6)', fontWeight: 600 }}>{label}</span>
@@ -409,9 +418,7 @@ function SectorFlowCard() {
                 <span style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 1 }}>
                   <span style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                     <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--c-tx1b)', whiteSpace: 'nowrap' }}>{s.name}</span>
-                    {trend && (
-                      <span style={{ fontSize: 9.5, fontWeight: 700, padding: '1px 6px', borderRadius: 5, whiteSpace: 'nowrap', color: upColor(s.streakDir === 'up' ? 1 : -1), background: `color-mix(in srgb, ${upColor(s.streakDir === 'up' ? 1 : -1)} 15%, transparent)` }}>{arrow} {s.streakDays}일째</span>
-                    )}
+                    <span style={{ fontSize: 9.5, fontWeight: 700, padding: '1px 7px', borderRadius: 5, whiteSpace: 'nowrap', color: ph.c, background: ph.bg }}>{ph.arrow} {ph.label}{dayTxt}</span>
                   </span>
                   <span style={{ fontSize: 11, color: 'var(--c-tx6)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.proxy}</span>
                 </span>
@@ -424,7 +431,7 @@ function SectorFlowCard() {
             );
           })}
         </div>
-        <SourceNote text="각 섹터 대표 ETF 종가 기준 · Yahoo Finance · 1개월 등락 높은 순 · 'N일째'는 같은 방향 연속 거래일" style={{ marginTop: 14 }} />
+        <SourceNote text="상태 = 1개월 추세 × 단기 방향 · 반등중=하락추세인데 단기 상승 · 꺾이는중=상승추세인데 단기 하락 · 대표 ETF 종가(Yahoo) · 1개월순" style={{ marginTop: 14 }} />
       </div>
       {sel && <SectorModal market={market} name={sel} onClose={() => setSel(null)} />}
     </div>

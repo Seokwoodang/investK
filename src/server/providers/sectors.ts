@@ -1,5 +1,5 @@
 import 'server-only';
-import type { Candle, SectorRow } from '../../types';
+import type { Candle, SectorPhase, SectorRow } from '../../types';
 import { getKrStockNews, getWorldStockNews, type NewsArticle } from './naverNews';
 
 // 업종(섹터) 흐름 + 상세. 각 섹터를 '실제 매매되는 대표 ETF'의 일봉 종가로 대리(推測 없음).
@@ -115,14 +115,23 @@ function derive(cl: number[], d: Def): SectorRow | null {
     }
   }
   const streakDir = lastSign > 0 ? 'up' : lastSign < 0 ? 'down' : 'flat';
+  const change20d = pctBack(cl, 20); // 1개월
+  // 상태 = 1개월 추세 × 단기 방향(연속 방향). 1개월이 거의 평평하면 횡보.
+  const FLAT = 1.5; // 1개월 |등락| 1.5% 미만 = 횡보
+  let phase: SectorPhase;
+  if (Math.abs(change20d) < FLAT) phase = 'flat';
+  else if (change20d > 0) phase = streakDir === 'down' ? 'rollover' : 'up';
+  else phase = streakDir === 'up' ? 'rebound' : 'down';
+
   return {
     name: d.name,
     proxy: d.proxy,
     changePct: pctBack(cl, 1), // 오늘
     change5d: pctBack(cl, 5), // 1주
-    change20d: pctBack(cl, 20), // 1개월
+    change20d,
     streakDir,
     streakDays: days,
+    phase,
   };
 }
 
