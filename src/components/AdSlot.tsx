@@ -42,9 +42,10 @@ export function AdSlot({ style }: { style?: React.CSSProperties }) {
   if (!unit) return null; // 유닛 미설정 = 슬롯 자체를 그리지 않음
 
   return (
-    <div style={{ display: 'flex', justifyContent: 'center', margin: '24px 0', ...style }}>
-      {/* 크기 선확보로 레이아웃 시프트 방지 */}
-      <div ref={ref} style={{ width: w, height: h, overflow: 'hidden' }} />
+    // '광고' 라벨 + 크기 선확보. 라벨이 있어야 "깨진 콘텐츠"가 아니라 광고로 읽힌다.
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, margin: '28px 0', ...style }}>
+      <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.08em', color: 'var(--c-tx6)' }}>광고 · AD</span>
+      <div ref={ref} style={{ width: w, height: h, overflow: 'hidden', borderRadius: 8 }} />
     </div>
   );
 }
