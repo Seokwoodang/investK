@@ -13,6 +13,7 @@ import { useAuthed, useViewportLayout } from '../DashboardChrome';
 import { TAB_LABELS, type Impact } from '../../types';
 import { GlossaryTip, ImpactTag } from '../GlossaryTip';
 import { IndexModal } from '../IndexModal';
+import { AdSlot } from '../AdSlot';
 import { EventResult } from '../EventResult';
 import { SourceNote, UpdateNote } from '../SourceNote';
 import { InlineSpinner } from '../Footer';
@@ -455,6 +456,9 @@ export function Dashboard() {
           </div>
         );
       })()}
+
+      {/* 광고 슬롯 — 게이지 다음, 콘텐츠 중간(뷰어빌리티↑, 숫자 카드 안 가림) */}
+      <AdSlot />
 
       {/* ④⑤ 오늘의 기회(저평가 Top5) + 리스크(뉴스 Top3) */}
       <div style={{ display: 'grid', gridTemplateColumns: layout.macroCols2, gap: 16, marginBottom: 36 }}>

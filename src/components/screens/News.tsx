@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { SRC_NEWS } from '../../lib/sources';
 import { useDashboard } from '../../store/DashboardContext';
 import { useViewportLayout } from '../DashboardChrome';
@@ -109,36 +109,46 @@ export function News() {
 
       {news !== null && news.length > 0 && (
         <div style={{ display: 'grid', gridTemplateColumns: layout.newsCols, gap: 16 }}>
-          {(expanded ? news : news.slice(0, INITIAL)).map((n, i) => (
-            <a
-              key={i}
-              href={n.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{
-                display: 'flex', flexDirection: 'column', textDecoration: 'none', background: 'var(--c-w04)',
-                border: '1px solid var(--c-w08)', borderRadius: 20, padding: 24,
-                backdropFilter: 'blur(18px)', WebkitBackdropFilter: 'blur(18px)',
-              }}
-            >
-              <ImpactHeader impact={n.impact} target={n.target} importance={n.importance} />
-              <h3 style={{ margin: '0 0 8px', fontSize: 16, fontWeight: 700, lineHeight: 1.4, letterSpacing: '-0.01em', color: 'var(--c-tx1b)' }}>{n.title}</h3>
-              <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--c-tx6)', marginBottom: 10 }}>{n.src}</span>
-              {n.why && (
-                <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 12, padding: '10px 12px', borderRadius: 12, background: 'var(--c-cy06)', border: '1px solid var(--c-cy16)' }}>
-                  <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--c-accyanbr)', flexShrink: 0, marginTop: 2 }}>왜 중요</span>
-                  <span style={{ fontSize: 13, lineHeight: 1.55, color: 'var(--c-tx3)' }}>{n.why}</span>
-                </div>
-              )}
-              <p style={{ margin: '0 0 18px', fontSize: 13, lineHeight: 1.6, color: 'var(--c-tx4)', flex: 1 }}>{n.summary}</p>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 16 }}>
-                {n.tags.map((tag) => (
-                  <span key={tag} style={{ fontSize: 11, fontWeight: 600, padding: '4px 10px', borderRadius: 999, whiteSpace: 'nowrap', background: 'var(--c-cy10)', border: '1px solid var(--c-cy22)', color: 'var(--c-accyanbr)' }}>{tag}</span>
-                ))}
-              </div>
-              <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--c-acblue)' }}>원문 보기 ↗</span>
-            </a>
-          ))}
+          {(() => {
+            const shown = expanded ? news : news.slice(0, INITIAL);
+            const adAt = Math.min(2, shown.length - 1); // 3번째 카드 뒤(짧으면 마지막 뒤)에 인피드 광고 1개
+            return shown.map((n, i) => (
+              <Fragment key={i}>
+                <a
+                  href={n.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    display: 'flex', flexDirection: 'column', textDecoration: 'none', background: 'var(--c-w04)',
+                    border: '1px solid var(--c-w08)', borderRadius: 20, padding: 24,
+                    backdropFilter: 'blur(18px)', WebkitBackdropFilter: 'blur(18px)',
+                  }}
+                >
+                  <ImpactHeader impact={n.impact} target={n.target} importance={n.importance} />
+                  <h3 style={{ margin: '0 0 8px', fontSize: 16, fontWeight: 700, lineHeight: 1.4, letterSpacing: '-0.01em', color: 'var(--c-tx1b)' }}>{n.title}</h3>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--c-tx6)', marginBottom: 10 }}>{n.src}</span>
+                  {n.why && (
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 12, padding: '10px 12px', borderRadius: 12, background: 'var(--c-cy06)', border: '1px solid var(--c-cy16)' }}>
+                      <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--c-accyanbr)', flexShrink: 0, marginTop: 2 }}>왜 중요</span>
+                      <span style={{ fontSize: 13, lineHeight: 1.55, color: 'var(--c-tx3)' }}>{n.why}</span>
+                    </div>
+                  )}
+                  <p style={{ margin: '0 0 18px', fontSize: 13, lineHeight: 1.6, color: 'var(--c-tx4)', flex: 1 }}>{n.summary}</p>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 16 }}>
+                    {n.tags.map((tag) => (
+                      <span key={tag} style={{ fontSize: 11, fontWeight: 600, padding: '4px 10px', borderRadius: 999, whiteSpace: 'nowrap', background: 'var(--c-cy10)', border: '1px solid var(--c-cy22)', color: 'var(--c-accyanbr)' }}>{tag}</span>
+                    ))}
+                  </div>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--c-acblue)' }}>원문 보기 ↗</span>
+                </a>
+                {i === adAt && (
+                  <div style={{ gridColumn: '1 / -1' }}>
+                    <AdSlot style={{ margin: '8px 0' }} />
+                  </div>
+                )}
+              </Fragment>
+            ));
+          })()}
         </div>
       )}
 
@@ -156,9 +166,6 @@ export function News() {
           </button>
         </div>
       )}
-
-      {/* 광고 슬롯(애드핏) — 유닛 ID env 설정 전에는 렌더되지 않음 */}
-      <AdSlot />
 
       <SourceNote text={aiRanked ? `${SRC_NEWS[activeTab]} · AI 판별 Claude(Haiku)` : SRC_NEWS[activeTab]} style={{ marginTop: 20 }} />
     </div>
