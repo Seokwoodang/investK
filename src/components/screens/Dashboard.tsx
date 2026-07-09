@@ -221,7 +221,20 @@ function ValueTopCard() {
 }
 
 // ⑤ 오늘의 주요 뉴스 Top 3 (국내주식, AI 중요도순 — 캐시 즉시).
-interface NewsTopItem { title: string; url?: string; src: string; impact?: '호재' | '악재' | '중립'; target?: string }
+interface NewsTopItem { title: string; url?: string; src: string; impact?: '호재' | '악재' | '중립'; target?: string; datetime?: string }
+
+// 뉴스 날짜 → KST 'M/D'. TOP 3는 날짜순이 아니라 중요도순이라(밤사이 대형 뉴스 포함) 며칠 전 기사도 올 수 있어 날짜를 명시.
+function fmtNewsDate(dt?: string): string {
+  if (!dt) return '';
+  const s = dt.trim();
+  // 네이버식 순수 숫자 'YYYYMMDDHHmmss'(이미 KST)만 이 분기 — ISO는 특수문자가 있어 걸리지 않음.
+  const m = /^(\d{4})(\d{2})(\d{2})(\d{2})?(\d{2})?/.exec(s);
+  const d = /^\d{8,14}$/.test(s) && m
+    ? new Date(`${m[1]}-${m[2]}-${m[3]}T${m[4] ?? '00'}:${m[5] ?? '00'}:00+09:00`)
+    : new Date(s); // ISO 등 — Date가 시간대까지 해석
+  if (isNaN(d.getTime())) return '';
+  return d.toLocaleDateString('en-US', { timeZone: 'Asia/Seoul', month: 'numeric', day: 'numeric' });
+}
 const NEWS_PILL: Record<string, { bg: string; color: string }> = {
   호재: { bg: 'var(--c-gn22)', color: 'var(--c-upbr)' },
   악재: { bg: 'var(--c-rd22)', color: 'var(--c-downbr)' },
@@ -258,7 +271,7 @@ function NewsTopCard() {
             {n.impact && <span style={{ fontSize: 11, fontWeight: 800, padding: '3px 9px', borderRadius: 7, whiteSpace: 'nowrap', flexShrink: 0, background: pill.bg, color: pill.color }}>{n.impact}</span>}
             <div style={{ minWidth: 0 }}>
               <div style={{ fontSize: 13.5, fontWeight: 600, lineHeight: 1.5, color: 'var(--c-tx2)' }}>{n.title}</div>
-              <div style={{ fontSize: 11, color: 'var(--c-tx6)', marginTop: 3 }}>{n.target ? `${n.target} · ` : ''}{n.src}</div>
+              <div style={{ fontSize: 11, color: 'var(--c-tx6)', marginTop: 3 }}>{n.target ? `${n.target} · ` : ''}{n.src}{fmtNewsDate(n.datetime) ? ` · ${fmtNewsDate(n.datetime)}` : ''}</div>
             </div>
           </div>
         );
