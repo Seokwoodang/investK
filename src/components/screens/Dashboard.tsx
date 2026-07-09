@@ -457,19 +457,16 @@ export function Dashboard() {
         );
       })()}
 
-      {/* 광고 슬롯 — 게이지 다음, 콘텐츠 중간(뷰어빌리티↑, 숫자 카드 안 가림) */}
-      <AdSlot />
-
       {/* ④⑤ 오늘의 기회(저평가 Top5) + 리스크(뉴스 Top3) */}
       <div style={{ display: 'grid', gridTemplateColumns: layout.macroCols2, gap: 16, marginBottom: 36 }}>
         <ValueTopCard />
         <NewsTopCard />
       </div>
 
-      {/* ⑥ 환율·지수 */}
+      {/* ⑥ 환율·지수(+넓은 화면에선 광고 카드 3열) — 광고를 별도 줄이 아닌 카드 문법 안에 */}
       <div style={{ marginBottom: 36 }}>
         <h2 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 700 }}>오늘의 매크로 브리핑</h2>
-        <div style={{ display: 'grid', gridTemplateColumns: layout.macroCols2, gap: 16 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: vw >= 1024 ? '1fr 1fr 1fr' : layout.macroCols2, gap: 16 }}>
           <MacroCard title="환율 · FX" rows={macro.fx.map((r) => ({ label: r.pair, val: r.val, chg: r.chg }))} source={SRC.fx} />
           <MacroCard
             title="글로벌 지수 · INDEX"
@@ -477,6 +474,7 @@ export function Dashboard() {
             source={SRC.index}
             onRow={setSelIndex} // 지수 클릭 → 차트·투자자별 매매동향 모달
           />
+          {vw >= 1024 && <AdSlot variant="card" />}
         </div>
       </div>
 

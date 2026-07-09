@@ -141,11 +141,7 @@ export function News() {
                   </div>
                   <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--c-acblue)' }}>원문 보기 ↗</span>
                 </a>
-                {i === adAt && (
-                  <div style={{ gridColumn: '1 / -1' }}>
-                    <AdSlot style={{ margin: '8px 0' }} />
-                  </div>
-                )}
+                {i === adAt && <AdSlot variant="card" />}
               </Fragment>
             ));
           })()}
