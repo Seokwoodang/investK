@@ -377,7 +377,7 @@ function SectorFlowCard() {
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
           <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>업종 흐름</h2>
-          <span style={{ fontSize: 12, color: 'var(--c-tx6)' }}>어떤 섹터가 움직이는지 · 연속 추세</span>
+          <span style={{ fontSize: 12, color: 'var(--c-tx6)' }}>1개월 추세순 · 오늘·1주·1개월 등락</span>
         </div>
         <div style={{ display: 'flex', gap: 2, padding: 2, background: 'var(--c-w04)', borderRadius: 9 }}>
           {toggle('kr', '국내')}
@@ -391,28 +391,40 @@ function SectorFlowCard() {
           {rows?.map((s, i) => {
             const trend = s.streakDays >= 2; // 2거래일 이상 같은 방향일 때만 추세 배지
             const arrow = s.streakDir === 'up' ? '▲' : s.streakDir === 'down' ? '▼' : '·';
+            const pcell = (label: string, v: number, strong: boolean) => (
+              <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', width: 50, flexShrink: 0 }}>
+                <span style={{ fontSize: 9, color: 'var(--c-tx6)', fontWeight: 600 }}>{label}</span>
+                <span style={{ fontSize: strong ? 13.5 : 12, fontWeight: strong ? 800 : 700, color: upColor(v), opacity: strong ? 1 : 0.78 }}>{fmtPct(v)}</span>
+              </span>
+            );
             return (
               <div
                 key={s.name}
                 onClick={() => setSel(s.name)}
                 className="event-row"
                 title={`${s.name} 차트·관련 뉴스 보기`}
-                style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 8px', margin: '0 -8px', borderRadius: 10, borderBottom: `1px solid var(--c-w05)`, cursor: 'pointer' }}
+                style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 8px', margin: '0 -8px', borderRadius: 10, borderBottom: `1px solid var(--c-w05)`, cursor: 'pointer' }}
               >
                 <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--c-tx6)', width: 16, flexShrink: 0 }}>{i + 1}</span>
-                <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--c-tx1b)', whiteSpace: 'nowrap' }}>{s.name}</span>
-                <span style={{ fontSize: 11, color: 'var(--c-tx6)', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.proxy}</span>
-                <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                  {trend && (
-                    <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 6, whiteSpace: 'nowrap', color: upColor(s.streakDir === 'up' ? 1 : -1), background: `color-mix(in srgb, ${upColor(s.streakDir === 'up' ? 1 : -1)} 15%, transparent)` }}>{arrow} {s.streakDays}일째</span>
-                  )}
-                  <span style={{ fontSize: 14, fontWeight: 800, color: upColor(s.changePct), width: 62, textAlign: 'right' }}>{fmtPct(s.changePct)}</span>
+                <span style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 1 }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--c-tx1b)', whiteSpace: 'nowrap' }}>{s.name}</span>
+                    {trend && (
+                      <span style={{ fontSize: 9.5, fontWeight: 700, padding: '1px 6px', borderRadius: 5, whiteSpace: 'nowrap', color: upColor(s.streakDir === 'up' ? 1 : -1), background: `color-mix(in srgb, ${upColor(s.streakDir === 'up' ? 1 : -1)} 15%, transparent)` }}>{arrow} {s.streakDays}일째</span>
+                    )}
+                  </span>
+                  <span style={{ fontSize: 11, color: 'var(--c-tx6)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.proxy}</span>
+                </span>
+                <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+                  {pcell('오늘', s.changePct, false)}
+                  {pcell('1주', s.change5d, false)}
+                  {pcell('1개월', s.change20d, true)}
                 </span>
               </div>
             );
           })}
         </div>
-        <SourceNote text="각 섹터 대표 ETF 종가 기준 · Yahoo Finance · 'N일째'는 같은 방향 연속 거래일" style={{ marginTop: 14 }} />
+        <SourceNote text="각 섹터 대표 ETF 종가 기준 · Yahoo Finance · 1개월 등락 높은 순 · 'N일째'는 같은 방향 연속 거래일" style={{ marginTop: 14 }} />
       </div>
       {sel && <SectorModal market={market} name={sel} onClose={() => setSel(null)} />}
     </div>

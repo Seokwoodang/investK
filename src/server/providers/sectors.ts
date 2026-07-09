@@ -91,12 +91,19 @@ async function fetchCandles(symbol: string, range: string): Promise<Candle[]> {
   }
 }
 
-// 종가 배열 → 오늘 등락률 + 연속 추세.
+// n거래일 전 종가 대비 등락률(%). 데이터가 부족하면 가장 오래된 종가 기준.
+function pctBack(cl: number[], n: number): number {
+  const last = cl[cl.length - 1];
+  const idx = cl.length - 1 - n;
+  const base = idx >= 0 ? cl[idx] : cl[0];
+  return base === 0 ? 0 : ((last - base) / base) * 100;
+}
+
+// 종가 배열 → 오늘·1주·1개월 등락률 + 연속 추세.
 function derive(cl: number[], d: Def): SectorRow | null {
   if (cl.length < 2) return null;
   const last = cl[cl.length - 1];
   const prev = cl[cl.length - 2];
-  const changePct = prev === 0 ? 0 : ((last - prev) / prev) * 100;
 
   const sign = (a: number, b: number) => (a > b ? 1 : a < b ? -1 : 0);
   const lastSign = sign(last, prev);
@@ -108,15 +115,24 @@ function derive(cl: number[], d: Def): SectorRow | null {
     }
   }
   const streakDir = lastSign > 0 ? 'up' : lastSign < 0 ? 'down' : 'flat';
-  return { name: d.name, proxy: d.proxy, changePct, streakDir, streakDays: days };
+  return {
+    name: d.name,
+    proxy: d.proxy,
+    changePct: pctBack(cl, 1), // 오늘
+    change5d: pctBack(cl, 5), // 1주
+    change20d: pctBack(cl, 20), // 1개월
+    streakDir,
+    streakDays: days,
+  };
 }
 
 export async function getSectors(market: SectorMarket): Promise<SectorRow[]> {
   const defs = defsOf(market);
-  const rows = await pool(defs, 6, async (d) => derive((await fetchCandles(d.etf, '1mo')).map((c) => c.c), d));
+  // 3mo로 받아 20거래일(1개월) 등락을 안정적으로 계산.
+  const rows = await pool(defs, 6, async (d) => derive((await fetchCandles(d.etf, '3mo')).map((c) => c.c), d));
   return rows
     .filter((r): r is SectorRow => r !== null)
-    .sort((a, b) => b.changePct - a.changePct);
+    .sort((a, b) => b.change20d - a.change20d); // 1개월(추세) 기준 정렬
 }
 
 export interface SectorDetail {

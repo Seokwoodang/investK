@@ -168,10 +168,13 @@ export interface AssetSummary {
 }
 
 // 업종(섹터) 흐름 — 대표 ETF 종가 기준(모두 실제 매매되는 펀드, 추측 아님).
+// '흐름'은 하루가 아니므로 오늘·1주·1개월 등락을 함께 제공하고 1개월(추세)로 정렬한다.
 export interface SectorRow {
   name: string; // 섹터명 (예: 반도체)
   proxy: string; // 대표 ETF 이름 (예: KODEX 반도체) — 근거 표시용
-  changePct: number; // 전일 대비 등락률(%)
+  changePct: number; // 오늘(전일 대비) 등락률(%)
+  change5d: number; // 1주(5거래일) 등락률(%)
+  change20d: number; // 1개월(20거래일) 등락률(%)
   streakDir: Direction; // 연속 방향(up/down/flat)
   streakDays: number; // 같은 방향 연속 거래일 수(1=오늘만)
 }
