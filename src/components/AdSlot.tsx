@@ -42,10 +42,10 @@ export function AdSlot({ variant = 'banner', style }: { variant?: 'card' | 'bann
   const { vw } = useViewportLayout();
   const pc = vw >= 720;
 
-  // 변형·화면폭에 따라 유닛/크기 결정
+  // 변형·화면폭에 따라 유닛/크기 결정. 728 배너는 폭 여유가 확실할 때만(≥860px) → 좁은 화면 잘림 방지.
   let unit = UNIT_MO, w = 320, h = 100;
   if (pc) {
-    if (variant === 'banner' && UNIT_BANNER) { unit = UNIT_BANNER; w = 728; h = 90; }
+    if (variant === 'banner' && UNIT_BANNER && vw >= 860) { unit = UNIT_BANNER; w = 728; h = 90; }
     else { unit = UNIT_PC; w = 300; h = 250; }
   }
   const ref = useAdInject(unit, w, h);
@@ -65,7 +65,8 @@ export function AdSlot({ variant = 'banner', style }: { variant?: 'card' | 'bann
         }}
       >
         <span style={LABEL}>광고 · AD</span>
-        <div ref={ref} style={{ width: w, height: h, maxWidth: '100%', overflow: 'hidden', borderRadius: 8 }} />
+        {/* 광고 소재는 변형 금지(애드핏 규정): 라운딩/overflow-hidden 없이 원본 그대로 노출 */}
+        <div ref={ref} style={{ width: w, height: h }} />
       </div>
     );
   }
@@ -81,7 +82,8 @@ export function AdSlot({ variant = 'banner', style }: { variant?: 'card' | 'bann
         }}
       >
         <span style={LABEL}>광고 · AD</span>
-        <div ref={ref} style={{ width: w, height: h, maxWidth: '100%', overflow: 'hidden', borderRadius: 8 }} />
+        {/* 광고 소재는 변형 금지(애드핏 규정): 라운딩/overflow-hidden 없이 원본 그대로 노출 */}
+        <div ref={ref} style={{ width: w, height: h }} />
       </div>
     </div>
   );

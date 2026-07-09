@@ -16,7 +16,7 @@ export function Footer() {
       </div>
       {/* 운영 주체(매체 소유관계 확인용 — 애드핏 계정과 동일 사업자) */}
       <div style={{ marginBottom: 8, color: 'var(--c-tx6)' }}>
-        운영: 강석우 · 문의 <a href="mailto:chazloofficial@gmail.com" style={{ color: 'var(--c-tx5)', textDecoration: 'none' }}>chazloofficial@gmail.com</a>
+        운영: 트루 · 문의 <a href="mailto:chazloofficial@gmail.com" style={{ color: 'var(--c-tx5)', textDecoration: 'none' }}>chazloofficial@gmail.com</a>
       </div>
       <div>분석·점수·요약은 AI와 일부 예시 데이터로 생성된 참고 정보이며, 투자 권유나 자문이 아닙니다. 시세는 지연될 수 있습니다.</div>
     </div>
