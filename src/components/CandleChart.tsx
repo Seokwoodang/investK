@@ -1,7 +1,7 @@
 'use client';
 
-import { createChart, CandlestickSeries, ColorType, CrosshairMode } from 'lightweight-charts';
-import type { IChartApi, ISeriesApi, Time, UTCTimestamp } from 'lightweight-charts';
+import { createChart, CandlestickSeries, ColorType, CrosshairMode, TickMarkType } from 'lightweight-charts';
+import type { BusinessDay, IChartApi, ISeriesApi, Time, UTCTimestamp } from 'lightweight-charts';
 import { useEffect, useRef } from 'react';
 import type { Candle, Currency, Period } from '../types';
 
@@ -36,6 +36,8 @@ export function CandleChart({
 }) {
   // 분/시간봉만 시각 표시. 일봉+(또는 period 미지정=지수 모달)은 날짜만 → business-day 포인트 사용.
   const intraday = period === '1분' || period === '5분' || period === '15분' || period === '1시간';
+  const intradayRef = useRef(intraday);
+  intradayRef.current = intraday;
   const elRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
@@ -68,7 +70,26 @@ export function CandleChart({
       layout: { background: { type: ColorType.Solid, color: 'transparent' }, textColor: tok('--c-tx5'), attributionLogo: true },
       grid: { vertLines: { color: tok('--c-w05') }, horzLines: { color: tok('--c-w05') } },
       rightPriceScale: { borderColor: tok('--c-w08') },
-      timeScale: { borderColor: tok('--c-w08'), timeVisible: true, secondsVisible: false },
+      timeScale: {
+        borderColor: tok('--c-w08'),
+        timeVisible: true,
+        secondsVisible: false,
+        // 축 라벨 직접 제어(라이브러리 기본이 '월+연도(26)'를 찍는 문제 회피).
+        //  일봉+(business-day): 월 경계=‘M월’, 그 외=‘D일’ (연도 표기 안 함)
+        //  분/시간봉(timestamp): 시각 경계=‘HH:MM’, 날짜 경계=‘M/D’
+        tickMarkFormatter: (time: Time, tickMarkType: TickMarkType) => {
+          if (typeof time === 'object' && time !== null && 'day' in time) {
+            const bd = time as BusinessDay;
+            return tickMarkType === TickMarkType.DayOfMonth ? `${bd.day}일` : `${bd.month}월`;
+          }
+          const d = new Date((time as number) * 1000);
+          const p2 = (n: number) => String(n).padStart(2, '0');
+          if (tickMarkType === TickMarkType.Time || tickMarkType === TickMarkType.TimeWithSeconds) {
+            return `${p2(d.getUTCHours())}:${p2(d.getUTCMinutes())}`;
+          }
+          return `${d.getUTCMonth() + 1}/${d.getUTCDate()}`;
+        },
+      },
       crosshair: { mode: CrosshairMode.Normal },
       localization: { priceFormatter: fmtAxisPrice },
     });
