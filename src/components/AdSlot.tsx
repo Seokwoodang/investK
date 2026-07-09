@@ -42,10 +42,19 @@ export function AdSlot({ style }: { style?: React.CSSProperties }) {
   if (!unit) return null; // 유닛 미설정 = 슬롯 자체를 그리지 않음
 
   return (
-    // '광고' 라벨 + 크기 선확보. 라벨이 있어야 "깨진 콘텐츠"가 아니라 광고로 읽힌다.
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, margin: '28px 0', ...style }}>
-      <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.08em', color: 'var(--c-tx6)' }}>광고 · AD</span>
-      <div ref={ref} style={{ width: w, height: h, overflow: 'hidden', borderRadius: 8 }} />
+    // 흰 광고가 넓은 여백에 붕 뜨지 않게, 앱 카드 톤의 프레임으로 감싸 '스폰서 카드'처럼 보이게 한다.
+    // 프레임은 내용에 딱 맞는 폭(inline-flex)으로 가운데 정렬 → 빈 큰 패널 느낌 제거.
+    <div style={{ display: 'flex', justifyContent: 'center', margin: '28px 0', ...style }}>
+      <div
+        style={{
+          display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: 8,
+          padding: '10px 10px 12px', borderRadius: 16,
+          background: 'var(--c-w03)', border: '1px solid var(--c-w07)',
+        }}
+      >
+        <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.08em', color: 'var(--c-tx6)' }}>광고 · AD</span>
+        <div ref={ref} style={{ width: w, height: h, overflow: 'hidden', borderRadius: 8 }} />
+      </div>
     </div>
   );
 }
