@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { fmtPrice, fmtPct, upColor } from '../lib/format';
 import { usePush } from '../lib/push';
 import { useDashboard } from '../store/DashboardContext';
@@ -65,7 +65,7 @@ const iconBtn = (active: boolean): React.CSSProperties => ({
   background: active ? 'var(--c-w08)' : 'var(--c-w05)', color: 'var(--c-tx2)',
 });
 
-export function Header({ authed = true, isAdmin = false }: { authed?: boolean; isAdmin?: boolean }) {
+export function Header({ authed = true, isAdmin = false, user = null }: { authed?: boolean; isAdmin?: boolean; user?: string | null }) {
   const { vw, layout } = useViewportLayout();
   const { state, actions, data } = useDashboard();
   const pathname = usePathname();
@@ -89,6 +89,7 @@ export function Header({ authed = true, isAdmin = false }: { authed?: boolean; i
   const navInline = vw >= 1340;
   const [menuOpen, setMenuOpen] = useState(false);
   const [setOpen, setSetOpen] = useState(false);
+  const setWrapRef = useRef<HTMLDivElement>(null); // 설정 기어+드롭다운 묶음(바깥클릭 판정용)
   useEffect(() => {
     setMenuOpen(false);
     setSetOpen(false);
@@ -96,6 +97,20 @@ export function Header({ authed = true, isAdmin = false }: { authed?: boolean; i
   useEffect(() => {
     if (navInline) setMenuOpen(false);
   }, [navInline]);
+  // 설정 드롭다운: 바깥(기어·드롭다운 외 아무 곳) 클릭 시 닫기 + ESC.
+  useEffect(() => {
+    if (!setOpen) return;
+    const onDown = (e: PointerEvent) => {
+      if (setWrapRef.current && !setWrapRef.current.contains(e.target as Node)) setSetOpen(false);
+    };
+    const onEsc = (e: KeyboardEvent) => { if (e.key === 'Escape') setSetOpen(false); };
+    document.addEventListener('pointerdown', onDown);
+    document.addEventListener('keydown', onEsc);
+    return () => {
+      document.removeEventListener('pointerdown', onDown);
+      document.removeEventListener('keydown', onEsc);
+    };
+  }, [setOpen]);
 
   // 실시간 KST 시계 + 시장별 장 상태(코스피·뉴욕). 타임존으로 계산해 미국 DST 자동 반영.
   const [now, setNow] = useState<Date | null>(null);
@@ -160,6 +175,14 @@ export function Header({ authed = true, isAdmin = false }: { authed?: boolean; i
   // 설정 항목(테마/큰글씨/로그아웃) — 드롭다운 안 세로 풀폭 버튼.
   const settingsItems = (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      {authed && user && (
+        <div style={{ padding: '4px 12px 10px', marginBottom: 2, borderBottom: '1px solid var(--c-w06)' }}>
+          <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.04em', color: 'var(--c-tx6)', marginBottom: 3 }}>로그인 계정</div>
+          <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--c-tx1b)', wordBreak: 'break-all' }}>
+            {user}{isAdmin && <span style={{ fontSize: 10, fontWeight: 800, marginLeft: 6, padding: '2px 7px', borderRadius: 999, background: 'var(--c-cy16)', color: 'var(--c-accyanbr)' }}>관리자</span>}
+          </div>
+        </div>
+      )}
       <button onClick={actions.toggleTheme} style={{ ...utilBtnBase, width: '100%', justifyContent: 'flex-start', padding: '11px 12px' }}>
         <span style={{ fontSize: 14 }}>{themeIsDark ? '☾' : '☀'}</span>
         <span style={{ fontSize: 13, fontWeight: 700 }}>테마: {themeIsDark ? '다크' : '라이트'}</span>
@@ -374,10 +397,22 @@ export function Header({ authed = true, isAdmin = false }: { authed?: boolean; i
           </button>
         )}
 
-        {/* 설정(⚙) — 다크/큰글씨/로그아웃 묶음. 항상 노출. */}
-        <button onClick={() => { setSetOpen((v) => !v); setMenuOpen(false); }} aria-label="설정" aria-expanded={setOpen} title="설정 (테마·큰글씨·로그아웃)" style={iconBtn(setOpen)}>
-          <GearIcon />
-        </button>
+        {/* 설정(⚙) — 다크/큰글씨/알림/로그아웃. 드롭다운을 기어에 붙여 우측정렬. */}
+        <div ref={setWrapRef} style={{ position: 'relative', display: 'flex' }}>
+          <button onClick={() => { setSetOpen((v) => !v); setMenuOpen(false); }} aria-label="설정" aria-expanded={setOpen} title="설정 (계정·테마·알림·로그아웃)" style={iconBtn(setOpen)}>
+            <GearIcon />
+          </button>
+          {setOpen && (
+            <div
+              style={{
+                position: 'absolute', top: 'calc(100% + 8px)', right: 0, zIndex: 55, width: 'min(240px, calc(100vw - 32px))',
+                background: 'var(--c-panel)', border: '1px solid var(--c-w12)', borderRadius: 16, boxShadow: '0 18px 48px var(--c-shadow)', padding: 8,
+              }}
+            >
+              {settingsItems}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* 햄버거 드롭다운(메뉴 링크) */}
@@ -412,20 +447,6 @@ export function Header({ authed = true, isAdmin = false }: { authed?: boolean; i
         </>
       )}
 
-      {/* 설정 드롭다운 */}
-      {setOpen && (
-        <>
-          <div onClick={() => setSetOpen(false)} style={{ position: 'fixed', inset: 0, top: 64, zIndex: 45, background: 'var(--c-shadow)' }} />
-          <div
-            style={{
-              position: 'absolute', top: 'calc(100% + 8px)', right: layout.padX, zIndex: 55, width: 'min(220px, calc(100vw - 32px))',
-              background: 'var(--c-panel)', border: '1px solid var(--c-w12)', borderRadius: 16, boxShadow: '0 18px 48px var(--c-shadow)', padding: 8,
-            }}
-          >
-            {settingsItems}
-          </div>
-        </>
-      )}
     </header>
   );
 }

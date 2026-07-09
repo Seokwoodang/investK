@@ -33,5 +33,5 @@ export default async function DashLayout({ children }: { children: React.ReactNo
 
   const authed = !!user;
   const isAdmin = !!user && user === env.ADMIN_USER; // 관리자만 헤더에 '회원관리' 노출
-  return <DashboardChrome data={data} authed={authed} isAdmin={isAdmin} uid={uid}>{children}</DashboardChrome>;
+  return <DashboardChrome data={data} authed={authed} isAdmin={isAdmin} uid={uid} user={user}>{children}</DashboardChrome>;
 }
