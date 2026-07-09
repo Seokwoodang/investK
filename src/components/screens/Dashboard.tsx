@@ -13,6 +13,7 @@ import { useAuthed, useViewportLayout } from '../DashboardChrome';
 import { TAB_LABELS, type Impact, type SectorRow } from '../../types';
 import { GlossaryTip, ImpactTag } from '../GlossaryTip';
 import { IndexModal } from '../IndexModal';
+import { SectorModal } from '../SectorModal';
 import { AdSlot } from '../AdSlot';
 import { EventResult } from '../EventResult';
 import { SourceNote, UpdateNote } from '../SourceNote';
@@ -348,6 +349,7 @@ function SectorFlowCard() {
   const { vw } = useViewportLayout();
   const [market, setMarket] = useState<'kr' | 'us'>('kr');
   const [rows, setRows] = useState<SectorRow[] | null>(null);
+  const [sel, setSel] = useState<string | null>(null); // 클릭한 섹터 → 상세 모달
   useEffect(() => {
     let cancelled = false;
     setRows(null);
@@ -390,7 +392,13 @@ function SectorFlowCard() {
             const trend = s.streakDays >= 2; // 2거래일 이상 같은 방향일 때만 추세 배지
             const arrow = s.streakDir === 'up' ? '▲' : s.streakDir === 'down' ? '▼' : '·';
             return (
-              <div key={s.name} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 2px', borderBottom: `1px solid var(--c-w05)` }}>
+              <div
+                key={s.name}
+                onClick={() => setSel(s.name)}
+                className="event-row"
+                title={`${s.name} 차트·관련 뉴스 보기`}
+                style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 8px', margin: '0 -8px', borderRadius: 10, borderBottom: `1px solid var(--c-w05)`, cursor: 'pointer' }}
+              >
                 <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--c-tx6)', width: 16, flexShrink: 0 }}>{i + 1}</span>
                 <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--c-tx1b)', whiteSpace: 'nowrap' }}>{s.name}</span>
                 <span style={{ fontSize: 11, color: 'var(--c-tx6)', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.proxy}</span>
@@ -406,6 +414,7 @@ function SectorFlowCard() {
         </div>
         <SourceNote text="각 섹터 대표 ETF 종가 기준 · Yahoo Finance · 'N일째'는 같은 방향 연속 거래일" style={{ marginTop: 14 }} />
       </div>
+      {sel && <SectorModal market={market} name={sel} onClose={() => setSel(null)} />}
     </div>
   );
 }
