@@ -91,7 +91,19 @@ export function CandleChart({
         },
       },
       crosshair: { mode: CrosshairMode.Normal },
-      localization: { priceFormatter: fmtAxisPrice },
+      localization: {
+        priceFormatter: fmtAxisPrice,
+        // 크로스헤어 날짜 라벨 — 한국식 '년 월 일' 순(일봉+은 시각 없이, 분/시간봉은 HH:MM 포함).
+        timeFormatter: (time: Time) => {
+          if (typeof time === 'object' && time !== null && 'day' in time) {
+            const bd = time as BusinessDay;
+            return `${bd.year}년 ${bd.month}월 ${bd.day}일`;
+          }
+          const d = new Date((time as number) * 1000);
+          const p2 = (n: number) => String(n).padStart(2, '0');
+          return `${d.getUTCFullYear()}년 ${d.getUTCMonth() + 1}월 ${d.getUTCDate()}일 ${p2(d.getUTCHours())}:${p2(d.getUTCMinutes())}`;
+        },
+      },
     });
     const up = tok('--c-up');
     const down = tok('--c-down');
