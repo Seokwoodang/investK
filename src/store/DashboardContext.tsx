@@ -127,7 +127,7 @@ export interface DashboardActions {
   gotoCalMonth: (delta: number) => void;
   setBriefDate: (d: string) => void;
   toggleLargeFont: () => void;
-  cycleTheme: () => void; // 시스템 → 라이트 → 다크 → 시스템
+  toggleTheme: () => void; // 라이트 ↔ 다크 토글(초기값 'system'=OS 자동, 토글하면 명시 선택)
 }
 
 interface Ctx {
@@ -323,9 +323,12 @@ export function DashboardProvider({ data, children }: { data: DashboardData; chi
         }
         return { ...s, largeFont };
       }),
-    cycleTheme: () =>
+    toggleTheme: () =>
       setState((s) => {
-        const next: Theme = s.theme === 'system' ? 'light' : s.theme === 'light' ? 'dark' : 'system';
+        // system 포함 현재 '실효' 테마를 계산해 그 반대로만 토글(라이트↔다크). system은 초기값으로만 존재.
+        const osDark = typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        const effDark = s.theme === 'dark' || (s.theme === 'system' && osDark);
+        const next: Theme = effDark ? 'light' : 'dark';
         try {
           localStorage.setItem(THEME_KEY, next);
         } catch {

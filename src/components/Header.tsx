@@ -71,6 +71,17 @@ export function Header({ authed = true, isAdmin = false }: { authed?: boolean; i
   const pathname = usePathname();
   const push = usePush(); // 브라우저 알림(웹푸시) — 설정 드롭다운 토글
 
+  // 테마 버튼 표시용 OS 다크 여부(theme='system'일 때 실효 테마 계산). 마운트 후에만 정확.
+  const [osDark, setOsDark] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    setOsDark(mq.matches);
+    const h = () => setOsDark(mq.matches);
+    mq.addEventListener('change', h);
+    return () => mq.removeEventListener('change', h);
+  }, []);
+  const themeIsDark = state.theme === 'dark' || (state.theme === 'system' && osDark);
+
   // 관리자(swoo1427)에게만 '회원관리' 메뉴 노출.
   const navItems = isAdmin ? [...NAV, { href: '/admin', label: '회원관리' }] : NAV;
 
@@ -149,9 +160,9 @@ export function Header({ authed = true, isAdmin = false }: { authed?: boolean; i
   // 설정 항목(테마/큰글씨/로그아웃) — 드롭다운 안 세로 풀폭 버튼.
   const settingsItems = (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-      <button onClick={actions.cycleTheme} style={{ ...utilBtnBase, width: '100%', justifyContent: 'flex-start', padding: '11px 12px' }}>
-        <span style={{ fontSize: 14 }}>{state.theme === 'light' ? '☀' : state.theme === 'dark' ? '☾' : '◐'}</span>
-        <span style={{ fontSize: 13, fontWeight: 700 }}>테마: {state.theme === 'light' ? '라이트' : state.theme === 'dark' ? '다크' : '시스템'}</span>
+      <button onClick={actions.toggleTheme} style={{ ...utilBtnBase, width: '100%', justifyContent: 'flex-start', padding: '11px 12px' }}>
+        <span style={{ fontSize: 14 }}>{themeIsDark ? '☾' : '☀'}</span>
+        <span style={{ fontSize: 13, fontWeight: 700 }}>테마: {themeIsDark ? '다크' : '라이트'}</span>
       </button>
       <button
         onClick={actions.toggleLargeFont}
