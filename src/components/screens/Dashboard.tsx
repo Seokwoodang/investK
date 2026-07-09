@@ -150,7 +150,7 @@ function MyAssetsStrip() {
   );
 }
 
-// ④ 오늘의 저평가 우량주 Top 5 (국내/해외 토글, 종합점수순 — 캐시 즉시).
+// ④ 이번 분기 저평가 우량주 Top 5 (분기 재무 기반 — 국내/해외 토글, 종합점수순).
 interface VTopItem { code: string; name: string; score: number; per: number | null; roe: number | null; graham: boolean; buffett: boolean }
 function ValueTopCard() {
   const { actions } = useDashboard();
@@ -186,7 +186,7 @@ function ValueTopCard() {
   return (
     <div style={{ ...CARD, padding: 22 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'space-between', marginBottom: 14, flexWrap: 'wrap' }}>
-        <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.18em', color: 'var(--c-accyan)' }}>오늘의 저평가 우량주 TOP 5</div>
+        <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.18em', color: 'var(--c-accyan)' }}>이번 분기 저평가 우량주 TOP 5</div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <div style={{ display: 'flex', gap: 2, padding: 2, background: 'var(--c-w04)', borderRadius: 9 }}>
             {toggle('kr', '국내')}
@@ -215,12 +215,12 @@ function ValueTopCard() {
           </span>
         </div>
       ))}
-      <SourceNote text="점수 — 밸류·퀄리티·안정성·환원 복합(매일 18시 KST 갱신)" style={{ marginTop: 12 }} />
+      <SourceNote text="점수 — 밸류·퀄리티·안정성·환원 복합 · 분기 재무 기반(가격 반영해 매일 18시 KST 갱신)" style={{ marginTop: 12 }} />
     </div>
   );
 }
 
-// ⑤ 주요 뉴스 Top 3 (국내주식, AI 중요도순 — 캐시 즉시).
+// ⑤ 오늘의 주요 뉴스 Top 3 (국내주식, AI 중요도순 — 캐시 즉시).
 interface NewsTopItem { title: string; url?: string; src: string; impact?: '호재' | '악재' | '중립'; target?: string }
 const NEWS_PILL: Record<string, { bg: string; color: string }> = {
   호재: { bg: 'var(--c-gn22)', color: 'var(--c-upbr)' },
@@ -246,7 +246,7 @@ function NewsTopCard() {
   return (
     <div style={{ ...CARD, padding: 22 }}>
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 14 }}>
-        <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.18em', color: 'var(--c-accyan)' }}>주요 뉴스 TOP 3</div>
+        <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.18em', color: 'var(--c-accyan)' }}>오늘의 주요 뉴스 TOP 3</div>
         <Link href="/news" style={{ fontSize: 12, fontWeight: 600, color: 'var(--c-accyanbr)', textDecoration: 'none', whiteSpace: 'nowrap' }}>전체 →</Link>
       </div>
       {items === null && <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '14px 0', fontSize: 13, color: 'var(--c-tx6)' }}><InlineSpinner size={13} />불러오는 중…</div>}

@@ -176,12 +176,20 @@ export function Header({ authed = true, isAdmin = false, user = null }: { authed
   const settingsItems = (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
       {authed && user && (
-        <div style={{ padding: '4px 12px 10px', marginBottom: 2, borderBottom: '1px solid var(--c-w06)' }}>
+        <Link
+          href="/portfolio"
+          onClick={() => setSetOpen(false)}
+          title="내 자산 보기"
+          className="card-hover"
+          style={{ display: 'block', textDecoration: 'none', padding: '8px 12px 10px', marginBottom: 2, borderBottom: '1px solid var(--c-w06)', borderRadius: 10 }}
+        >
           <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.04em', color: 'var(--c-tx6)', marginBottom: 3 }}>로그인 계정</div>
-          <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--c-tx1b)', wordBreak: 'break-all' }}>
-            {user}{isAdmin && <span style={{ fontSize: 10, fontWeight: 800, marginLeft: 6, padding: '2px 7px', borderRadius: 999, background: 'var(--c-cy16)', color: 'var(--c-accyanbr)' }}>관리자</span>}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 14, fontWeight: 800, color: 'var(--c-tx1b)' }}>
+            <span style={{ wordBreak: 'break-all' }}>{user}</span>
+            {isAdmin && <span style={{ fontSize: 10, fontWeight: 800, padding: '2px 7px', borderRadius: 999, background: 'var(--c-cy16)', color: 'var(--c-accyanbr)' }}>관리자</span>}
+            <span style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 700, color: 'var(--c-accyanbr)', whiteSpace: 'nowrap' }}>내 자산 →</span>
           </div>
-        </div>
+        </Link>
       )}
       <button onClick={actions.toggleTheme} style={{ ...utilBtnBase, width: '100%', justifyContent: 'flex-start', padding: '11px 12px' }}>
         <span style={{ fontSize: 14 }}>{themeIsDark ? '☾' : '☀'}</span>
