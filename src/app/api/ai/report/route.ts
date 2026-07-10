@@ -1,5 +1,9 @@
 import { NextResponse } from 'next/server';
-import { getOrGenerateJSON } from '@/server/ai';
+import { cookies } from 'next/headers';
+import { COOKIE, getSessionUser } from '@/lib/auth';
+import { getOrGenerateJSON, readJSONCache, countAiToday } from '@/server/ai';
+
+const DAILY_CAP = 5; // 계정당 하루 '새' 보고서 생성 상한(같은 포트폴리오 재요청=캐시라 카운트 안 됨)
 
 interface Line { name: string; group: string; weight: number; plPct: number; risk?: string }
 interface Body {
@@ -36,6 +40,23 @@ export async function POST(req: Request) {
 
   const today = new Date().toISOString().slice(0, 10);
   const sig = hash(JSON.stringify(lines.map((l) => [l.name, Math.round(l.weight), Math.round(l.plPct)])) + (b.events || ''));
+  const cacheKey = `report:${sig}:${today}`;
+
+  // 같은 포트폴리오 재요청은 캐시로 즉시 반환 — 상한에 안 걸리고 새 비용도 없음.
+  const cached = await readJSONCache<Report>(cacheKey);
+  if (cached) return NextResponse.json(cached);
+
+  // 캐시 미스 = 새 생성 → 계정당 하루 상한 검사(측정·남용 방지).
+  const user = await getSessionUser(cookies().get(COOKIE)?.value);
+  if (user) {
+    const used = await countAiToday(user, 'report');
+    if (used >= DAILY_CAP) {
+      return NextResponse.json(
+        { error: `하루 보고서 생성 한도(${DAILY_CAP}회)를 초과했어요. 같은 구성은 다시 생성 없이 바로 열립니다. 내일 다시 시도해주세요.`, limited: true },
+        { status: 429 },
+      );
+    }
+  }
 
   const lineText = lines
     .map((l) => `- ${l.name} (${l.group}): 비중 ${l.weight.toFixed(1)}%, 평가손익 ${l.plPct > 0 ? '+' : ''}${l.plPct.toFixed(1)}%${l.risk ? `, 리스크 ${l.risk}` : ''}`)
@@ -43,8 +64,9 @@ export async function POST(req: Request) {
   const groupText = (b.groupWeights ?? []).map((g) => `${g.group} ${g.weight.toFixed(0)}%`).join(', ');
 
   const result = await getOrGenerateJSON<Report>({
-    cacheKey: `report:${sig}:${today}`,
+    cacheKey,
     kind: 'report',
+    user: user ?? undefined,
     system:
       '너는 한국어로 답하는 투자 분석 보조자다. 사용자의 보유 포트폴리오와 현재 시장 데이터를 묶어, 한 페이지짜리 "정기 투자 보고서"를 충실하게 작성한다. ' +
       '반드시 JSON만 출력(설명·코드펜스 금지). 형식: ' +

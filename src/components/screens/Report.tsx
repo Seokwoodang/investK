@@ -79,38 +79,43 @@ export function Report() {
   const [report, setReport] = useState<ReportData | null>(null);
   const [loading, setLoading] = useState(false);
   const [genErr, setGenErr] = useState(false); // 실패 무통보 방지
-  const generate = () => {
+  const [limitMsg, setLimitMsg] = useState<string | null>(null); // 하루 생성 한도 초과 안내
+  const generate = async () => {
     if (!rows.length) return;
     track('ai_report_generate', { holdings: rows.length });
     setLoading(true);
     setReport(null);
     setGenErr(false);
+    setLimitMsg(null);
     setSelectedId(null);
     const lines = liveLines;
-    fetch('/api/ai/report', {
-      method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ lines, totalValueKrw: totalKrw, totalPlPct, groupWeights, fx: fxText, indices: idxText, events: eventsText }),
-    })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((j) => {
-        if (!j?.overview) {
-          setGenErr(true);
-          return;
-        }
-        setReport(j as ReportData);
-        // 기록 저장(생성할 때마다).
-        fetch('/api/report-history', {
-          method: 'POST', headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ totalValueKrw: totalKrw, totalPlPct, lines, report: j }),
-        })
-          .then((r) => (r.ok ? r.json() : null))
-          .then((saved) => {
-            if (saved?.id) setHistory((h) => [{ id: saved.id, created_at: saved.created_at, total_value_krw: totalKrw, total_pl_pct: totalPlPct, lines, report: j as ReportData }, ...h]);
-          })
-          .catch(() => {});
-      })
-      .catch(() => setGenErr(true))
-      .finally(() => setLoading(false));
+    try {
+      const r = await fetch('/api/ai/report', {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ lines, totalValueKrw: totalKrw, totalPlPct, groupWeights, fx: fxText, indices: idxText, events: eventsText }),
+      });
+      if (r.status === 429) {
+        const j = await r.json().catch(() => ({}));
+        setLimitMsg(j.error || '하루 보고서 생성 한도를 초과했어요.');
+        return;
+      }
+      const j = r.ok ? await r.json() : null;
+      if (!j?.overview) {
+        setGenErr(true);
+        return;
+      }
+      setReport(j as ReportData);
+      // 기록 저장(생성할 때마다).
+      const saved = await fetch('/api/report-history', {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ totalValueKrw: totalKrw, totalPlPct, lines, report: j }),
+      }).then((rr) => (rr.ok ? rr.json() : null)).catch(() => null);
+      if (saved?.id) setHistory((h) => [{ id: saved.id, created_at: saved.created_at, total_value_krw: totalKrw, total_pl_pct: totalPlPct, lines, report: j as ReportData }, ...h]);
+    } catch {
+      setGenErr(true);
+    } finally {
+      setLoading(false);
+    }
   };
 
   // 표시 대상: 과거 기록 선택 시 그 스냅샷, 아니면 현재(라이브).
@@ -248,6 +253,11 @@ export function Report() {
             {genErr && !loading && (
               <div style={{ padding: '12px 16px', borderRadius: 12, background: 'var(--c-rd06)', border: '1px solid var(--c-rd20)', fontSize: 13, color: 'var(--c-tx3)' }}>
                 보고서 생성에 실패했습니다. 잠시 후 다시 시도해주세요.
+              </div>
+            )}
+            {limitMsg && !loading && (
+              <div style={{ padding: '12px 16px', borderRadius: 12, background: 'var(--c-am06)', border: '1px solid var(--c-am20)', fontSize: 13, color: 'var(--c-tx3)' }}>
+                {limitMsg}
               </div>
             )}
             {disp.report && !loading && (
