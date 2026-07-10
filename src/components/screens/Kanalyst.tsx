@@ -326,7 +326,11 @@ export function Kanalyst({ code, market, name, ticker, cur, price }: Props) {
               {data.recommMean != null && (
                 <div>
                   <div style={{ fontSize: 12, color: 'var(--c-tx5)', marginBottom: 4 }}>애널리스트 의견</div>
-                  <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--c-tx1)' }}>{data.recommMean.toFixed(2)}<span style={{ fontSize: 12, color: 'var(--c-tx6)', fontWeight: 500 }}> /5</span></div>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                    {/* 단어(매수/매도)를 앞세워 방향을 즉시 알게 — 숫자만 '1.64/5'면 낮은 점수처럼 오독됨. 1=적극매수라 낮을수록 매수. */}
+                    <span style={{ fontSize: 22, fontWeight: 800, color: data.recommMean <= 2.5 ? 'var(--c-upbr)' : data.recommMean >= 3.5 ? 'var(--c-downbr)' : 'var(--c-warn)' }}>{recommLabel(data.recommMean)}</span>
+                    <span style={{ fontSize: 12, color: 'var(--c-tx6)', fontWeight: 600 }}>{data.recommMean.toFixed(2)}/5</span>
+                  </div>
                 </div>
               )}
             </div>
