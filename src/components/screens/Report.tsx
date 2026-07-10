@@ -253,7 +253,7 @@ export function Report() {
               ) : (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   {quota && (
-                    <span style={{ fontSize: 12, fontWeight: 600, color: quota.remaining === 0 ? 'var(--c-downbr)' : 'var(--c-tx5)' }}>
+                    <span title="매일 오전 10시(KST) 초기화" style={{ fontSize: 12, fontWeight: 600, color: quota.remaining === 0 ? 'var(--c-downbr)' : 'var(--c-tx5)' }}>
                       오늘 {quota.remaining}/{quota.cap}회 남음
                     </span>
                   )}

@@ -15,12 +15,15 @@ interface GenerateArgs {
   user?: string; // 사용량 기록용(로그인 계정). cron 등 서버 생성은 생략.
 }
 
-// KST '오늘 00:00'의 UTC ISO — 일일 카운트 경계.
-function kstMidnightISO(): string {
+// 일일 카운트 리셋 경계 = '가장 최근 KST 오전 10시'의 UTC ISO.
+//  현재가 오늘 10시 전이면 어제 10시부터, 지났으면 오늘 10시부터 집계 → 매일 오전 10시(KST) 초기화.
+export const DAILY_RESET_HOUR_KST = 10;
+function dailyResetISO(): string {
   const now = Date.now();
-  const kst = new Date(now + 9 * 3600 * 1000);
-  const mid = Date.UTC(kst.getUTCFullYear(), kst.getUTCMonth(), kst.getUTCDate()) - 9 * 3600 * 1000;
-  return new Date(mid).toISOString();
+  const kst = new Date(now + 9 * 3600 * 1000); // KST 벽시계
+  let boundary = Date.UTC(kst.getUTCFullYear(), kst.getUTCMonth(), kst.getUTCDate(), DAILY_RESET_HOUR_KST) - 9 * 3600 * 1000;
+  if (now < boundary) boundary -= 24 * 3600 * 1000; // 아직 오늘 10시 전 → 어제 10시 기준
+  return new Date(boundary).toISOString();
 }
 
 // 실제 Claude 생성 1건의 토큰 사용량을 ai_usage에 남긴다(측정·요금 추적용). 실패해도 생성엔 영향 없음.
@@ -53,7 +56,7 @@ export async function countAiToday(user: string, kind: string): Promise<number> 
     .select('id', { count: 'exact', head: true })
     .eq('username', user)
     .eq('kind', kind)
-    .gte('created_at', kstMidnightISO());
+    .gte('created_at', dailyResetISO());
   return count ?? 0;
 }
 
@@ -65,7 +68,7 @@ export async function countAiTodayGlobal(kind: string): Promise<number> {
     .from('ai_usage')
     .select('id', { count: 'exact', head: true })
     .eq('kind', kind)
-    .gte('created_at', kstMidnightISO());
+    .gte('created_at', dailyResetISO());
   return count ?? 0;
 }
 

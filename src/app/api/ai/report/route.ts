@@ -59,7 +59,7 @@ export async function POST(req: Request) {
   const globalUsed = await countAiTodayGlobal('report');
   if (globalUsed >= GLOBAL_DAILY_CAP) {
     return NextResponse.json(
-      { error: '오늘 전체 보고서 생성 한도에 도달했어요. 내일 다시 시도해주세요. (같은 구성은 캐시로 바로 열립니다)', limited: true },
+      { error: '오늘 전체 보고서 생성 한도에 도달했어요. 매일 오전 10시에 초기화됩니다. (같은 구성은 캐시로 바로 열립니다)', limited: true },
       { status: 429 },
     );
   }
@@ -68,7 +68,7 @@ export async function POST(req: Request) {
     const used = await countAiToday(user, 'report');
     if (used >= DAILY_CAP) {
       return NextResponse.json(
-        { error: `하루 보고서 생성 한도(${DAILY_CAP}회)를 초과했어요. 같은 구성은 다시 생성 없이 바로 열립니다. 내일 다시 시도해주세요.`, limited: true },
+        { error: `하루 보고서 생성 한도(${DAILY_CAP}회)를 다 썼어요. 매일 오전 10시에 초기화됩니다. (같은 구성은 다시 생성 없이 바로 열립니다)`, limited: true },
         { status: 429 },
       );
     }
