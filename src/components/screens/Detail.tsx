@@ -14,6 +14,7 @@ import { Kanalyst } from './Kanalyst';
 import { SourceNote, UpdateNote } from '../SourceNote';
 import { TermTip } from '../GlossaryTip';
 import { InlineSpinner } from '../Footer';
+import { AdSlot } from '../AdSlot';
 
 const CARD: React.CSSProperties = {
   background: 'var(--c-w04)', border: '1px solid var(--c-w08)',
@@ -829,6 +830,9 @@ export function Detail({ id }: { id: string }) {
           <SourceNote text={SRC.risk} style={{ marginTop: 18 }} />
         </div>
       )}
+
+      {/* 콘텐츠 맨 아래 광고(모든 탭 공통) — 유닛 미설정 시 자동 미표시 */}
+      <AdSlot variant="banner" />
     </div>
   );
 }
