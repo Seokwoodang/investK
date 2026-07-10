@@ -1,8 +1,10 @@
 'use client';
 
+import Link from 'next/link';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { DashboardSkeleton } from '@/components/DashboardSkeleton';
+import { Footer } from '@/components/Footer';
 import { track } from '@/lib/ga';
 
 type Mode = 'login' | 'signup';
@@ -88,7 +90,18 @@ export default function LoginPage() {
   const isSignup = mode === 'signup';
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+      {/* 상단바 — 로고 클릭 시 대시보드로(로그인 없이도 시장 보기 가능) */}
+      <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '16px 20px', maxWidth: 1280, margin: '0 auto', width: '100%', boxSizing: 'border-box' }}>
+        <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none' }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/icon.svg" alt="InvestKang" width={30} height={30} style={{ borderRadius: 9 }} />
+          <span style={{ fontSize: 16, fontWeight: 800, color: 'var(--c-tx1)' }}>InvestKang</span>
+        </Link>
+        <Link href="/" style={{ fontSize: 13, fontWeight: 600, color: 'var(--c-tx4)', textDecoration: 'none', padding: '8px 14px', borderRadius: 999, border: '1px solid var(--c-w10)', background: 'var(--c-w05)' }}>← 대시보드</Link>
+      </header>
+
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
       <form
         onSubmit={submit}
         style={{
@@ -97,9 +110,8 @@ export default function LoginPage() {
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
-          <div style={{ width: 30, height: 30, borderRadius: 9, background: 'linear-gradient(135deg, var(--c-accyan), var(--c-blue))', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <div style={{ width: 11, height: 11, borderRadius: 3, background: 'var(--c-bg)' }} />
-          </div>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/icon.svg" alt="InvestKang" width={30} height={30} style={{ borderRadius: 9 }} />
           <span style={{ fontSize: 18, fontWeight: 800, letterSpacing: '-0.01em', color: 'var(--c-tx1)' }}>InvestKang</span>
         </div>
         <p style={{ margin: '0 0 20px', fontSize: 13, color: 'var(--c-tx5)' }}>
@@ -149,6 +161,11 @@ export default function LoginPage() {
           신규 가입은 카카오 로그인으로만 가능합니다.
         </div>
       </form>
+      </div>
+
+      <div style={{ maxWidth: 1280, margin: '0 auto', padding: '0 20px 8px', width: '100%', boxSizing: 'border-box' }}>
+        <Footer />
+      </div>
     </div>
   );
 }
