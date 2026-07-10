@@ -3,7 +3,7 @@ import crypto from 'node:crypto';
 import { promisify } from 'node:util';
 import { getSupabase } from '@/server/supabase';
 
-// 회원가입 = "신청". app_users에 status='pending'으로 저장하고, 관리자(swoo1427)가 승인해야 로그인 가능.
+// 회원가입 = "신청". app_users에 status='pending'으로 저장하고, 관리자(is_admin)가 승인해야 로그인 가능.
 //   app_users(username, pass_hash, status, note, created_at)  — pass_hash: "scrypt$<saltHex>$<hashHex>"
 // 회원가입 자체는 공개(미들웨어 비보호). 승인은 /admin 에서.
 export const runtime = 'nodejs';

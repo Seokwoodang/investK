@@ -1,18 +1,11 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
-import { COOKIE, getSessionUser } from '@/lib/auth';
 import { getSupabase } from '@/server/supabase';
-import { env } from '@/server/env';
+import { requireAdmin } from '@/server/admin';
 
-// 관리자 전용 — AI 사용량(토큰·횟수) 집계. ai_usage 로그를 최근 30일치 읽어 JS로 합산.
+// 관리자(app_users.is_admin) 전용 — AI 사용량(토큰·횟수) 집계. ai_usage 로그를 최근 30일치 읽어 JS로 합산.
 // 개인용/소수 회원 규모라 행 수가 적어 애플리케이션단 집계로 충분.
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-
-async function requireAdmin(): Promise<boolean> {
-  const user = await getSessionUser(cookies().get(COOKIE)?.value);
-  return !!user && user === env.ADMIN_USER;
-}
 
 function kstMidnightISO(): string {
   const kst = new Date(Date.now() + 9 * 3600 * 1000);

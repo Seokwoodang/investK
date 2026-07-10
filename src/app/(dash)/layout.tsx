@@ -4,7 +4,6 @@ import { DashboardChrome } from '@/components/DashboardChrome';
 import { getDashboardData } from '@/server/data';
 import { COOKIE, getSessionUser } from '@/lib/auth';
 import { getSupabase } from '@/server/supabase';
-import { env } from '@/server/env';
 
 // 공유 레이아웃: 데이터를 한 번 모아 셸에 주입. 자식 라우트(대시보드/데일리/종목/뉴스/상세)는
 // 이 레이아웃 아래에서 화면만 교체되며 셸·프로바이더·소켓은 유지된다.
@@ -20,18 +19,19 @@ export default async function DashLayout({ children }: { children: React.ReactNo
   //  - 행이 없음(=삭제) 또는 status != approved → 차단
   //  - DB 쿼리 오류(일시적) → 실사용자 오차단 방지 위해 통과(fail-open)
   let uid: string | null = null; // GA User-ID로 쓸 불투명 식별자(이름 아님)
+  let isAdmin = false; // app_users.is_admin(DB 컬럼) 기준 — 하드코딩 아이디 없음
   if (user) {
     const sb = getSupabase();
     if (sb) {
-      const { data: row, error } = await sb.from('app_users').select('status, uid').eq('username', user).maybeSingle();
+      const { data: row, error } = await sb.from('app_users').select('status, uid, is_admin').eq('username', user).maybeSingle();
       if (!error && (!row || (row.status as string) !== 'approved')) {
         redirect('/api/auth/logout');
       }
       if (row?.uid) uid = row.uid as string;
+      isAdmin = row?.is_admin === true; // 관리자만 헤더에 '회원관리' 노출
     }
   }
 
   const authed = !!user;
-  const isAdmin = !!user && user === env.ADMIN_USER; // 관리자만 헤더에 '회원관리' 노출
   return <DashboardChrome data={data} authed={authed} isAdmin={isAdmin} uid={uid} user={user}>{children}</DashboardChrome>;
 }

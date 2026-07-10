@@ -26,7 +26,7 @@ export function useViewportLayout(): ViewportLayout {
 const AuthedCtx = createContext(false);
 export const useAuthed = () => useContext(AuthedCtx);
 
-// 관리자 여부(swoo1427). 관리자 전용 UI(K-리서치 '다시분석' 등)에서 사용.
+// 관리자 여부(app_users.is_admin). 관리자 전용 UI(K-리서치 '다시분석' 등)에서 사용.
 const AdminCtx = createContext(false);
 export const useAdmin = () => useContext(AdminCtx);
 

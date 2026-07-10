@@ -20,9 +20,6 @@ export const env = {
   SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL ?? '',
   SUPABASE_SERVICE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY ?? '',
 
-  // 관리자 아이디(회원가입 승인 페이지 접근 권한). 기본 swoo1427, env로 교체 가능.
-  ADMIN_USER: process.env.ADMIN_USER || 'swoo1427',
-
   // DART(금감원 전자공시) OpenAPI — 국내 종목 수주·실적 등 공시. Vercel env에도 넣어야 실서비스 동작.
   DART_API_KEY: process.env.DART_API_KEY ?? '',
 

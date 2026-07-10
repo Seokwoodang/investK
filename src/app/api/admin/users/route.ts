@@ -1,18 +1,11 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
-import { COOKIE, getSessionUser } from '@/lib/auth';
 import { getSupabase } from '@/server/supabase';
-import { env } from '@/server/env';
+import { requireAdmin } from '@/server/admin';
 
-// 관리자(env.ADMIN_USER = 기본 swoo1427) 전용. 회원가입 신청 목록 조회 + 승인/거절/삭제.
-// 미들웨어가 로그인은 보장하지만, "관리자 신원"은 여기서 세션 사용자명으로 직접 검증한다.
+// 관리자(app_users.is_admin) 전용. 회원가입 신청 목록 조회 + 승인/거절/삭제.
+// 미들웨어가 로그인은 보장하지만, "관리자 신원"은 여기서 DB is_admin으로 직접 검증한다.
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-
-async function requireAdmin(): Promise<string | null> {
-  const user = await getSessionUser(cookies().get(COOKIE)?.value);
-  return user && user === env.ADMIN_USER ? user : null;
-}
 
 export async function GET() {
   if (!(await requireAdmin())) return NextResponse.json({ error: 'forbidden' }, { status: 403 });

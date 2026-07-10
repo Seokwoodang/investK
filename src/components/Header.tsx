@@ -82,7 +82,7 @@ export function Header({ authed = true, isAdmin = false, user = null }: { authed
   }, []);
   const themeIsDark = state.theme === 'dark' || (state.theme === 'system' && osDark);
 
-  // 관리자(swoo1427)에게만 '회원관리' 메뉴 노출.
+  // 관리자(is_admin)에게만 '회원관리' 메뉴 노출.
   const navItems = isAdmin ? [...NAV, { href: '/admin', label: '회원관리' }] : NAV;
 
   // 좁은 화면에선 메뉴를 햄버거(≡)로 접는다. 다크/큰글씨/로그아웃은 항상 ⚙ 설정 드롭다운으로 묶어 공간 절약.
