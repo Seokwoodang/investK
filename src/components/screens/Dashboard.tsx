@@ -118,12 +118,39 @@ function HeadlineBanner() {
 // ② 내 자산 스냅샷 — 보유 등록된 로그인 사용자에게만 표시.
 function MyAssetsStrip() {
   const { data, universeReady } = useDashboard();
-  const { holdings } = usePortfolio();
+  const { holdings, loaded } = usePortfolio();
   const usdkrw = useMemo(() => usdKrwFromFx(data.macro.fx), [data.macro.fx]);
   const { prices: extra, pending: pxPending } = useResolvedPrices(holdings, data.stocks);
   const val = useMemo(() => valuePortfolio(holdings, data.stocks, usdkrw, extra, universeReady), [holdings, data.stocks, usdkrw, extra, universeReady]);
-  // 시세 확보 전(라이브 유니버스 도착 전/즉석조회 중)엔 평단·목 폴백으로 총계가 틀리므로 스트립을 안 띄운다. 확보 후 표시.
-  if (!holdings.length || (!val.allPriced && (pxPending || !universeReady)) || val.totalKrw <= 0) return null;
+
+  // 보유가 확정적으로 없으면 스트립 자체를 숨긴다(스켈레톤도 안 띄움).
+  if (loaded && !holdings.length) return null;
+  // 시세 확보 전(포트폴리오 로드/라이브 유니버스 도착/즉석조회 중)엔 총계가 틀리므로 실값 대신 스켈레톤.
+  //  — 예전엔 이때 null을 반환해 로딩 끝나면 '덜컥' 나타났음.
+  const notReady = !loaded || (!val.allPriced && (pxPending || !universeReady)) || val.totalKrw <= 0;
+  if (notReady) {
+    const sk = (w: number, h: number, mt = 0): React.CSSProperties => ({ width: w, height: h, borderRadius: h > 18 ? 8 : 6, background: 'var(--c-w06)', marginTop: mt });
+    return (
+      <div style={{ marginBottom: 36 }}>
+        <SectionHead title="내 자산" href="/portfolio" linkLabel="내자산 · 매도 점검" />
+        <div style={{ ...CARD, padding: 22, display: 'flex', alignItems: 'center', gap: 36, flexWrap: 'wrap' }}>
+          <div>
+            <div className="skeleton-pulse" style={sk(64, 12)} />
+            <div className="skeleton-pulse" style={sk(130, 26, 8)} />
+          </div>
+          <div>
+            <div className="skeleton-pulse" style={sk(72, 12)} />
+            <div className="skeleton-pulse" style={sk(170, 22, 8)} />
+          </div>
+          <div style={{ marginLeft: 'auto', textAlign: 'right' }}>
+            <div className="skeleton-pulse" style={{ ...sk(56, 12), marginLeft: 'auto' }} />
+            <div className="skeleton-pulse" style={{ ...sk(120, 16, 8), marginLeft: 'auto' }} />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const krw = (v: number) => '₩' + Math.round(v).toLocaleString('ko-KR');
   const top = [...val.rows].sort((a, b) => b.valueKrw - a.valueKrw)[0];
   return (
