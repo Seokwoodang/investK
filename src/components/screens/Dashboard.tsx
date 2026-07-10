@@ -53,6 +53,9 @@ function MacroCard({ title, rows, source, onRow }: { title: string; rows: { labe
   return (
     <div style={{ ...CARD, padding: 24 }}>
       <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.18em', color: 'var(--c-accyan)', marginBottom: 18 }}>{title}</div>
+      {rows.length === 0 && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 0', fontSize: 13, color: 'var(--c-tx6)' }}><InlineSpinner size={13} />불러오는 중…</div>
+      )}
       {rows.map((r, i) => (
         <div
           key={i}
@@ -454,7 +457,7 @@ function SectorFlowCard() {
 export function Dashboard() {
   const { vw, layout } = useViewportLayout();
   const authed = useAuthed();
-  const { state, actions, data } = useDashboard();
+  const { state, actions, data, macroReady } = useDashboard();
   const { macro, assetSummary } = data;
   // 일정 분류 필터(복수 선택, 최소 1개 유지) — 목록·달력·상세 모달에 공통 적용.
   const [evFilter, setEvFilter] = useState<Impact[]>(['고영향', '중간', '실적']);
@@ -692,7 +695,9 @@ export function Dashboard() {
         {state.eventView === 'list' ? (
           <div style={{ ...CARD, padding: '6px 24px' }}>
             {listEvents.length === 0 && (
-              <div style={{ padding: '20px 0', fontSize: 13, color: 'var(--c-tx6)', textAlign: 'center' }}>선택한 분류의 일정이 없습니다.</div>
+              <div style={{ padding: '20px 0', fontSize: 13, color: 'var(--c-tx6)', textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                {macroReady ? '선택한 분류의 일정이 없습니다.' : <><InlineSpinner size={13} />일정 불러오는 중…</>}
+              </div>
             )}
             {listEvents.map((e, i) => {
               const yr = parseInt(e.date.slice(0, 4), 10);

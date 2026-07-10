@@ -1,6 +1,6 @@
 import 'server-only';
 import { MACRO, NEWS, BRIEFING, STOCKS } from '@/data';
-import type { AssetSummary, Currency, DashboardData, FxRow, IndexRow, MacroEvent, Stock, Stocks, TabId, UniverseRow } from '@/types';
+import type { AssetSummary, Currency, DashboardData, FxRow, IndexRow, MacroEvent, MarketIndicators, Stock, Stocks, TabId, UniverseRow } from '@/types';
 import { has } from './env';
 import { getIndexQuotes, type IndexSpec } from './providers/kis';
 import { getUpbitUniverse } from './providers/upbit';
@@ -51,12 +51,36 @@ const EMPTY_SUMMARY: Record<TabId, AssetSummary> = Object.fromEntries(
 // withUniverse 기본 false — 유저 첫 진입(SSR)은 전 종목 유니버스(네이버·업비트·바이낸스 2.4MB)를
 // 기다리지 않고 즉시 응답한다. 자산군 요약은 클라가 /api/universe 받을 때 계산해 채운다.
 // cron(브리핑)만 withUniverse:true로 서버에서 집계한다.
-export async function getDashboardData(opts?: { withUniverse?: boolean }): Promise<DashboardData> {
+function usdkrwFromFxRows(fx: FxRow[]): number | null {
+  const row = fx.find((r) => /USD\s*\/\s*KRW/i.test(r.pair) || r.pair.includes('USD/KRW'));
+  return row ? Number(row.val.replace(/,/g, '')) || null : null;
+}
+
+// 지수(KIS)·일정(Nasdaq)·시장지표(Yahoo)는 콜드 SSR을 무겁게 해 첫 페인트를 늦춘다 →
+// 유저 경로에선 생략하고 클라가 /api/macro로 받아 채운다. (환율 fx는 포트폴리오 원화환산에
+// 필요해 SSR 유지.) 김프용 USD/KRW는 여기서 fx를 다시 받아 계산(revalidate 캐시라 저렴).
+export async function getMacroExtras(): Promise<{ indices: IndexRow[]; events: MacroEvent[]; market: MarketIndicators | undefined }> {
   const [fx, indices, events] = await Promise.all([
     withFxLive(MACRO.fx),
     withIndicesLive(MACRO.indices),
     withCalendarLive(MACRO.events),
   ]);
+  const market = await getMarketIndicators(usdkrwFromFxRows(fx)).catch(() => undefined);
+  return { indices, events, market };
+}
+
+// withUniverse/withMacroExtras 기본 false — 유저 첫 진입(SSR)은 환율만 받아 즉시 응답한다.
+// 지수·일정·시장지표는 클라가 /api/macro로, 자산군 요약은 /api/universe로 채운다.
+// cron(브리핑)만 둘 다 true로 서버에서 완전 집계.
+export async function getDashboardData(opts?: { withUniverse?: boolean; withMacroExtras?: boolean }): Promise<DashboardData> {
+  const fx = await withFxLive(MACRO.fx);
+
+  let indices: IndexRow[] = [];
+  let events: MacroEvent[] = [];
+  let market: MarketIndicators | undefined;
+  if (opts?.withMacroExtras) {
+    ({ indices, events, market } = await getMacroExtras());
+  }
 
   let assetSummary = EMPTY_SUMMARY;
   if (opts?.withUniverse) {
@@ -65,18 +89,12 @@ export async function getDashboardData(opts?: { withUniverse?: boolean }): Promi
     assetSummary = Object.fromEntries(tabs.map((t) => [t, summarize(universe[t])])) as Record<TabId, AssetSummary>;
   }
 
-  // 시장 심리·지표(VIX·美10년물·크립토 공포지수·김프). 김프용 USD/KRW는 위에서 받은 fx에서 추출.
-  const usdkrw = (() => {
-    const row = fx.find((r) => /USD\s*\/\s*KRW/i.test(r.pair) || r.pair.includes('USD/KRW'));
-    return row ? Number(row.val.replace(/,/g, '')) || null : null;
-  })();
-  const market = await getMarketIndicators(usdkrw).catch(() => undefined);
-
   return {
+    // fx만 실데이터, 지수·일정·시장지표는 빈 값(클라가 /api/macro로 채움 — 목 숫자 노출 방지).
     macro: { ...MACRO, fx, indices, events, market },
     news: NEWS,
     briefing: BRIEFING,
-    // 첫 페이로드는 큐레이션 소수만(~5.9MB → 수십 KB). 전체 유니버스는 클라가 /api/universe로 채운다.
+    // 첫 페이로드는 큐레이션 소수만. 전체 유니버스는 클라가 /api/universe로 채운다.
     stocks: STOCKS,
     assetSummary,
   };

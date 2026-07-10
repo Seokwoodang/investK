@@ -16,7 +16,9 @@ import type {
   DashboardData,
   DetailTab,
   EventView,
+  IndexRow,
   MacroEvent,
+  MarketIndicators,
   Page,
   Period,
   SortDir,
@@ -25,6 +27,8 @@ import type {
   Stocks,
   TabId,
 } from '../types';
+
+type MacroExtras = { indices: IndexRow[]; events: MacroEvent[]; market?: MarketIndicators };
 
 // 자산군 요약(자산군 현황 카드) — 서버 SSR은 유니버스를 안 싣고 즉시 응답하므로,
 // 클라가 /api/universe를 받은 뒤 여기서 집계해 채운다(서버 data.ts summarize와 동일 로직).
@@ -146,6 +150,7 @@ interface Ctx {
   actions: DashboardActions;
   data: DashboardData;
   universeReady: boolean; // /api/universe(라이브 전 종목)가 도착했는지. 그 전엔 data.stocks가 큐레이션(목가격)이라 평가 신뢰 불가.
+  macroReady: boolean; // /api/macro(지수·일정·시장지표)가 도착했는지. 그 전엔 로딩 표시.
 }
 
 const DashboardCtx = createContext<Ctx | null>(null);
@@ -167,6 +172,18 @@ export function DashboardProvider({ data, children }: { data: DashboardData; chi
   const [stocks, setStocks] = useState<Stocks>(data.stocks);
   const [universeReady, setUniverseReady] = useState(false);
   const [assetSummary, setAssetSummary] = useState<Record<TabId, AssetSummary> | null>(null);
+  // 지수·일정·시장지표는 SSR에서 빠졌음(콜드 첫 페인트 단축) → 마운트 후 받아 채운다.
+  const [macroExtras, setMacroExtras] = useState<MacroExtras | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/macro')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j: MacroExtras | null) => {
+        if (!cancelled && j && Array.isArray(j.indices)) setMacroExtras(j);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -356,8 +373,14 @@ export function DashboardProvider({ data, children }: { data: DashboardData; chi
   }), [patch, router]);
 
   // 컨텍스트로 노출하는 data는 클라가 채운 전체 유니버스(stocks)로 덮어쓴다. macro/news/briefing/assetSummary는 서버 값 유지.
-  const mergedData = useMemo<DashboardData>(() => ({ ...data, stocks, assetSummary: assetSummary ?? data.assetSummary }), [data, stocks, assetSummary]);
-  const value = useMemo(() => ({ state, actions, data: mergedData, universeReady }), [state, actions, mergedData, universeReady]);
+  const mergedData = useMemo<DashboardData>(() => ({
+    ...data,
+    stocks,
+    assetSummary: assetSummary ?? data.assetSummary,
+    // 지수·일정·시장지표는 클라가 받은 라이브로 덮어쓴다(도착 전엔 빈 값 → 로딩 UI).
+    macro: macroExtras ? { ...data.macro, indices: macroExtras.indices, events: macroExtras.events, market: macroExtras.market } : data.macro,
+  }), [data, stocks, assetSummary, macroExtras]);
+  const value = useMemo(() => ({ state, actions, data: mergedData, universeReady, macroReady: macroExtras !== null }), [state, actions, mergedData, universeReady, macroExtras]);
   return <DashboardCtx.Provider value={value}>{children}</DashboardCtx.Provider>;
 }
 

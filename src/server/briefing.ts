@@ -42,7 +42,7 @@ const SYSTEM =
 
 function buildPrompt(date: string, slot: Slot) {
   return async () => {
-    const data = await getDashboardData({ withUniverse: true }); // 브리핑은 자산군 집계가 필요 → 유니버스 포함
+    const data = await getDashboardData({ withUniverse: true, withMacroExtras: true }); // 브리핑은 자산군·지수·일정·시장지표 모두 필요
     // 자산군 등락은 반드시 실데이터 집계(assetSummary = 전체 유니버스 기준)를 쓴다.
     // 과거 버그: data.stocks(정적 큐레이션 샘플, 등락률 고정)를 써서 매일 같은 가짜 수치로 브리핑이 생성됐음.
     const fmt = (n: number) => (n > 0 ? '+' : '') + n.toFixed(2) + '%';
