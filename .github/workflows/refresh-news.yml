@@ -16,4 +16,4 @@ jobs:
         run: |
           curl -fsS --max-time 90 --retry 2 --retry-delay 30 -X GET \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
-            "https://invest-seokwoodangs-projects.vercel.app/api/cron/news"
+            "https://investk.app/api/cron/news"

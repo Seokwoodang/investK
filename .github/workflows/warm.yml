@@ -14,7 +14,7 @@ jobs:
     steps:
       - name: Warm homepage + heavy data APIs
         run: |
-          BASE="https://invest-seokwoodangs-projects.vercel.app"
+          BASE="https://investk.app"
           for path in "/" "/api/macro" "/api/universe"; do
             curl -fsS --max-time 40 --retry 1 "$BASE$path" -o /dev/null \
               -w "warmed $path -> HTTP %{http_code} in %{time_total}s\n" || echo "warm $path failed"
