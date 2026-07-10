@@ -22,6 +22,14 @@ const PROTECTED: RegExp[] = [
 ];
 
 export async function middleware(req: NextRequest) {
+  // www → apex 301 리다이렉트(중복 도메인 방지, canonical 일원화).
+  const host = req.headers.get('host') || '';
+  if (host.startsWith('www.')) {
+    const url = req.nextUrl.clone();
+    url.host = host.slice(4);
+    return NextResponse.redirect(url, 308);
+  }
+
   const { pathname } = req.nextUrl;
   if (!PROTECTED.some((re) => re.test(pathname))) return NextResponse.next(); // 공개 경로 통과
 
