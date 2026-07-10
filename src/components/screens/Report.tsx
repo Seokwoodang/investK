@@ -80,6 +80,17 @@ export function Report() {
   const [loading, setLoading] = useState(false);
   const [genErr, setGenErr] = useState(false); // 실패 무통보 방지
   const [limitMsg, setLimitMsg] = useState<string | null>(null); // 하루 생성 한도 초과 안내
+
+  // 오늘 남은 생성 횟수(계정당 상한). 마운트 시 + 생성 후 갱신.
+  const [quota, setQuota] = useState<{ cap: number; remaining: number } | null>(null);
+  const refreshQuota = () => {
+    fetch('/api/ai/report')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => { if (j && typeof j.remaining === 'number') setQuota({ cap: j.cap, remaining: j.remaining }); })
+      .catch(() => {});
+  };
+  useEffect(() => { refreshQuota(); }, []);
+
   const generate = async () => {
     if (!rows.length) return;
     track('ai_report_generate', { holdings: rows.length });
@@ -115,6 +126,7 @@ export function Report() {
       setGenErr(true);
     } finally {
       setLoading(false);
+      refreshQuota(); // 남은 횟수 갱신(성공·429 모두)
     }
   };
 
@@ -239,9 +251,16 @@ export function Report() {
               {disp.isPast ? (
                 <button onClick={() => setSelectedId(null)} style={{ cursor: 'pointer', border: '1px solid var(--c-w10)', borderRadius: 9, padding: '9px 16px', fontSize: 13, fontWeight: 700, fontFamily: 'inherit', background: 'var(--c-w05)', color: 'var(--c-tx4)' }}>현재 포트폴리오로 →</button>
               ) : (
-                <button onClick={generate} disabled={loading} style={{ cursor: loading ? 'default' : 'pointer', border: 'none', borderRadius: 9, padding: '9px 16px', fontSize: 13, fontWeight: 700, fontFamily: 'inherit', background: 'var(--c-cy18)', color: 'var(--c-accyanbr)', opacity: loading ? 0.6 : 1 }}>
-                  {loading && <InlineSpinner size={12} color="currentColor" />} {loading ? '작성 중…' : report ? '다시 작성' : '보고서 생성'}
-                </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  {quota && (
+                    <span style={{ fontSize: 12, fontWeight: 600, color: quota.remaining === 0 ? 'var(--c-downbr)' : 'var(--c-tx5)' }}>
+                      오늘 {quota.remaining}/{quota.cap}회 남음
+                    </span>
+                  )}
+                  <button onClick={generate} disabled={loading || quota?.remaining === 0} style={{ cursor: loading || quota?.remaining === 0 ? 'default' : 'pointer', border: 'none', borderRadius: 9, padding: '9px 16px', fontSize: 13, fontWeight: 700, fontFamily: 'inherit', background: 'var(--c-cy18)', color: 'var(--c-accyanbr)', opacity: loading || quota?.remaining === 0 ? 0.5 : 1 }}>
+                    {loading && <InlineSpinner size={12} color="currentColor" />} {loading ? '작성 중…' : report ? '다시 작성' : '보고서 생성'}
+                  </button>
+                </div>
               )}
             </div>
             {loading && (

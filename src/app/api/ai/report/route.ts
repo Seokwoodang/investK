@@ -3,7 +3,14 @@ import { cookies } from 'next/headers';
 import { COOKIE, getSessionUser } from '@/lib/auth';
 import { getOrGenerateJSON, readJSONCache, countAiToday } from '@/server/ai';
 
-const DAILY_CAP = 5; // 계정당 하루 '새' 보고서 생성 상한(같은 포트폴리오 재요청=캐시라 카운트 안 됨)
+const DAILY_CAP = 3; // 계정당 하루 '새' 보고서 생성 상한(같은 포트폴리오 재요청=캐시라 카운트 안 됨)
+
+// GET /api/ai/report — 오늘 남은 생성 횟수(화면 표시용). 로그인 필수(미들웨어).
+export async function GET() {
+  const user = await getSessionUser(cookies().get(COOKIE)?.value);
+  const used = user ? await countAiToday(user, 'report') : 0;
+  return NextResponse.json({ cap: DAILY_CAP, used, remaining: Math.max(0, DAILY_CAP - used) });
+}
 
 interface Line { name: string; group: string; weight: number; plPct: number; risk?: string }
 interface Body {
