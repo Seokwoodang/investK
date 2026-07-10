@@ -1,93 +1,17 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { DashboardSkeleton } from '@/components/DashboardSkeleton';
+import { useEffect, useState } from 'react';
 import { Footer } from '@/components/Footer';
-import { track } from '@/lib/ga';
 
-type Mode = 'login' | 'signup';
-
+// 로그인은 카카오 전용. (아이디/비번 체계는 폐지 — 다계정 남용 방지)
 export default function LoginPage() {
-  const router = useRouter();
-  const [mode, setMode] = useState<Mode>('login');
-  const [id, setId] = useState('');
-  const [pw, setPw] = useState('');
-  const [note, setNote] = useState('');
   const [err, setErr] = useState('');
-  const [done, setDone] = useState(''); // 회원가입 신청 완료 안내
-  const [busy, setBusy] = useState(false);
-  const [entering, setEntering] = useState(false); // 로그인 성공 확정 후에만 대시보드 스켈레톤 표시(요청 대기 중엔 폼 유지)
-
-  const switchMode = (m: Mode) => {
-    setMode(m);
-    setErr('');
-    setDone('');
-    setPw('');
-    if (m === 'login') setNote('');
-  };
-
-  const submitLogin = async () => {
-    const r = await fetch('/api/auth/login', {
-      method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ id, pw }),
-    });
-    if (r.ok) {
-      track('login_success');
-      setEntering(true); // 성공 확정 → 이제부터 스켈레톤(진입 연출)
-      const next = new URLSearchParams(window.location.search).get('next');
-      router.replace(next && next.startsWith('/') ? next : '/');
-      return true; // entering 유지 — 대시보드 커밋될 때까지 스켈레톤
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('error') === 'kakao') {
+      setErr('카카오 로그인에 실패했어요. 잠시 후 다시 시도해주세요.');
     }
-    const j = await r.json().catch(() => ({}));
-    setErr(j.error || '로그인에 실패했습니다.');
-    setBusy(false);
-    return false;
-  };
-
-  const submitSignup = async () => {
-    track('signup_submit');
-    const r = await fetch('/api/auth/signup', {
-      method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ id, pw, note }),
-    });
-    const j = await r.json().catch(() => ({}));
-    if (r.ok) {
-      track('signup_success');
-      setMode('login');
-      setPw('');
-      setNote('');
-      setDone('가입이 완료됐습니다. 바로 로그인하세요.');
-    } else {
-      setErr(j.error || '가입에 실패했습니다.');
-    }
-    setBusy(false);
-  };
-
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setBusy(true);
-    setErr('');
-    setDone('');
-    try {
-      if (mode === 'login') await submitLogin();
-      else await submitSignup();
-    } catch {
-      setErr('네트워크 오류가 발생했습니다.');
-      setBusy(false);
-    }
-  };
-
-  // 로그인 '성공 확정' 후에만 스켈레톤(진입 연출). 요청 대기 중(busy)엔 폼을 유지해,
-  // 실패 시 스켈레톤이 잠깐 떴다 사라지는 '진입했다 튕김' 플래시가 없다.
-  if (entering) return <DashboardSkeleton />;
-
-  const input: React.CSSProperties = {
-    width: '100%', boxSizing: 'border-box', background: 'var(--c-w04)', border: '1px solid var(--c-w10)',
-    borderRadius: 10, padding: '12px 14px', color: 'var(--c-tx1d)', fontSize: 15, fontFamily: 'inherit', outline: 'none',
-  };
-  const isSignup = mode === 'signup';
+  }, []);
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
@@ -102,65 +26,40 @@ export default function LoginPage() {
       </header>
 
       <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-      <form
-        onSubmit={submit}
-        style={{
-          width: '100%', maxWidth: 360, background: 'var(--c-w04)', border: '1px solid var(--c-w08)',
-          borderRadius: 20, padding: 32, backdropFilter: 'blur(18px)', WebkitBackdropFilter: 'blur(18px)',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/icon.svg" alt="InvestKang" width={30} height={30} style={{ borderRadius: 9 }} />
-          <span style={{ fontSize: 18, fontWeight: 800, letterSpacing: '-0.01em', color: 'var(--c-tx1)' }}>InvestKang</span>
-        </div>
-        <p style={{ margin: '0 0 20px', fontSize: 13, color: 'var(--c-tx5)' }}>
-          카카오로 간편하게 시작하세요. 시장 보기는 로그인 없이도 가능해요.
-        </p>
-
-        {/* 카카오 로그인(메인) */}
-        <a
-          href="/api/auth/kakao"
+        <div
           style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-            width: '100%', boxSizing: 'border-box', padding: '13px 16px', borderRadius: 10,
-            background: '#FEE500', color: '#191600', fontSize: 15, fontWeight: 800, textDecoration: 'none',
+            width: '100%', maxWidth: 360, background: 'var(--c-w04)', border: '1px solid var(--c-w08)',
+            borderRadius: 20, padding: 32, backdropFilter: 'blur(18px)', WebkitBackdropFilter: 'blur(18px)',
           }}
         >
-          <span style={{ fontSize: 16 }}>💬</span> 카카오로 로그인
-        </a>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/icon.svg" alt="InvestKang" width={30} height={30} style={{ borderRadius: 9 }} />
+            <span style={{ fontSize: 18, fontWeight: 800, letterSpacing: '-0.01em', color: 'var(--c-tx1)' }}>InvestKang</span>
+          </div>
+          <p style={{ margin: '0 0 22px', fontSize: 13, color: 'var(--c-tx5)', lineHeight: 1.6 }}>
+            카카오로 간편하게 시작하세요. 시장 보기는 로그인 없이도 가능해요.
+          </p>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '18px 0 14px', color: 'var(--c-tx6)', fontSize: 12 }}>
-          <span style={{ flex: 1, height: 1, background: 'var(--c-w08)' }} /> 또는 아이디로 로그인 <span style={{ flex: 1, height: 1, background: 'var(--c-w08)' }} />
-        </div>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <input style={input} placeholder="아이디" value={id} onChange={(e) => setId(e.target.value)} autoComplete="username" autoFocus />
-          <input style={input} placeholder="비밀번호" type="password" value={pw} onChange={(e) => setPw(e.target.value)} autoComplete={isSignup ? 'new-password' : 'current-password'} />
-          {isSignup && (
-            <input style={input} placeholder="이름/소개 (승인 참고용)" value={note} onChange={(e) => setNote(e.target.value)} maxLength={200} />
+          {err && (
+            <div style={{ marginBottom: 14, padding: '10px 12px', borderRadius: 10, background: 'var(--c-rd06)', border: '1px solid var(--c-rd20)', fontSize: 13, color: 'var(--c-tx3)' }}>{err}</div>
           )}
+
+          <a
+            href="/api/auth/kakao"
+            style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+              width: '100%', boxSizing: 'border-box', padding: '14px 16px', borderRadius: 10,
+              background: '#FEE500', color: '#191600', fontSize: 15, fontWeight: 800, textDecoration: 'none',
+            }}
+          >
+            <span style={{ fontSize: 16 }}>💬</span> 카카오로 로그인
+          </a>
+
+          <p style={{ margin: '16px 0 0', textAlign: 'center', fontSize: 12, color: 'var(--c-tx6)', lineHeight: 1.6 }}>
+            카카오 계정으로 로그인·가입됩니다.
+          </p>
         </div>
-
-        {err && <div style={{ marginTop: 12, fontSize: 13, color: 'var(--c-down)' }}>{err}</div>}
-        {done && <div style={{ marginTop: 12, fontSize: 13, color: 'var(--c-accyanbr)' }}>{done}</div>}
-
-        <button
-          type="submit"
-          disabled={busy}
-          style={{
-            width: '100%', marginTop: 18, cursor: busy ? 'default' : 'pointer', border: 'none', borderRadius: 10,
-            padding: '12px 16px', fontSize: 15, fontWeight: 700, fontFamily: 'inherit',
-            background: 'var(--c-cy18)', color: 'var(--c-accyanbr)', opacity: busy ? 0.6 : 1,
-          }}
-        >
-          {busy ? '처리 중…' : '로그인'}
-        </button>
-
-        <div style={{ marginTop: 16, textAlign: 'center', fontSize: 12, color: 'var(--c-tx6)' }}>
-          신규 가입은 카카오 로그인으로만 가능합니다.
-        </div>
-      </form>
       </div>
 
       <div style={{ maxWidth: 1280, margin: '0 auto', padding: '0 20px 8px', width: '100%', boxSizing: 'border-box' }}>

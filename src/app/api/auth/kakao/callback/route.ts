@@ -14,7 +14,11 @@ export async function GET(req: Request) {
   const code = url.searchParams.get('code');
   const state = url.searchParams.get('state');
   const cookieState = cookies().get('kakao_state')?.value;
-  const fail = (reason: string) => NextResponse.redirect(new URL(`/login?error=kakao&reason=${encodeURIComponent(reason)}`, SITE_URL));
+  // 실패는 /login?error=kakao로. 원인은 서버 로그(console.error)에만 남긴다(URL 노출 X).
+  const fail = (reason: string) => {
+    console.error('[kakao callback]', reason);
+    return NextResponse.redirect(new URL('/login?error=kakao', SITE_URL));
+  };
 
   // CSRF: state 쿠키와 일치해야 진행.
   if (!code) return fail('no_code');
