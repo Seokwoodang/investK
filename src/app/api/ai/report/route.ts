@@ -3,7 +3,7 @@ import { cookies } from 'next/headers';
 import { COOKIE, getSessionUser } from '@/lib/auth';
 import { getOrGenerateJSON, readJSONCache, countAiToday, countAiTodayGlobal } from '@/server/ai';
 
-const DAILY_CAP = 3; // 계정당 하루 '새' 보고서 생성 상한(같은 포트폴리오 재요청=캐시라 카운트 안 됨)
+const DAILY_CAP = 1; // 계정당 하루 '새' 보고서 생성 상한(같은 포트폴리오 재요청=캐시라 카운트 안 됨)
 const GLOBAL_DAILY_CAP = 100; // 앱 전체 하루 상한(다계정·스크립트 남용 방어). 초과 시 전체 일시 정지.
 const REPORT_MODEL = process.env.ANTHROPIC_MODEL_REPORT || 'claude-sonnet-5'; // 보고서는 비용 낮은 Sonnet
 
