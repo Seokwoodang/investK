@@ -36,16 +36,26 @@ function summarize(arr: Stock[]): AssetSummary {
   return { count: arr.length, avgPct: avg, top: { name: top.name, pct: top.pct } };
 }
 
-export async function getDashboardData(): Promise<DashboardData> {
-  const [universe, fx, indices, events] = await Promise.all([
-    getUniverse(),
+const EMPTY_SUMMARY: Record<TabId, AssetSummary> = Object.fromEntries(
+  (Object.keys(STOCKS) as TabId[]).map((t) => [t, { count: 0, avgPct: 0, top: null }]),
+) as Record<TabId, AssetSummary>;
+
+// withUniverse 기본 false — 유저 첫 진입(SSR)은 전 종목 유니버스(네이버·업비트·바이낸스 2.4MB)를
+// 기다리지 않고 즉시 응답한다. 자산군 요약은 클라가 /api/universe 받을 때 계산해 채운다.
+// cron(브리핑)만 withUniverse:true로 서버에서 집계한다.
+export async function getDashboardData(opts?: { withUniverse?: boolean }): Promise<DashboardData> {
+  const [fx, indices, events] = await Promise.all([
     withFxLive(MACRO.fx),
     withIndicesLive(MACRO.indices),
     withCalendarLive(MACRO.events),
   ]);
 
-  const tabs = Object.keys(universe) as TabId[];
-  const assetSummary = Object.fromEntries(tabs.map((t) => [t, summarize(universe[t])])) as Record<TabId, AssetSummary>;
+  let assetSummary = EMPTY_SUMMARY;
+  if (opts?.withUniverse) {
+    const universe = await getUniverse();
+    const tabs = Object.keys(universe) as TabId[];
+    assetSummary = Object.fromEntries(tabs.map((t) => [t, summarize(universe[t])])) as Record<TabId, AssetSummary>;
+  }
 
   // 시장 심리·지표(VIX·美10년물·크립토 공포지수·김프). 김프용 USD/KRW는 위에서 받은 fx에서 추출.
   const usdkrw = (() => {

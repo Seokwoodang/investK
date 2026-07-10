@@ -12,6 +12,7 @@ import {
 } from 'react';
 import type {
   AlertKey,
+  AssetSummary,
   DashboardData,
   DetailTab,
   EventView,
@@ -20,9 +21,19 @@ import type {
   Period,
   SortDir,
   SortKey,
+  Stock,
   Stocks,
   TabId,
 } from '../types';
+
+// 자산군 요약(자산군 현황 카드) — 서버 SSR은 유니버스를 안 싣고 즉시 응답하므로,
+// 클라가 /api/universe를 받은 뒤 여기서 집계해 채운다(서버 data.ts summarize와 동일 로직).
+function summarizeTab(arr: Stock[]): AssetSummary {
+  if (!arr.length) return { count: 0, avgPct: 0, top: null };
+  const avg = arr.reduce((s, x) => s + x.pct, 0) / arr.length;
+  const top = arr.reduce((m, x) => (x.pct > m.pct ? x : m), arr[0]);
+  return { count: arr.length, avgPct: avg, top: { name: top.name, pct: top.pct } };
+}
 
 // 모달에 띄울 일정: 클릭 시점의 (연·월·일)과 그 달의 이벤트 목록을 함께 저장 → 달 이동/목록 어디서 열어도 정확.
 export interface EventModalPayload {
@@ -155,13 +166,19 @@ export function DashboardProvider({ data, children }: { data: DashboardData; chi
   // 첫 페이로드엔 큐레이션 소수만 들어온다(HTML 경량화). 전체 유니버스는 마운트 후 한 번 받아 채운다.
   const [stocks, setStocks] = useState<Stocks>(data.stocks);
   const [universeReady, setUniverseReady] = useState(false);
+  const [assetSummary, setAssetSummary] = useState<Record<TabId, AssetSummary> | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     fetch('/api/universe')
       .then((r) => (r.ok ? r.json() : null))
       .then((j: Stocks | null) => {
-        if (!cancelled && j && j.kr_stock) { setStocks(j); setUniverseReady(true); }
+        if (!cancelled && j && j.kr_stock) {
+          setStocks(j);
+          setUniverseReady(true);
+          // 자산군 현황 카드용 요약을 유니버스에서 직접 집계(서버 SSR은 생략했음).
+          setAssetSummary(Object.fromEntries((Object.keys(j) as TabId[]).map((t) => [t, summarizeTab(j[t])])) as Record<TabId, AssetSummary>);
+        }
       })
       .catch(() => {
         /* 실패 시 큐레이션 목록 유지(검색은 /api/resolve 원격 폴백으로 동작) */
@@ -339,7 +356,7 @@ export function DashboardProvider({ data, children }: { data: DashboardData; chi
   }), [patch, router]);
 
   // 컨텍스트로 노출하는 data는 클라가 채운 전체 유니버스(stocks)로 덮어쓴다. macro/news/briefing/assetSummary는 서버 값 유지.
-  const mergedData = useMemo<DashboardData>(() => ({ ...data, stocks }), [data, stocks]);
+  const mergedData = useMemo<DashboardData>(() => ({ ...data, stocks, assetSummary: assetSummary ?? data.assetSummary }), [data, stocks, assetSummary]);
   const value = useMemo(() => ({ state, actions, data: mergedData, universeReady }), [state, actions, mergedData, universeReady]);
   return <DashboardCtx.Provider value={value}>{children}</DashboardCtx.Provider>;
 }
