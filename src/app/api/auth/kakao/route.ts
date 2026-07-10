@@ -1,0 +1,24 @@
+import { NextResponse } from 'next/server';
+import { env, has } from '@/server/env';
+import { SITE_URL } from '@/lib/site';
+
+// GET /api/auth/kakao — 카카오 인가(authorize)로 리다이렉트. CSRF 방지용 state를 쿠키에 저장.
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+
+export async function GET() {
+  if (!has.kakao()) return NextResponse.redirect(new URL('/login?error=kakao_unconfigured', SITE_URL));
+
+  const state = crypto.randomUUID();
+  const url = new URL('https://kauth.kakao.com/oauth/authorize');
+  url.searchParams.set('client_id', env.KAKAO_REST_API_KEY);
+  url.searchParams.set('redirect_uri', `${SITE_URL}/api/auth/kakao/callback`);
+  url.searchParams.set('response_type', 'code');
+  url.searchParams.set('state', state);
+
+  const res = NextResponse.redirect(url.toString());
+  res.cookies.set('kakao_state', state, {
+    httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production', path: '/', maxAge: 600,
+  });
+  return res;
+}

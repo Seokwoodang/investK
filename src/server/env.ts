@@ -33,6 +33,11 @@ export const env = {
   // 분석 5종(브리핑·관점·차트분석·포폴·보고서) 기본 모델. 최고 품질 Opus 4.8.
   // (뉴스 호재/악재 판별만 비용·빈도 때문에 Haiku 별도 — aiNews.ts)
   ANTHROPIC_MODEL: process.env.ANTHROPIC_MODEL || 'claude-opus-4-8',
+
+  // 카카오 로그인(OAuth). REST API 키는 client_id(리다이렉트 URL에 노출되는 준공개값).
+  // Client Secret은 선택 — 콘솔에서 '사용함'일 때만 설정.
+  KAKAO_REST_API_KEY: process.env.KAKAO_REST_API_KEY ?? '',
+  KAKAO_CLIENT_SECRET: process.env.KAKAO_CLIENT_SECRET ?? '',
 } as const;
 
 export const has = {
@@ -44,6 +49,7 @@ export const has = {
   anthropic: () => Boolean(env.ANTHROPIC_API_KEY),
   dart: () => Boolean(env.DART_API_KEY),
   push: () => Boolean(env.VAPID_PUBLIC_KEY && env.VAPID_PRIVATE_KEY),
+  kakao: () => Boolean(env.KAKAO_REST_API_KEY),
 };
 
 // Per-domain revalidate windows (seconds). Tune freely per data type.

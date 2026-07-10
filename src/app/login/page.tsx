@@ -102,9 +102,25 @@ export default function LoginPage() {
           </div>
           <span style={{ fontSize: 18, fontWeight: 800, letterSpacing: '-0.01em', color: 'var(--c-tx1)' }}>InvestKang</span>
         </div>
-        <p style={{ margin: '0 0 22px', fontSize: 13, color: 'var(--c-tx5)' }}>
-          {isSignup ? '가입 신청 후 관리자 승인을 받아야 이용할 수 있습니다.' : '로그인 후 이용할 수 있습니다.'}
+        <p style={{ margin: '0 0 20px', fontSize: 13, color: 'var(--c-tx5)' }}>
+          카카오로 간편하게 시작하세요. 시장 보기는 로그인 없이도 가능해요.
         </p>
+
+        {/* 카카오 로그인(메인) */}
+        <a
+          href="/api/auth/kakao"
+          style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+            width: '100%', boxSizing: 'border-box', padding: '13px 16px', borderRadius: 10,
+            background: '#FEE500', color: '#191600', fontSize: 15, fontWeight: 800, textDecoration: 'none',
+          }}
+        >
+          <span style={{ fontSize: 16 }}>💬</span> 카카오로 로그인
+        </a>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '18px 0 14px', color: 'var(--c-tx6)', fontSize: 12 }}>
+          <span style={{ flex: 1, height: 1, background: 'var(--c-w08)' }} /> 또는 아이디로 로그인 <span style={{ flex: 1, height: 1, background: 'var(--c-w08)' }} />
+        </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           <input style={input} placeholder="아이디" value={id} onChange={(e) => setId(e.target.value)} autoComplete="username" autoFocus />
@@ -126,18 +142,11 @@ export default function LoginPage() {
             background: 'var(--c-cy18)', color: 'var(--c-accyanbr)', opacity: busy ? 0.6 : 1,
           }}
         >
-          {busy ? '처리 중…' : isSignup ? '가입 신청' : '로그인'}
+          {busy ? '처리 중…' : '로그인'}
         </button>
 
-        <div style={{ marginTop: 16, textAlign: 'center', fontSize: 13, color: 'var(--c-tx5)' }}>
-          {isSignup ? '이미 계정이 있으신가요? ' : '계정이 없으신가요? '}
-          <button
-            type="button"
-            onClick={() => switchMode(isSignup ? 'login' : 'signup')}
-            style={{ cursor: 'pointer', background: 'none', border: 'none', padding: 0, fontFamily: 'inherit', fontSize: 13, fontWeight: 700, color: 'var(--c-accyanbr)' }}
-          >
-            {isSignup ? '로그인' : '회원가입'}
-          </button>
+        <div style={{ marginTop: 16, textAlign: 'center', fontSize: 12, color: 'var(--c-tx6)' }}>
+          신규 가입은 카카오 로그인으로만 가능합니다.
         </div>
       </form>
     </div>
