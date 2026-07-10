@@ -1,0 +1,19 @@
+name: Warm (5m)
+
+# 5분마다 홈("/")을 호출해 Vercel 서버리스 함수를 깨어있게 유지(콜드스타트 완화).
+#  - 홈 SSR이 쓰는 환율·지수·캘린더 revalidate 캐시도 함께 덥혀 실사용자 캐시 적중↑
+#  - 공개 페이지라 인증 불필요. 리포가 PUBLIC이라 Actions 분 무료.
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch: {}
+
+jobs:
+  warm:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping homepage
+        run: |
+          curl -fsS --max-time 30 --retry 1 \
+            "https://invest-seokwoodangs-projects.vercel.app/" \
+            -o /dev/null -w "warmed HTTP %{http_code} in %{time_total}s\n"

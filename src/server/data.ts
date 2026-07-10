@@ -18,14 +18,22 @@ import { getMarketIndicators } from './providers/marketIndicators';
 // 실연동: 주식·코인 유니버스(네이버/업비트/바이낸스), 지수(KIS), 환율(frankfurter), DXY(Yahoo),
 // 경제 캘린더(Nasdaq), 뉴스(RSS+AI). 키 없으면 각 영역 mock 폴백.
 // 전 종목 유니버스(주식·코인). 무겁다(수천 행) — 첫 페이로드엔 싣지 않고 /api/universe로 클라가 별도 로드.
+// 바이낸스 전종목(2.4MB)은 Next 데이터캐시 한도(2MB) 초과라 fetch 캐시가 안 걸린다 →
+// 앱 레벨 메모리 캐시(90초)로 감싸 같은 워엄 인스턴스의 다중 요청이 한 번의 페치를 공유하게 한다.
+// (시세 신선도는 실시간 채널이 담당하므로 스냅샷 90초는 충분)
+let universeCache: { at: number; data: Stocks } | null = null;
+const UNIVERSE_TTL_MS = 90_000;
 export async function getUniverse(): Promise<Stocks> {
+  if (universeCache && Date.now() - universeCache.at < UNIVERSE_TTL_MS) return universeCache.data;
   const [krStocks, usStocks, krCoins, globalCoins] = await Promise.all([
     withKrUniverse(),
     withUniverse(getUsStockUniverse, '$', STOCKS.us_stock),
     withUniverse(getUpbitUniverse, '₩', STOCKS.kr_coin),
     withUniverse(getBinanceUniverse, '$', STOCKS.global_coin),
   ]);
-  return { ...STOCKS, kr_stock: krStocks, us_stock: usStocks, kr_coin: krCoins, global_coin: globalCoins };
+  const data = { ...STOCKS, kr_stock: krStocks, us_stock: usStocks, kr_coin: krCoins, global_coin: globalCoins };
+  universeCache = { at: Date.now(), data };
+  return data;
 }
 
 // 자산군 카드용 집계(전체 유니버스 기준). 전 종목 배열 대신 이 작은 요약만 첫 페이로드로 보낸다.
