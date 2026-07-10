@@ -10,7 +10,7 @@ export function Footer() {
     >
       <div style={{ display: 'flex', gap: 10, justifyContent: 'center', alignItems: 'center', flexWrap: 'wrap', marginBottom: 8, color: 'var(--c-tx5)', fontWeight: 600 }}>
         <span>InvestKang</span>
-        <span style={{ color: 'var(--c-tx6)', fontWeight: 500 }}>v{pkg.version}</span>
+        <span style={{ color: 'var(--c-tx6)', fontWeight: 500 }}>v{pkg.version}{process.env.NEXT_PUBLIC_COMMIT_SHA ? `·${process.env.NEXT_PUBLIC_COMMIT_SHA}` : ''}</span>
         <span style={{ color: 'var(--c-w12)' }}>·</span>
         <a href="https://github.com/Seokwoodang/investK" target="_blank" rel="noreferrer" style={{ color: 'var(--c-tx6)', textDecoration: 'none' }}>GitHub</a>
       </div>

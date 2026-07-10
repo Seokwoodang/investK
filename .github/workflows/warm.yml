@@ -12,8 +12,10 @@ jobs:
   warm:
     runs-on: ubuntu-latest
     steps:
-      - name: Ping homepage
+      - name: Warm homepage + heavy data APIs
         run: |
-          curl -fsS --max-time 30 --retry 1 \
-            "https://invest-seokwoodangs-projects.vercel.app/" \
-            -o /dev/null -w "warmed HTTP %{http_code} in %{time_total}s\n"
+          BASE="https://invest-seokwoodangs-projects.vercel.app"
+          for path in "/" "/api/macro" "/api/universe"; do
+            curl -fsS --max-time 40 --retry 1 "$BASE$path" -o /dev/null \
+              -w "warmed $path -> HTTP %{http_code} in %{time_total}s\n" || echo "warm $path failed"
+          done

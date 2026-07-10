@@ -1,4 +1,5 @@
 import 'server-only';
+import { REVALIDATE } from '../env';
 import type { MacroEvent } from '../../types';
 
 // 경제 캘린더 = Nasdaq 경제지표 API(키 불필요). 미국·유로존·일본 + 한국(금통위·CPI·GDP 등) 글로벌 지표.
@@ -71,7 +72,9 @@ async function mapPool(dates: string[], n: number, fn: (d: string) => Promise<Ma
 async function fetchRows<T>(url: string): Promise<T | null> {
   for (let att = 0; att < 2; att++) {
     try {
-      const r = await fetch(url, { headers: UA });
+      // revalidate 없으면 force-dynamic 라우트(/api/macro)에서 no-store가 돼 매 호출마다
+      // 수십 날짜를 재페치(=콜드 11초 주범) → 1시간 캐시로 고정.
+      const r = await fetch(url, { headers: UA, next: { revalidate: REVALIDATE.calendar } });
       if (!r.ok) throw new Error(String(r.status));
       return (await r.json()) as T; // 빈 바디면 여기서 throw → 재시도
     } catch {

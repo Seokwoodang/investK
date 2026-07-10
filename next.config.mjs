@@ -1,5 +1,10 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // 배포 식별용 — Vercel이 빌드마다 주입하는 커밋 SHA를 클라이언트에 노출(Footer에 표시).
+  //  빌드 타임에 인라인되므로 배포마다 자동 갱신 → "지금 어떤 버전이 떴는지" 확인 가능.
+  env: {
+    NEXT_PUBLIC_COMMIT_SHA: (process.env.VERCEL_GIT_COMMIT_SHA || '').slice(0, 7),
+  },
   // 실시간 ws/인터벌이 dev에서 StrictMode 이중 마운트로 꼬이는 것을 방지(프로덕션은 1회).
   reactStrictMode: false,
   // (dash) 레이아웃이 no-store(바이낸스 2.4MB·KIS 토큰) 때문에 '동적'이라, 기본 staleTime 0이면
