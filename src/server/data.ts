@@ -8,6 +8,7 @@ import { getBinanceUniverse } from './providers/binance';
 import { getFxQuotes } from './providers/frankfurter';
 import { getDxy } from './providers/yahoo';
 import { getEconomicCalendar } from './providers/nasdaqCalendar';
+import { kvGet, kvSet } from './kv';
 import { getKrStockUniverse, getUsStockUniverse, type KrUniverseRow } from './providers/naver';
 import { getMarketIndicators } from './providers/marketIndicators';
 
@@ -125,13 +126,26 @@ async function withIndicesLive(indices: IndexRow[]): Promise<IndexRow[]> {
 }
 
 // 경제 캘린더: Nasdaq 경제지표 실연동(글로벌 고영향 지표). 실패/빈값 시 mock 폴백.
+// 나스닥 경제 캘린더는 수십 날짜를 mapPool+재시도로 긁어 콜드에 ~11초 걸린다. 인스턴스별
+// fetch 캐시는 새 람다마다 다시 콜드 → durable KV(Supabase, 인스턴스 공유)에 6시간 캐시한다.
+//  - KV가 신선(<6h)하면 즉시 반환(콜드 인스턴스도 Supabase 1회 읽고 빠름)
+//  - 스테일/없음이면 라이브로 갱신(이 11초는 5분 워머가 대부분 대신 먹음)
+//  - 라이브 실패 시 스테일 KV라도 사용, 그것도 없으면 mock
+const CAL_KV_KEY = 'macro:events';
+const CAL_FRESH_MS = 6 * 60 * 60 * 1000;
 async function withCalendarLive(events: MacroEvent[]): Promise<MacroEvent[]> {
+  const cached = await kvGet<{ at: number; events: MacroEvent[] }>(CAL_KV_KEY).catch(() => null);
+  if (cached?.events?.length && Date.now() - cached.at < CAL_FRESH_MS) return cached.events;
   try {
     const live = await getEconomicCalendar();
-    return live.length ? live : events;
+    if (live.length) {
+      await kvSet(CAL_KV_KEY, { at: Date.now(), events: live }).catch(() => {});
+      return live;
+    }
+    return cached?.events?.length ? cached.events : events;
   } catch (e) {
-    console.error('[data] calendar overlay failed, using mock:', e);
-    return events;
+    console.error('[data] calendar overlay failed:', e);
+    return cached?.events?.length ? cached.events : events; // 스테일 폴백
   }
 }
 
