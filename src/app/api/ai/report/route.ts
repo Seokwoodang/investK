@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { COOKIE, getSessionUser } from '@/lib/auth';
-import { getOrGenerateJSON, readJSONCache, countAiToday } from '@/server/ai';
+import { getOrGenerateJSON, readJSONCache, countAiToday, countAiTodayGlobal } from '@/server/ai';
 
 const DAILY_CAP = 3; // 계정당 하루 '새' 보고서 생성 상한(같은 포트폴리오 재요청=캐시라 카운트 안 됨)
+const GLOBAL_DAILY_CAP = 100; // 앱 전체 하루 상한(다계정·스크립트 남용 방어). 초과 시 전체 일시 정지.
+const REPORT_MODEL = process.env.ANTHROPIC_MODEL_REPORT || 'claude-sonnet-5'; // 보고서는 비용 낮은 Sonnet
 
 // GET /api/ai/report — 오늘 남은 생성 횟수(화면 표시용). 로그인 필수(미들웨어).
 export async function GET() {
@@ -53,7 +55,14 @@ export async function POST(req: Request) {
   const cached = await readJSONCache<Report>(cacheKey);
   if (cached) return NextResponse.json(cached);
 
-  // 캐시 미스 = 새 생성 → 계정당 하루 상한 검사(측정·남용 방지).
+  // 캐시 미스 = 새 생성. ① 앱 전체 하루 상한(남용 방어) ② 계정당 하루 상한 순으로 검사.
+  const globalUsed = await countAiTodayGlobal('report');
+  if (globalUsed >= GLOBAL_DAILY_CAP) {
+    return NextResponse.json(
+      { error: '오늘 전체 보고서 생성 한도에 도달했어요. 내일 다시 시도해주세요. (같은 구성은 캐시로 바로 열립니다)', limited: true },
+      { status: 429 },
+    );
+  }
   const user = await getSessionUser(cookies().get(COOKIE)?.value);
   if (user) {
     const used = await countAiToday(user, 'report');
@@ -74,6 +83,7 @@ export async function POST(req: Request) {
     cacheKey,
     kind: 'report',
     user: user ?? undefined,
+    model: REPORT_MODEL, // 비용 절감: 보고서는 Sonnet
     system:
       '너는 한국어로 답하는 투자 분석 보조자다. 사용자의 보유 포트폴리오와 현재 시장 데이터를 묶어, 한 페이지짜리 "정기 투자 보고서"를 충실하게 작성한다. ' +
       '반드시 JSON만 출력(설명·코드펜스 금지). 형식: ' +

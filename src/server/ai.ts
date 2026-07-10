@@ -24,10 +24,10 @@ function kstMidnightISO(): string {
 }
 
 // 실제 Claude 생성 1건의 토큰 사용량을 ai_usage에 남긴다(측정·요금 추적용). 실패해도 생성엔 영향 없음.
-export async function logAiUsage(kind: string, cacheKey: string, user: string | undefined, usage: { input_tokens?: number; output_tokens?: number } | undefined) {
-  return logUsage(kind, cacheKey, user, usage);
+export async function logAiUsage(kind: string, cacheKey: string, user: string | undefined, usage: { input_tokens?: number; output_tokens?: number } | undefined, usedModel: string = MODEL) {
+  return logUsage(kind, cacheKey, user, usage, usedModel);
 }
-async function logUsage(kind: string, cacheKey: string, user: string | undefined, usage: { input_tokens?: number; output_tokens?: number } | undefined) {
+async function logUsage(kind: string, cacheKey: string, user: string | undefined, usage: { input_tokens?: number; output_tokens?: number } | undefined, usedModel: string) {
   const sb = getSupabase();
   if (!sb) return;
   try {
@@ -37,7 +37,7 @@ async function logUsage(kind: string, cacheKey: string, user: string | undefined
       cache_key: cacheKey,
       in_tokens: usage?.input_tokens ?? 0,
       out_tokens: usage?.output_tokens ?? 0,
-      model: MODEL,
+      model: usedModel,
     });
   } catch (e) {
     console.error('[ai] usage log failed:', e);
@@ -52,6 +52,18 @@ export async function countAiToday(user: string, kind: string): Promise<number> 
     .from('ai_usage')
     .select('id', { count: 'exact', head: true })
     .eq('username', user)
+    .eq('kind', kind)
+    .gte('created_at', kstMidnightISO());
+  return count ?? 0;
+}
+
+// 앱 전체(계정 무관) 오늘 특정 종류 생성 횟수 — 다계정·스크립트 남용 방어용 상한 검사에 사용.
+export async function countAiTodayGlobal(kind: string): Promise<number> {
+  const sb = getSupabase();
+  if (!sb) return 0;
+  const { count } = await sb
+    .from('ai_usage')
+    .select('id', { count: 'exact', head: true })
     .eq('kind', kind)
     .gte('created_at', kstMidnightISO());
   return count ?? 0;
@@ -94,7 +106,7 @@ export async function getOrGenerate({ cacheKey, kind, system, prompt, fallback, 
         text = block.text.trim();
         generated = true;
       }
-      await logUsage(kind, cacheKey, user, msg.usage);
+      await logUsage(kind, cacheKey, user, msg.usage, MODEL);
     } catch (e) {
       console.error('[ai] generation failed, using fallback:', e);
     }
@@ -127,6 +139,7 @@ interface GenerateJSONArgs<T> {
   // true면 캐시를 무시하고 무조건 새로 생성·저장(cron 강제 갱신용).
   force?: boolean;
   user?: string; // 사용량 기록용(로그인 계정).
+  model?: string; // 이 생성만 다른 모델 사용(예: 보고서=Sonnet). 미지정 시 env 기본(Opus).
 }
 
 const memJson = new Map<string, unknown>();
@@ -148,8 +161,9 @@ export async function readJSONCache<T>(cacheKey: string): Promise<T | null> {
 
 // 구조화(JSON) 버전. 캐시 계층은 동일(메모리 → Supabase → Claude). Claude가 JSON만
 // 반환하도록 지시하고 파싱; 실패/키없음 시 fallback 객체를 그대로 반환한다.
-export async function getOrGenerateJSON<T>({ cacheKey, kind, system, prompt, fallback, force, user }: GenerateJSONArgs<T>): Promise<T> {
+export async function getOrGenerateJSON<T>({ cacheKey, kind, system, prompt, fallback, force, user, model }: GenerateJSONArgs<T>): Promise<T> {
   const sb = getSupabase();
+  const useModel = model ?? MODEL;
 
   if (!force) {
     const cached = memJson.get(cacheKey);
@@ -170,18 +184,18 @@ export async function getOrGenerateJSON<T>({ cacheKey, kind, system, prompt, fal
     const userPrompt = typeof prompt === 'function' ? await prompt() : prompt;
     const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
     const msg = await client.messages.create({
-      model: MODEL,
+      model: useModel,
       max_tokens: 4096, // 보고서 등 긴 JSON이 잘려 파싱 실패하지 않도록 충분히
       system,
       messages: [{ role: 'user', content: userPrompt }],
     });
-    await logUsage(kind, cacheKey, user, msg.usage);
+    await logUsage(kind, cacheKey, user, msg.usage, useModel);
     const block = msg.content.find((b) => b.type === 'text');
     let txt = block && block.type === 'text' ? block.text.trim() : '';
     txt = txt.replace(/^```(?:json)?/i, '').replace(/```$/, '').trim(); // 코드펜스 제거
     const obj = JSON.parse(txt) as T;
     memJson.set(cacheKey, obj);
-    if (sb) await sb.from('ai_cache').upsert({ cache_key: cacheKey, kind, payload: obj as object, model: MODEL });
+    if (sb) await sb.from('ai_cache').upsert({ cache_key: cacheKey, kind, payload: obj as object, model: useModel });
     return obj;
   } catch (e) {
     console.error('[ai] JSON generation failed, using fallback:', e);

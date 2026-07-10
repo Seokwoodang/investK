@@ -56,9 +56,9 @@ export default function LoginPage() {
       setMode('login');
       setPw('');
       setNote('');
-      setDone('가입 신청이 완료됐습니다. 관리자 승인 후 로그인할 수 있습니다.');
+      setDone('가입이 완료됐습니다. 바로 로그인하세요.');
     } else {
-      setErr(j.error || '가입 신청에 실패했습니다.');
+      setErr(j.error || '가입에 실패했습니다.');
     }
     setBusy(false);
   };

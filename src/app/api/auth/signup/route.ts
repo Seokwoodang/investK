@@ -3,9 +3,9 @@ import crypto from 'node:crypto';
 import { promisify } from 'node:util';
 import { getSupabase } from '@/server/supabase';
 
-// 회원가입 = "신청". app_users에 status='pending'으로 저장하고, 관리자(is_admin)가 승인해야 로그인 가능.
-//   app_users(username, pass_hash, status, note, created_at)  — pass_hash: "scrypt$<saltHex>$<hashHex>"
-// 회원가입 자체는 공개(미들웨어 비보호). 승인은 /admin 에서.
+// 회원가입 = 자동승인(status='approved'). 가입 즉시 로그인 가능(승인 대기 없음).
+//   app_users(username, pass_hash, status, note, is_admin, created_at)  — pass_hash: "scrypt$<saltHex>$<hashHex>"
+// 회원가입 자체는 공개(미들웨어 비보호). AI 비용은 계정당 상한 + 전체 일일 상한으로 방어.
 export const runtime = 'nodejs';
 
 const scrypt = promisify(crypto.scrypt) as (pw: string, salt: string, len: number) => Promise<Buffer>;
@@ -58,15 +58,15 @@ export async function POST(req: Request) {
     const st = (existing.status as string | null) ?? 'approved';
     if (st === 'approved') return NextResponse.json({ error: '이미 사용 중인 아이디입니다.' }, { status: 409 });
     if (st === 'pending') return NextResponse.json({ error: '이미 승인 대기 중인 아이디입니다.' }, { status: 409 });
-    // rejected → 재신청
+    // rejected → 재가입(자동승인)
     const pass_hash = await makeHash(pw);
-    const { error } = await sb.from('app_users').update({ pass_hash, status: 'pending', note }).eq('username', id);
-    if (error) return NextResponse.json({ error: '신청 처리 중 오류가 발생했습니다.' }, { status: 500 });
-    return NextResponse.json({ ok: true });
+    const { error } = await sb.from('app_users').update({ pass_hash, status: 'approved', note }).eq('username', id);
+    if (error) return NextResponse.json({ error: '가입 처리 중 오류가 발생했습니다.' }, { status: 500 });
+    return NextResponse.json({ ok: true, approved: true });
   }
 
   const pass_hash = await makeHash(pw);
-  const { error } = await sb.from('app_users').insert({ username: id, pass_hash, status: 'pending', note });
-  if (error) return NextResponse.json({ error: '신청 처리 중 오류가 발생했습니다.' }, { status: 500 });
-  return NextResponse.json({ ok: true });
+  const { error } = await sb.from('app_users').insert({ username: id, pass_hash, status: 'approved', note });
+  if (error) return NextResponse.json({ error: '가입 처리 중 오류가 발생했습니다.' }, { status: 500 });
+  return NextResponse.json({ ok: true, approved: true });
 }

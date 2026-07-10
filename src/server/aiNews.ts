@@ -89,7 +89,7 @@ export async function generateRankedNews(scope: string, candidates: NewsArticle[
         '최대 20개. importance 상→하 순으로. 단정적 예측·투자 권유 금지, 사실 기반.',
       messages: [{ role: 'user', content: `뉴스 후보 목록:\n${list}\n\n각 뉴스의 영향 대상(target)·호재/악재를 판단하고 영문 제목은 한국어로 번역(title_ko)해, 투자 중요도순(상→하)으로 골라 JSON 배열로 답해줘.` }],
     });
-    await logAiUsage('news', key, undefined, msg.usage); // 뉴스 랭킹도 토큰 측정(cron 생성 — 계정 없음)
+    await logAiUsage('news', key, undefined, msg.usage, NEWS_MODEL); // 뉴스 랭킹도 토큰 측정(cron 생성 — 계정 없음)
     const block = msg.content.find((b) => b.type === 'text');
     let txt = block && block.type === 'text' ? block.text.trim() : '[]';
     txt = txt.replace(/^```(?:json)?/i, '').replace(/```$/, '').trim();
