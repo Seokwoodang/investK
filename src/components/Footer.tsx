@@ -8,11 +8,9 @@ export function Footer() {
         fontSize: 12, lineHeight: 1.7, color: 'var(--c-txph)', textAlign: 'center',
       }}
     >
-      <div style={{ display: 'flex', gap: 10, justifyContent: 'center', alignItems: 'center', flexWrap: 'wrap', marginBottom: 8, color: 'var(--c-tx5)', fontWeight: 600 }}>
+      <div style={{ display: 'flex', gap: 8, justifyContent: 'center', alignItems: 'center', flexWrap: 'wrap', marginBottom: 8, color: 'var(--c-tx5)', fontWeight: 600 }}>
         <span>InvestKang</span>
-        <span style={{ color: 'var(--c-tx6)', fontWeight: 500 }}>v{pkg.version}{process.env.NEXT_PUBLIC_COMMIT_SHA ? `·${process.env.NEXT_PUBLIC_COMMIT_SHA}` : ''}</span>
-        <span style={{ color: 'var(--c-w12)' }}>·</span>
-        <a href="https://github.com/Seokwoodang/investK" target="_blank" rel="noreferrer" style={{ color: 'var(--c-tx6)', textDecoration: 'none' }}>GitHub</a>
+        <span style={{ color: 'var(--c-tx6)', fontWeight: 500 }}>v{pkg.version}</span>
       </div>
       {/* 운영 주체(매체 소유관계 확인용 — 애드핏 계정과 동일 사업자) */}
       <div style={{ marginBottom: 8, color: 'var(--c-tx6)' }}>
