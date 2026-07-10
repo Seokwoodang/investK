@@ -36,6 +36,7 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
+  themeColor: '#0a121d', // 모바일 브라우저 상단바 색(사이트 다크 톤)
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
