@@ -508,6 +508,20 @@ export function Detail({ id }: { id: string }) {
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
             <h1 style={{ margin: 0, fontSize: 32, fontWeight: 800, letterSpacing: '-0.02em', color: 'var(--c-tx1)', whiteSpace: 'nowrap' }}>{sel.name}</h1>
+            {/* 즐겨찾기(관심 종목) 토글 — 목록의 ☆와 동일한 watchlist 상태 공유 */}
+            {(() => {
+              const starred = state.watchlist.includes(sel.id);
+              return (
+                <button
+                  onClick={() => actions.toggleWatch(sel.id)}
+                  aria-label={starred ? '관심 종목 해제' : '관심 종목 등록'}
+                  title={starred ? '관심 종목 (등록됨) — 누르면 해제' : '관심 종목 등록 (★ 관심종목 필터·실적일 강조에 사용)'}
+                  style={{ cursor: 'pointer', background: 'none', border: 'none', padding: 0, fontSize: 24, lineHeight: 1, color: starred ? 'var(--c-accyan)' : 'var(--c-txph)', fontFamily: 'inherit' }}
+                >
+                  {starred ? '★' : '☆'}
+                </button>
+              );
+            })()}
             <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--c-tx6)' }}>{sel.ticker}</span>
             <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.02em', padding: '4px 11px', borderRadius: 999, whiteSpace: 'nowrap', background: rm.bg, color: rm.color }}>위험도 {rm.label}</span>
           </div>
