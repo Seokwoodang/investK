@@ -268,14 +268,9 @@ export function Header({ authed = true, isAdmin = false, user = null }: { authed
         }}
       >
         <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', flexShrink: 0, textDecoration: 'none' }}>
-          <div
-            style={{
-              width: 34, height: 34, borderRadius: 10, background: 'linear-gradient(135deg,var(--c-accyan),var(--c-blue))',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 6px 18px var(--c-cy22)',
-            }}
-          >
-            <div style={{ width: 12, height: 12, borderRadius: 4, background: 'var(--c-bg)' }} />
-          </div>
+          {/* 파비콘과 동일한 상승차트 로고(단일 소스: /icon.svg) */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/icon.svg" alt="InvestKang" width={34} height={34} style={{ display: 'block', borderRadius: 10, boxShadow: '0 6px 18px var(--c-cy22)' }} />
           {layout.showBrand && (
             <div style={{ fontSize: 16, fontWeight: 700, letterSpacing: '-0.01em', whiteSpace: 'nowrap' }}>InvestKang</div>
           )}
