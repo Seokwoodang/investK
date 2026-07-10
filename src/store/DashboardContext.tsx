@@ -47,12 +47,15 @@ export interface EventModalPayload {
   events: MacroEvent[];
 }
 
-// 달력이 보여주는 "기본(현재) 달" = 다가오는 일정(macro.events)이 속한 달.
-function homeYM(data: DashboardData): { y: number; m: number } {
-  const d = data.macro.events[0]?.date;
+// 달력이 보여주는 "기본(현재) 달" = 다가오는 일정(events)이 속한 달. 없으면 현재 달.
+function homeYMFromEvents(events: MacroEvent[]): { y: number; m: number } {
+  const d = events[0]?.date;
   if (d) return { y: parseInt(d.slice(0, 4), 10), m: parseInt(d.slice(5, 7), 10) - 1 };
-  const now = new Date(); // 이벤트가 없으면 현재 달(과거엔 2026-06 하드코딩이라 시간이 지나면 과거 달로 고정)
+  const now = new Date();
   return { y: now.getFullYear(), m: now.getMonth() };
+}
+function homeYM(data: DashboardData): { y: number; m: number } {
+  return homeYMFromEvents(data.macro.events);
 }
 
 // 페이지(라우트)는 이제 URL이 소스 오브 트루스. page→경로 매핑.
@@ -259,11 +262,14 @@ export function DashboardProvider({ data, children }: { data: DashboardData; chi
     d.classList.toggle('theme-dark', state.theme === 'dark');
   }, [state.theme]);
 
-  // 달력이 보는 달이 바뀌면 해당 달 일정을 가져온다. 기본(현재) 달이면 이미 받은 data.macro.events 사용(요청 없음).
+  // 달력이 보는 달이 바뀌면 해당 달 일정을 가져온다. 기본(현재) 달이면 클라가 받은 events 재사용(요청 없음).
+  //  일정은 SSR이 아니라 /api/macro로 클라가 채우므로(macroExtras) 반드시 그 라이브 events를 봐야 한다.
+  //  (과거 버그: SSR prop data.macro.events를 봐서 달력이 늘 비어 있었음)
   useEffect(() => {
-    const h = homeYM(data);
+    const liveEvents = macroExtras?.events ?? data.macro.events;
+    const h = homeYMFromEvents(liveEvents);
     if (state.calYear === h.y && state.calMonth === h.m) {
-      setState((s) => ({ ...s, calEvents: data.macro.events, calLoading: false }));
+      setState((s) => ({ ...s, calEvents: liveEvents, calLoading: false }));
       return;
     }
     let cancelled = false;
@@ -279,7 +285,7 @@ export function DashboardProvider({ data, children }: { data: DashboardData; chi
     return () => {
       cancelled = true;
     };
-  }, [state.calYear, state.calMonth, data]);
+  }, [state.calYear, state.calMonth, macroExtras, data]);
 
   const patch = useCallback((p: Partial<DashboardState>) => setState((s) => ({ ...s, ...p })), []);
 
