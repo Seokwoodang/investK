@@ -15,6 +15,7 @@ export async function GET() {
   url.searchParams.set('redirect_uri', `${SITE_URL}/api/auth/kakao/callback`);
   url.searchParams.set('response_type', 'code');
   url.searchParams.set('state', state);
+  url.searchParams.set('scope', 'profile_nickname'); // 닉네임 동의 요청(콘솔 동의항목에 닉네임 추가 필요)
 
   const res = NextResponse.redirect(url.toString());
   res.cookies.set('kakao_state', state, {

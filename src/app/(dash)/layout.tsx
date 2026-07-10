@@ -20,18 +20,22 @@ export default async function DashLayout({ children }: { children: React.ReactNo
   //  - DB 쿼리 오류(일시적) → 실사용자 오차단 방지 위해 통과(fail-open)
   let uid: string | null = null; // GA User-ID로 쓸 불투명 식별자(이름 아님)
   let isAdmin = false; // app_users.is_admin(DB 컬럼) 기준 — 하드코딩 아이디 없음
+  let displayName: string | null = null; // 헤더 표시용 별명(카카오 닉네임). 없으면 username 폴백.
   if (user) {
     const sb = getSupabase();
     if (sb) {
-      const { data: row, error } = await sb.from('app_users').select('status, uid, is_admin').eq('username', user).maybeSingle();
+      const { data: row, error } = await sb.from('app_users').select('status, uid, is_admin, display_name').eq('username', user).maybeSingle();
       if (!error && (!row || (row.status as string) !== 'approved')) {
         redirect('/api/auth/logout');
       }
       if (row?.uid) uid = row.uid as string;
       isAdmin = row?.is_admin === true; // 관리자만 헤더에 '회원관리' 노출
+      displayName = (row?.display_name as string | null) || null;
     }
   }
 
   const authed = !!user;
-  return <DashboardChrome data={data} authed={authed} isAdmin={isAdmin} uid={uid} user={user}>{children}</DashboardChrome>;
+  // 헤더에는 별명(닉네임)을 우선 표시. kakao_<id> 원문 노출 방지.
+  const shownName = displayName || user;
+  return <DashboardChrome data={data} authed={authed} isAdmin={isAdmin} uid={uid} user={shownName}>{children}</DashboardChrome>;
 }
