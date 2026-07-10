@@ -12,10 +12,22 @@ interface Row {
 const STATUS_LABEL: Record<Row['status'], string> = { pending: '대기중', approved: '승인됨', rejected: '거절됨' };
 const STATUS_COLOR: Record<Row['status'], string> = { pending: 'var(--c-warnchip)', approved: 'var(--c-accyanbr)', rejected: 'var(--c-downchip)' };
 
+interface Agg { calls: number; inTok: number; outTok: number }
+interface Usage {
+  totals: { today: Agg; month: Agg };
+  byUser: { username: string; today: Agg; month: Agg }[];
+  byKind: { kind: string; calls: number; inTok: number; outTok: number }[];
+  capped?: boolean;
+}
+const KIND_LABEL: Record<string, string> = { report: '개인 보고서', kanalyst: 'K-리서치', briefing: '데일리 브리핑', analysis: '종목 분석', news: '뉴스 랭킹' };
+const nf = (n: number) => n.toLocaleString('ko-KR');
+const ktok = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(1)}K` : String(n)); // 토큰 축약
+
 export default function AdminPage() {
   const [rows, setRows] = useState<Row[] | null>(null);
   const [forbidden, setForbidden] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
+  const [usage, setUsage] = useState<Usage | null>(null);
 
   const load = useCallback(async () => {
     const r = await fetch('/api/admin/users', { cache: 'no-store' });
@@ -25,6 +37,12 @@ export default function AdminPage() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    fetch('/api/admin/usage', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => { if (j && j.totals) setUsage(j as Usage); })
+      .catch(() => {});
+  }, []);
 
   const act = async (username: string, action: 'approve' | 'reject' | 'delete') => {
     if (action === 'delete' && !confirm(`${username} 계정을 삭제할까요?`)) return;
@@ -93,7 +111,7 @@ export default function AdminPage() {
         </div>
       </section>
 
-      <section>
+      <section style={{ marginBottom: 28 }}>
         <h2 style={{ fontSize: 14, fontWeight: 700, color: 'var(--c-tx3)', margin: '0 0 10px' }}>전체 계정</h2>
         <div style={{ background: 'var(--c-w03)', border: '1px solid var(--c-w08)', borderRadius: 14, overflow: 'hidden' }}>
           {others.length === 0 ? (
@@ -102,6 +120,62 @@ export default function AdminPage() {
             others.map((r) => <RowCard key={r.username} r={r} />)
           )}
         </div>
+      </section>
+
+      <section>
+        <h2 style={{ fontSize: 14, fontWeight: 700, color: 'var(--c-tx3)', margin: '0 0 10px' }}>AI 사용량</h2>
+        {usage == null ? (
+          <div style={{ background: 'var(--c-w03)', border: '1px solid var(--c-w08)', borderRadius: 14, padding: 20, color: 'var(--c-tx5)', fontSize: 14 }}>불러오는 중…</div>
+        ) : (
+          <>
+            {/* 합계 — 오늘 / 최근 30일 */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+              {([['오늘', usage.totals.today], ['최근 30일', usage.totals.month]] as const).map(([label, a]) => (
+                <div key={label} style={{ background: 'var(--c-w03)', border: '1px solid var(--c-w08)', borderRadius: 14, padding: '14px 16px' }}>
+                  <div style={{ fontSize: 12, color: 'var(--c-tx5)', marginBottom: 6 }}>{label}</div>
+                  <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--c-tx1b)' }}>{nf(a.calls)}<span style={{ fontSize: 12, fontWeight: 600, color: 'var(--c-tx5)', marginLeft: 4 }}>회 생성</span></div>
+                  <div style={{ fontSize: 11, color: 'var(--c-tx6)', marginTop: 5 }}>입력 {ktok(a.inTok)} · 출력 {ktok(a.outTok)} 토큰</div>
+                </div>
+              ))}
+            </div>
+
+            {/* 기능별(30일) */}
+            {usage.byKind.length > 0 && (
+              <div style={{ background: 'var(--c-w03)', border: '1px solid var(--c-w08)', borderRadius: 14, padding: '6px 16px', marginBottom: 12 }}>
+                {usage.byKind.map((k, i) => (
+                  <div key={k.kind} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', borderBottom: i < usage.byKind.length - 1 ? '1px solid var(--c-w05)' : 'none' }}>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--c-tx2)' }}>{KIND_LABEL[k.kind] ?? k.kind}</span>
+                    <span style={{ marginLeft: 'auto', fontSize: 13, fontWeight: 700, color: 'var(--c-tx3)' }}>{nf(k.calls)}회</span>
+                    <span style={{ fontSize: 11, color: 'var(--c-tx6)', width: 120, textAlign: 'right' }}>{ktok(k.inTok + k.outTok)} 토큰</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* 계정별 */}
+            <div style={{ background: 'var(--c-w03)', border: '1px solid var(--c-w08)', borderRadius: 14, overflow: 'hidden' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 16px', borderBottom: '1px solid var(--c-w08)', fontSize: 11, fontWeight: 700, color: 'var(--c-tx6)' }}>
+                <span style={{ flex: 1 }}>계정</span>
+                <span style={{ width: 64, textAlign: 'right' }}>오늘</span>
+                <span style={{ width: 64, textAlign: 'right' }}>30일</span>
+                <span style={{ width: 96, textAlign: 'right' }}>30일 토큰</span>
+              </div>
+              {usage.byUser.length === 0 ? (
+                <div style={{ padding: 20, color: 'var(--c-tx5)', fontSize: 14 }}>아직 사용 기록이 없습니다.</div>
+              ) : (
+                usage.byUser.map((u, i) => (
+                  <div key={u.username} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', borderBottom: i < usage.byUser.length - 1 ? '1px solid var(--c-w05)' : 'none' }}>
+                    <span style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 700, color: 'var(--c-tx1b)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{u.username}</span>
+                    <span style={{ width: 64, textAlign: 'right', fontSize: 13, fontWeight: 700, color: u.today.calls > 0 ? 'var(--c-accyanbr)' : 'var(--c-tx5)' }}>{nf(u.today.calls)}</span>
+                    <span style={{ width: 64, textAlign: 'right', fontSize: 13, color: 'var(--c-tx3)' }}>{nf(u.month.calls)}</span>
+                    <span style={{ width: 96, textAlign: 'right', fontSize: 11, color: 'var(--c-tx6)' }}>{ktok(u.month.inTok + u.month.outTok)}</span>
+                  </div>
+                ))
+              )}
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--c-tx6)', marginTop: 10 }}>실제 Claude 생성만 집계(캐시 적중 제외) · 토큰은 입력+출력 · 정확한 요금은 Anthropic 콘솔 기준{usage.capped ? ' · 30일 로그 10,000건 상한 도달(일부 누락 가능)' : ''}</div>
+          </>
+        )}
       </section>
     </div>
   );
