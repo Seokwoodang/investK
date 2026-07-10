@@ -235,7 +235,8 @@ export function Header({ authed = true, isAdmin = false, user = null }: { authed
         <button
           onClick={async () => {
             await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
-            window.location.href = '/login';
+            // 시장 보기는 공개 페이지 → 로그아웃 후 로그인 화면으로 강제하지 말고 공개 홈으로.
+            window.location.href = '/';
           }}
           style={{ ...utilBtnBase, width: '100%', justifyContent: 'flex-start', padding: '11px 12px', fontSize: 13, fontWeight: 700 }}
         >
