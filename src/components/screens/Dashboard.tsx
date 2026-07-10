@@ -24,6 +24,11 @@ const CARD: React.CSSProperties = {
   borderRadius: 20, backdropFilter: 'blur(18px)', WebkitBackdropFilter: 'blur(18px)',
 };
 
+// 로딩 자리표시자(시머). 로딩 중 null 반환으로 '덜컥' 나타나는 것을 방지.
+function Skel({ w, h, r = 8, mt = 0, ml }: { w: number | string; h: number; r?: number; mt?: number; ml?: number | string }) {
+  return <div className="skeleton-pulse" style={{ width: w, height: h, borderRadius: r, background: 'var(--c-w06)', marginTop: mt, marginLeft: ml }} />;
+}
+
 const calNavBtn: React.CSSProperties = {
   cursor: 'pointer', background: 'var(--c-w05)', border: '1px solid var(--c-w10)',
   borderRadius: 8, width: 28, height: 28, color: 'var(--c-tx3)', fontSize: 15, lineHeight: 1, fontFamily: 'inherit',
@@ -504,7 +509,7 @@ function SectorFlowCard() {
 export function Dashboard() {
   const { vw, layout } = useViewportLayout();
   const authed = useAuthed();
-  const { state, actions, data, macroReady } = useDashboard();
+  const { state, actions, data, macroReady, universeReady } = useDashboard();
   const { macro, assetSummary } = data;
   // 일정 분류 필터(복수 선택, 최소 1개 유지) — 목록·달력·상세 모달에 공통 적용.
   const [evFilter, setEvFilter] = useState<Impact[]>(['고영향', '중간', '실적']);
@@ -562,7 +567,21 @@ export function Dashboard() {
       {/* ②-b 내 종목 주요 공시(DART) — 보유·관심 국내 종목 있고 공시 있을 때만 표시 */}
       <DisclosureCard />
 
-      {/* ③ 시장 심리 게이지 — VIX·금리·크립토 공포지수·김프 */}
+      {/* ③ 시장 심리 게이지 — VIX·금리·크립토 공포지수·김프 (로딩 중 스켈레톤 — 예전엔 덜컥 등장) */}
+      {!macroReady && !macro.market && (
+        <div style={{ marginBottom: 36 }}>
+          <h2 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 700 }}>시장 심리 · 지표</h2>
+          <div style={{ display: 'grid', gridTemplateColumns: layout.assetCols, gap: 16 }}>
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} style={{ ...CARD, padding: 20 }}>
+                <Skel w="45%" h={12} />
+                <Skel w="60%" h={26} mt={12} />
+                <Skel w="35%" h={12} mt={10} />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
       {macro.market && (() => {
         const gauges = [macro.market.vix, macro.market.ust10y, macro.market.cryptoFng, macro.market.kimchi].filter(Boolean);
         if (!gauges.length) return null;
@@ -644,10 +663,11 @@ export function Dashboard() {
         <h2 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 700 }}>자산군 현황</h2>
         <div style={{ display: 'grid', gridTemplateColumns: layout.assetCols, gap: 16 }}>
           {TAB_LABELS.map((t) => {
-            // 전체 유니버스 기준 집계는 서버가 미리 계산해 보낸다(전 종목 배열을 클라로 안 보냄).
+            // 전체 유니버스 기준 집계는 클라가 /api/universe 받아 계산 → 도착 전엔 스켈레톤(예전엔 0으로 잘못 표시).
             const sum = assetSummary[t.id];
             const avg = sum.avgPct;
             const top = sum.top;
+            const loading = !universeReady;
             return (
               <button
                 key={t.id}
@@ -657,11 +677,17 @@ export function Dashboard() {
               >
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
                   <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--c-tx1b)' }}>{t.label}</span>
-                  <span style={{ fontSize: 12, color: 'var(--c-tx6)' }}>{sum.count.toLocaleString('ko-KR')}종목</span>
+                  {loading ? <Skel w={44} h={12} r={6} /> : <span style={{ fontSize: 12, color: 'var(--c-tx6)' }}>{sum.count.toLocaleString('ko-KR')}종목</span>}
                 </div>
                 <div style={{ fontSize: 12, color: 'var(--c-tx5)', marginBottom: 4 }}>평균 등락</div>
-                <div style={{ fontSize: 26, fontWeight: 800, letterSpacing: '-0.01em', color: upColor(avg) }}>{fmtPct(avg)}</div>
-                {top && (
+                {loading ? (
+                  <Skel w={96} h={26} mt={2} />
+                ) : (
+                  <div style={{ fontSize: 26, fontWeight: 800, letterSpacing: '-0.01em', color: upColor(avg) }}>{fmtPct(avg)}</div>
+                )}
+                {loading ? (
+                  <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--c-w06)' }}><Skel w="72%" h={13} r={6} /></div>
+                ) : top && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--c-w06)' }}>
                     <span style={{ fontSize: 12, color: 'var(--c-tx6)' }}>상위</span>
                     <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--c-tx3)' }}>{top.name}</span>
@@ -794,7 +820,7 @@ export function Dashboard() {
                 <button onClick={() => actions.gotoCalMonth(-1)} aria-label="이전 달" style={calNavBtn}>‹</button>
                 <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--c-tx1c)', whiteSpace: 'nowrap', minWidth: 96, textAlign: 'center' }}>{monthLabel}</div>
                 <button onClick={() => actions.gotoCalMonth(1)} aria-label="다음 달" style={calNavBtn}>›</button>
-                {state.calLoading && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--c-tx6)' }}><InlineSpinner size={11} />불러오는 중…</span>}
+                {(state.calLoading || !macroReady) && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--c-tx6)' }}><InlineSpinner size={11} />불러오는 중…</span>}
               </div>
               {/* 범례는 상단 필터 칩(색 점 포함)이 겸한다 */}
             </div>
