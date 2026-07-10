@@ -83,6 +83,7 @@ function MacroCard({ title, rows, source, onRow }: { title: string; rows: { labe
 //    항상 오늘 날짜로 요청(과거엔 state.briefDate에 끌려가 과거 헤드라인이 뜨거나, 미설정 시 아예 안 떴음).
 function HeadlineBanner() {
   const [headline, setHeadline] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
   useEffect(() => {
     const t = new Date();
     const date = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
@@ -92,11 +93,30 @@ function HeadlineBanner() {
       .then((j) => {
         if (!cancelled && j?.brief?.headline) setHeadline(j.brief.headline as string);
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setLoading(false); });
     return () => {
       cancelled = true;
     };
   }, []);
+
+  const BANNER: React.CSSProperties = {
+    display: 'flex', alignItems: 'center', gap: 14, marginBottom: 20,
+    padding: '18px 22px', borderRadius: 18, border: '1px solid var(--c-cy18)',
+    background: 'linear-gradient(135deg, var(--c-cy07), var(--c-bl05))',
+  };
+  const PILL: React.CSSProperties = { fontSize: 11, fontWeight: 800, letterSpacing: '0.06em', padding: '4px 10px', borderRadius: 6, whiteSpace: 'nowrap', background: 'var(--c-cy18)', color: 'var(--c-accyanbr)' };
+
+  // 로딩 중엔 스켈레톤(예전엔 null → 준비되면 '덜컥'). 헤드라인이 실제로 없으면(생성 전/실패) 숨김.
+  if (loading) {
+    return (
+      <div style={BANNER} aria-hidden>
+        <span style={PILL}>오늘의 한 줄</span>
+        <div className="skeleton-pulse" style={{ flex: 1, height: 16, borderRadius: 8, background: 'var(--c-w06)' }} />
+        <div className="skeleton-pulse" style={{ width: 48, height: 13, borderRadius: 6, background: 'var(--c-w06)' }} />
+      </div>
+    );
+  }
   if (!headline) return null;
   return (
     <Link
