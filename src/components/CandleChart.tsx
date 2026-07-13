@@ -74,6 +74,10 @@ export function CandleChart({
         borderColor: tok('--c-w08'),
         timeVisible: true,
         secondsVisible: false,
+        // 데이터 가장자리 밖(과거/미래)으로 스크롤·줌되어 "빈 공간만" 보이는 것 방지 →
+        // 줌아웃하면 로드된 전체 구간이 화면을 꽉 채운다. (없는 데이터를 빈칸으로 보여주지 않음)
+        fixLeftEdge: true,
+        fixRightEdge: true,
         // 축 라벨 직접 제어(라이브러리 기본이 '월+연도(26)'를 찍는 문제 회피).
         //  일봉+(business-day): 월 경계=‘M월’, 그 외=‘D일’ (연도 표기 안 함)
         //  분/시간봉(timestamp): 시각 경계=‘HH:MM’, 날짜 경계=‘M/D’
