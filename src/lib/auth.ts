@@ -25,8 +25,8 @@ export async function createSession(username: string, days = 30): Promise<string
   return `${body}.${await hmacHex(body)}`;
 }
 
-// 토큰 검증 후 페이로드 반환(없으면 null).
-async function readSession(token?: string): Promise<{ user: string; exp: number } | null> {
+// 토큰 검증 후 페이로드 반환(없으면 null). 미들웨어 슬라이딩 세션 갱신에도 사용.
+export async function sessionInfo(token?: string): Promise<{ user: string; exp: number } | null> {
   if (!AUTH_CONFIGURED || !token) return null;
   const parts = token.split('.');
   if (parts.length !== 3) return null;
@@ -42,10 +42,10 @@ async function readSession(token?: string): Promise<{ user: string; exp: number 
 }
 
 export async function verifySession(token?: string): Promise<boolean> {
-  return (await readSession(token)) !== null;
+  return (await sessionInfo(token)) !== null;
 }
 
 // 로그인한 사용자명(서버에서 포폴 등 유저별 데이터 조회용). 유효하지 않으면 null.
 export async function getSessionUser(token?: string): Promise<string | null> {
-  return (await readSession(token))?.user ?? null;
+  return (await sessionInfo(token))?.user ?? null;
 }

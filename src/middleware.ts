@@ -1,6 +1,17 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { COOKIE, verifySession } from '@/lib/auth';
+import { COOKIE, sessionInfo, createSession } from '@/lib/auth';
+
+// 슬라이딩 세션: 유효 세션이 이 시간보다 적게 남았으면 방문 시 30일로 재발급 → 활성 사용자는 재로그인 거의 안 함.
+const SESSION_DAYS = 30;
+const RENEW_WHEN_LEFT_MS = 20 * 86400000; // 20일 미만 남으면 갱신
+const cookieOpts = {
+  httpOnly: true as const,
+  sameSite: 'lax' as const,
+  secure: process.env.NODE_ENV === 'production',
+  path: '/',
+  maxAge: SESSION_DAYS * 86400,
+};
 
 // 보호 경로만 로그인 게이트. 나머지(시장 보기 페이지·읽기 API)는 비로그인 공개.
 //  보호: 개인 페이지(내자산·보고서) + 유료 AI 생성(/api/ai/*) + 개인 데이터 API(/api/portfolio, /api/report-history)
@@ -31,18 +42,26 @@ export async function middleware(req: NextRequest) {
   }
 
   const { pathname } = req.nextUrl;
-  if (!PROTECTED.some((re) => re.test(pathname))) return NextResponse.next(); // 공개 경로 통과
+  const token = req.cookies.get(COOKIE)?.value;
+  const info = await sessionInfo(token); // {user, exp} | null (유효 세션)
 
-  const ok = await verifySession(req.cookies.get(COOKIE)?.value);
-  if (ok) return NextResponse.next();
-
-  if (pathname.startsWith('/api')) {
-    return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+  // 보호 경로인데 세션 없으면 차단(API=401, 페이지=로그인).
+  if (PROTECTED.some((re) => re.test(pathname)) && !info) {
+    if (pathname.startsWith('/api')) {
+      return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+    }
+    const url = req.nextUrl.clone();
+    url.pathname = '/login';
+    url.search = `?next=${encodeURIComponent(pathname)}`;
+    return NextResponse.redirect(url);
   }
-  const url = req.nextUrl.clone();
-  url.pathname = '/login';
-  url.search = `?next=${encodeURIComponent(pathname)}`;
-  return NextResponse.redirect(url);
+
+  const res = NextResponse.next();
+  // 슬라이딩 갱신: 유효 세션이 20일 미만 남았으면 30일로 재발급(활성 사용자 재로그인 최소화).
+  if (info && info.exp - Date.now() < RENEW_WHEN_LEFT_MS) {
+    res.cookies.set(COOKIE, await createSession(info.user, SESSION_DAYS), cookieOpts);
+  }
+  return res;
 }
 
 export const config = {

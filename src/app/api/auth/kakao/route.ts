@@ -16,6 +16,8 @@ export async function GET() {
   url.searchParams.set('response_type', 'code');
   url.searchParams.set('state', state);
   url.searchParams.set('scope', 'profile_nickname'); // 닉네임 동의 요청(콘솔 동의항목에 닉네임 추가 필요)
+  // 카카오 세션이 남아 '묻지도 않고 이전 계정으로 바로 로그인'되는 것 방지 → 로그인/계정선택 화면 강제.
+  url.searchParams.set('prompt', 'login');
 
   const res = NextResponse.redirect(url.toString());
   res.cookies.set('kakao_state', state, {
