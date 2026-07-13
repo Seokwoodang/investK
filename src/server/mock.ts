@@ -48,16 +48,21 @@ interface RawHolding { tab: MockTab; code: string; name: string; qty: number; av
 
 // ── 시세 조회(서버 전용) ──
 // 단일 체결가(매매 시). 소스: 국내주식=KIS, 국내코인=업비트. 원화.
+// KIS 단일시세가 순간 제한(EGW00201 등)으로 0/실패를 뱉는 경우가 있어 짧게 재시도한다.
 export async function getExecPrice(tab: MockTab, code: string): Promise<number> {
-  if (tab === 'kr_stock') {
-    const q = await getKrQuote(code);
-    if (!(q.price > 0)) throw new Error('시세를 가져올 수 없습니다');
-    return q.price;
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+  let last: unknown;
+  for (let i = 0; i < 3; i++) {
+    try {
+      let price = 0;
+      if (tab === 'kr_stock') price = (await getKrQuote(code)).price;
+      else price = (await getUpbitQuotes([code]))[code]?.price ?? 0;
+      if (price > 0) return price;
+    } catch (e) { last = e; }
+    if (i < 2) await sleep(400);
   }
-  const q = await getUpbitQuotes([code]);
-  const price = q[code]?.price;
-  if (!(price > 0)) throw new Error('시세를 가져올 수 없습니다');
-  return price;
+  console.error('[mock getExecPrice]', tab, code, (last as Error)?.message ?? 'price<=0');
+  throw new Error('시세를 가져올 수 없습니다. 잠시 후 다시 시도해 주세요');
 }
 
 // 여러 종목 배치 시세(계좌 평가·랭킹용). tab별로 한 번에 묶어 상위 API 호출을 최소화.
