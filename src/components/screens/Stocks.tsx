@@ -253,7 +253,8 @@ export function Stocks() {
               </button>
             </Tip>
             <div style={{ minWidth: 0, display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
-              <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--c-tx1b)', whiteSpace: 'nowrap' }}>{s.name}</span>
+              {/* 긴 종목명(레버리지 ETF 등)이 셀을 뚫고 가격 위로 겹치지 않게 말줄임 처리 */}
+              <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--c-tx1b)', whiteSpace: 'nowrap', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.name}</span>
               <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--c-tx6)', whiteSpace: 'nowrap' }}>{s.ticker}</span>
             </div>
             {layout.showVol && (

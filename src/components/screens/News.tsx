@@ -122,6 +122,7 @@ export function News() {
                     display: 'flex', flexDirection: 'column', textDecoration: 'none', background: 'var(--c-w04)',
                     border: '1px solid var(--c-w08)', borderRadius: 20, padding: 24,
                     backdropFilter: 'blur(18px)', WebkitBackdropFilter: 'blur(18px)',
+                    minWidth: 0, // 그리드 1fr 트랙이 내부 긴 콘텐츠(min-content)에 밀려 뷰포트를 넘지 않게
                   }}
                 >
                   <ImpactHeader impact={n.impact} target={n.target} importance={n.importance} />

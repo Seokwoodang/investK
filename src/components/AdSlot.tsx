@@ -54,12 +54,14 @@ export function AdSlot({ variant = 'banner', style }: { variant?: 'card' | 'bann
 
   if (variant === 'card') {
     // 그리드 칸 하나를 차지하는 '광고 카드' — 주변 카드와 같은 문법(배경·테두리·라운드).
+    // 모바일: 320px 고정 소재 + 좌우 패딩이 그리드 1fr 트랙의 min-content를 뷰포트보다 크게 만들어
+    // 옆 카드까지 전부 밀리던 문제 → 좁은 화면에선 좌우 패딩 축소 + minWidth:0.
     return (
       <div
         style={{
           display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10,
-          minHeight: h + 56, height: '100%', boxSizing: 'border-box', padding: 20, borderRadius: 20,
-          background: 'var(--c-w04)', border: '1px solid var(--c-w08)',
+          minHeight: h + 56, height: '100%', boxSizing: 'border-box', padding: vw < 420 ? '20px 8px' : 20, borderRadius: 20,
+          background: 'var(--c-w04)', border: '1px solid var(--c-w08)', minWidth: 0,
           backdropFilter: 'blur(18px)', WebkitBackdropFilter: 'blur(18px)',
           ...style,
         }}

@@ -209,6 +209,7 @@ function MyAssetsStrip() {
 interface VTopItem { code: string; name: string; score: number; per: number | null; roe: number | null; graham: boolean; buffett: boolean }
 function ValueTopCard() {
   const { actions } = useDashboard();
+  const { vw } = useViewportLayout();
   const [market, setMarket] = useState<'kr' | 'us'>('kr');
   const [items, setItems] = useState<VTopItem[] | null>(null);
   useEffect(() => {
@@ -264,8 +265,9 @@ function ValueTopCard() {
           {s.graham && <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 5, color: 'var(--c-up)', background: 'color-mix(in srgb, var(--c-up) 18%, transparent)', whiteSpace: 'nowrap' }}>그레이엄</span>}
           {s.buffett && <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 5, color: 'var(--c-accyanbr)', background: 'var(--c-cy16)', whiteSpace: 'nowrap' }}>버핏형</span>}
           <span style={{ marginLeft: 'auto', display: 'flex', gap: 10, alignItems: 'baseline', flexShrink: 0 }}>
-            {s.per != null && <span style={{ fontSize: 11, color: 'var(--c-tx6)' }}>PER {s.per.toFixed(1)}</span>}
-            {s.roe != null && <span style={{ fontSize: 11, color: 'var(--c-tx6)' }}>ROE {s.roe.toFixed(0)}%</span>}
+            {/* 좁은 화면에선 PER·ROE 생략 — 이름+배지와 겹치거나 행이 넘치는 것 방지(상세는 클릭해 확인) */}
+            {vw >= 480 && s.per != null && <span style={{ fontSize: 11, color: 'var(--c-tx6)' }}>PER {s.per.toFixed(1)}</span>}
+            {vw >= 480 && s.roe != null && <span style={{ fontSize: 11, color: 'var(--c-tx6)' }}>ROE {s.roe.toFixed(0)}%</span>}
             <span style={{ fontSize: 15, fontWeight: 800, color: s.score >= 70 ? 'var(--c-up)' : 'var(--c-accyan)' }}>{s.score}</span>
           </span>
         </div>
@@ -468,10 +470,13 @@ function SectorFlowCard() {
           {rows?.map((s, i) => {
             const ph = PHASE_META[s.phase];
             const dayTxt = s.phase !== 'flat' && s.streakDays >= 2 ? ` ${s.streakDays}일째` : '';
+            // 모바일(375px)에서 %셀 3개(오늘·1주·1개월)가 고정폭이라 행이 넘치지 않게 폭·폰트 축소.
+            // 폭은 '-17.81%' 같은 7자 숫자가 들어가는 크기 유지(더 줄이면 옆 셀과 붙어 보임).
+            const narrow = vw < 480;
             const pcell = (label: string, v: number, strong: boolean) => (
-              <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', width: 50, flexShrink: 0 }}>
+              <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', width: narrow ? 48 : 50, flexShrink: 0 }}>
                 <span style={{ fontSize: 9, color: 'var(--c-tx6)', fontWeight: 600 }}>{label}</span>
-                <span style={{ fontSize: strong ? 13.5 : 12, fontWeight: strong ? 800 : 700, color: upColor(v), opacity: strong ? 1 : 0.78 }}>{fmtPct(v)}</span>
+                <span style={{ fontSize: strong ? (narrow ? 12 : 13.5) : (narrow ? 11 : 12), fontWeight: strong ? 800 : 700, color: upColor(v), opacity: strong ? 1 : 0.78 }}>{fmtPct(v)}</span>
               </span>
             );
             return (
@@ -484,13 +489,14 @@ function SectorFlowCard() {
               >
                 <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--c-tx6)', width: 16, flexShrink: 0 }}>{i + 1}</span>
                 <span style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 1 }}>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                  {/* 좁은 화면에서 상태 배지가 줄바꿈되도록(flexWrap) — 아니면 행이 화면 밖으로 넘침 */}
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>
                     <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--c-tx1b)', whiteSpace: 'nowrap' }}>{s.name}</span>
-                    <span style={{ fontSize: 9.5, fontWeight: 700, padding: '1px 7px', borderRadius: 5, whiteSpace: 'nowrap', color: ph.c, background: ph.bg }}>{ph.arrow} {ph.label}{dayTxt}</span>
+                    <span style={{ fontSize: 9.5, fontWeight: 700, padding: '1px 7px', borderRadius: 5, whiteSpace: 'nowrap', color: ph.c, background: ph.bg, maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis' }}>{ph.arrow} {ph.label}{dayTxt}</span>
                   </span>
                   <span style={{ fontSize: 11, color: 'var(--c-tx6)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.proxy}</span>
                 </span>
-                <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+                <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: narrow ? 5 : 10, flexShrink: 0 }}>
                   {pcell('오늘', s.changePct, false)}
                   {pcell('1주', s.change5d, false)}
                   {pcell('1개월', s.change20d, true)}
