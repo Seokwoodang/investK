@@ -1,13 +1,13 @@
 'use client';
 
 import { createChart, CandlestickSeries, ColorType, CrosshairMode, TickMarkType } from 'lightweight-charts';
-import type { BusinessDay, IChartApi, ISeriesApi, Time, UTCTimestamp } from 'lightweight-charts';
+import type { BusinessDay, CandlestickData, IChartApi, ISeriesApi, Time, UTCTimestamp } from 'lightweight-charts';
 import { useEffect, useRef } from 'react';
 import type { Candle, Currency, Period } from '../types';
 
 // TradingView Lightweight Charts 기반 인터랙티브 캔들차트(드래그 이동·휠 확대축소·크로스헤어).
 // 데이터는 우리 KIS·업비트·바이낸스 실데이터를 그대로 먹인다. 캔버스라 색은 CSS 토큰을 읽어 직접 적용.
-// 차트는 완전 독립: 기간 수익률 컨트롤과 서로 영향 주지 않는다.
+// 무한 스크롤: loadOlder가 주어지면 왼쪽 끝까지 스크롤할 때 과거 봉을 더 불러와 앞에 이어붙인다.
 
 const H = 360;
 
@@ -15,11 +15,26 @@ function tok(name: string): string {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || '#888';
 }
 
-// 우측 가격축·크로스헤어 가격 포맷: 천 단위 콤마. 큰 값은 정수, 작은 값(코인 등)은 소수 유지.
 function fmtAxisPrice(p: number): string {
   if (p >= 1000) return Math.round(p).toLocaleString('en-US');
   if (p >= 1) return p.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   return p.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+}
+
+// 캔들 배열 → LW 데이터(시각 오름차순·중복 제거). 일봉+는 business-day, 분/시간봉은 UTCTimestamp(초).
+function buildRows(candles: Candle[], intraday: boolean): CandlestickData[] {
+  const rows: { key: string; sec: number; time: Time; o: number; h: number; l: number; c: number }[] = [];
+  for (const c of candles) {
+    if (c.t == null) continue;
+    const sec = Math.floor(c.t / 1000);
+    const d = new Date(c.t);
+    const time: Time = intraday ? (sec as UTCTimestamp) : { year: d.getUTCFullYear(), month: d.getUTCMonth() + 1, day: d.getUTCDate() };
+    const key = intraday ? String(sec) : `${d.getUTCFullYear()}-${d.getUTCMonth()}-${d.getUTCDate()}`;
+    rows.push({ key, sec, time, o: c.o, h: c.h, l: c.l, c: c.c });
+  }
+  const dedup = new Map<string, (typeof rows)[number]>();
+  for (const r of rows) dedup.set(r.key, r);
+  return [...dedup.values()].sort((a, b) => a.sec - b.sec).map((r) => ({ time: r.time, open: r.o, high: r.h, low: r.l, close: r.c }));
 }
 
 export function CandleChart({
@@ -27,14 +42,15 @@ export function CandleChart({
   period,
   theme,
   fit = false,
+  loadOlder,
 }: {
   candles: Candle[];
   period?: Period;
   cur?: Currency;
   theme?: string; // 테마 변경 시 색 재적용 트리거
-  fit?: boolean; // true면 리사이즈 때도 전체 구간을 fit(모달 등 갓 열린 컨테이너용 — 팬/줌 보존 안 함)
+  fit?: boolean; // true면 리사이즈 때도 전체 구간을 fit(모달 등 갓 열린 컨테이너용)
+  loadOlder?: (oldestMs: number) => Promise<Candle[]>; // 주어지면 왼쪽 끝 스크롤 시 과거 봉 추가 로드
 }) {
-  // 분/시간봉만 시각 표시. 일봉+(또는 period 미지정=지수 모달)은 날짜만 → business-day 포인트 사용.
   const intraday = period === '1분' || period === '5분' || period === '15분' || period === '1시간';
   const intradayRef = useRef(intraday);
   intradayRef.current = intraday;
@@ -44,7 +60,13 @@ export function CandleChart({
   const fitRef = useRef(fit);
   fitRef.current = fit;
 
-  // 캔버스 색을 현재 테마 토큰으로 적용.
+  // 무한 스크롤 상태(ref — 리렌더와 무관하게 유지).
+  const dataRef = useRef<Candle[]>([]);
+  const loadingRef = useRef(false);
+  const exhaustedRef = useRef(false);
+  const loadOlderRef = useRef<typeof loadOlder>(undefined);
+  loadOlderRef.current = loadOlder;
+
   const applyTheme = () => {
     const chart = chartRef.current;
     const series = seriesRef.current;
@@ -74,13 +96,10 @@ export function CandleChart({
         borderColor: tok('--c-w08'),
         timeVisible: true,
         secondsVisible: false,
-        // 데이터 가장자리 밖(과거/미래)으로 스크롤·줌되어 "빈 공간만" 보이는 것 방지 →
-        // 줌아웃하면 로드된 전체 구간이 화면을 꽉 채운다. (없는 데이터를 빈칸으로 보여주지 않음)
-        fixLeftEdge: true,
+        // 데이터 가장자리 밖으로 스크롤·줌되어 "빈 공간만" 보이는 것 방지.
+        // 오른쪽은 항상 고정. 왼쪽은 과거 로딩이 없을 때만 고정(있으면 끝까지 스크롤해 트리거해야 하므로).
+        fixLeftEdge: !loadOlder,
         fixRightEdge: true,
-        // 축 라벨 직접 제어(라이브러리 기본이 '월+연도(26)'를 찍는 문제 회피).
-        //  일봉+(business-day): 월 경계=‘M월’, 그 외=‘D일’ (연도 표기 안 함)
-        //  분/시간봉(timestamp): 시각 경계=‘HH:MM’, 날짜 경계=‘M/D’
         tickMarkFormatter: (time: Time, tickMarkType: TickMarkType) => {
           if (typeof time === 'object' && time !== null && 'day' in time) {
             const bd = time as BusinessDay;
@@ -97,7 +116,6 @@ export function CandleChart({
       crosshair: { mode: CrosshairMode.Normal },
       localization: {
         priceFormatter: fmtAxisPrice,
-        // 크로스헤어 날짜 라벨 — 한국식 '년 월 일' 순(일봉+은 시각 없이, 분/시간봉은 HH:MM 포함).
         timeFormatter: (time: Time) => {
           if (typeof time === 'object' && time !== null && 'day' in time) {
             const bd = time as BusinessDay;
@@ -117,14 +135,37 @@ export function CandleChart({
     chartRef.current = chart;
     seriesRef.current = series;
 
+    // 왼쪽 끝 근처로 스크롤하면 과거 봉을 더 불러와 앞에 이어붙인다(뷰는 그대로 유지).
+    const onRange = (range: { from: number; to: number } | null) => {
+      if (!range || range.from > 8) return;
+      if (loadingRef.current || exhaustedRef.current || !loadOlderRef.current) return;
+      const oldest = dataRef.current[0]?.t;
+      if (oldest == null) return;
+      loadingRef.current = true;
+      loadOlderRef.current(oldest).then((older) => {
+        try {
+          if (!older || !older.length) { exhaustedRef.current = true; chart.timeScale().applyOptions({ fixLeftEdge: true }); return; }
+          const beforeLen = buildRows(dataRef.current, intradayRef.current).length;
+          const merged = [...older, ...dataRef.current];
+          const rows = buildRows(merged, intradayRef.current);
+          const added = rows.length - beforeLen;
+          if (added <= 0) { exhaustedRef.current = true; chart.timeScale().applyOptions({ fixLeftEdge: true }); return; }
+          dataRef.current = merged;
+          const r = chart.timeScale().getVisibleLogicalRange();
+          series.setData(rows);
+          if (r) chart.timeScale().setVisibleLogicalRange({ from: r.from + added, to: r.to + added });
+        } finally { loadingRef.current = false; }
+      }).catch(() => { loadingRef.current = false; });
+    };
+    chart.timeScale().subscribeVisibleLogicalRangeChange(onRange);
+
     const ro = new ResizeObserver(() => {
       chart.applyOptions({ width: el.clientWidth });
-      // 모달처럼 마운트 직후 폭이 커지는 컨테이너: 좁은 폭 기준 fitContent가 이미 실행돼
-      // 데이터가 오른쪽에 뭉침 → fit 모드에선 리사이즈마다 전체 구간을 다시 맞춘다.
       if (fitRef.current) chart.timeScale().fitContent();
     });
     ro.observe(el);
     return () => {
+      chart.timeScale().unsubscribeVisibleLogicalRangeChange(onRange);
       ro.disconnect();
       chart.remove();
       chartRef.current = null;
@@ -133,34 +174,20 @@ export function CandleChart({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // 데이터 갱신. (candles/봉종류가 바뀔 때 — 부모에서 useMemo로 안정화해 패닝/줌이 리셋되지 않음)
+  // 데이터 갱신(candles/봉종류 변경 시). 무한 스크롤 누적 상태도 리셋.
   useEffect(() => {
     const series = seriesRef.current;
     if (!series) return;
-    // 일봉+ 는 business-day({year,month,day})로 매핑 → 축에 '00:00'·시각 없이 날짜만 깔끔히.
-    //   (타임스탬프+timeVisible 조합이 일봉에서 "02 7월 '26 00:00" 같은 라벨을 냈음)
-    // 분/시간봉은 UTCTimestamp(초)로 시각까지 표시. LW는 time 오름차순·중복 없음 요구 → key로 dedupe.
-    const rows: { key: string; sec: number; time: Time; o: number; h: number; l: number; c: number }[] = [];
-    for (const c of candles) {
-      if (c.t == null) continue;
-      const sec = Math.floor(c.t / 1000);
-      const d = new Date(c.t);
-      const time: Time = intraday
-        ? (sec as UTCTimestamp)
-        : { year: d.getUTCFullYear(), month: d.getUTCMonth() + 1, day: d.getUTCDate() };
-      const key = intraday ? String(sec) : `${d.getUTCFullYear()}-${d.getUTCMonth()}-${d.getUTCDate()}`;
-      rows.push({ key, sec, time, o: c.o, h: c.h, l: c.l, c: c.c });
-    }
-    const dedup = new Map<string, (typeof rows)[number]>();
-    for (const r of rows) dedup.set(r.key, r);
-    const data = [...dedup.values()]
-      .sort((a, b) => a.sec - b.sec)
-      .map((r) => ({ time: r.time, open: r.o, high: r.h, low: r.l, close: r.c }));
-    series.setData(data);
+    dataRef.current = candles;
+    exhaustedRef.current = false;
+    loadingRef.current = false;
+    series.setData(buildRows(candles, intradayRef.current));
+    // 과거 로딩 가능 여부에 따라 왼쪽 고정 재설정(심볼/기간 바뀌어도 유지되게).
+    chartRef.current?.timeScale().applyOptions({ fixLeftEdge: !loadOlderRef.current });
     chartRef.current?.timeScale().fitContent();
   }, [candles, intraday]);
 
-  // 테마 변경 시 색 재적용(클래스 토글) + OS 설정 변경 구독.
+  // 테마 변경 시 색 재적용.
   useEffect(() => {
     applyTheme();
     const mq = window.matchMedia('(prefers-color-scheme: dark)');

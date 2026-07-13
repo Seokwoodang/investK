@@ -6,6 +6,7 @@ import { useDashboard } from '../../store/DashboardContext';
 import { track } from '../../lib/ga';
 import type { Candle, Period, TabId } from '../../types';
 import { CandleChart } from '../CandleChart';
+import { fetchOlderCandles } from '../../lib/candleHistory';
 import { InlineSpinner } from '../Footer';
 import { AssetLineChart, AllocationDonut } from '../MockCharts';
 
@@ -257,7 +258,8 @@ export function MockTrade() {
           {candleLoading ? (
             <div style={{ height: 360, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, color: 'var(--c-tx6)', fontSize: 13 }}><InlineSpinner /> 차트 불러오는 중…</div>
           ) : candles.length ? (
-            <CandleChart candles={candles} period={period} theme={state.theme} />
+            <CandleChart candles={candles} period={period} theme={state.theme}
+              loadOlder={sel ? (ms) => fetchOlderCandles(sel.tab as TabId, sel.ticker, period, ms) : undefined} />
           ) : (
             <div style={{ height: 360, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--c-tx6)', fontSize: 13 }}>차트 데이터 없음</div>
           )}

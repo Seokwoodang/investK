@@ -10,6 +10,7 @@ import { track } from '../../lib/ga';
 import { useRealtime, useSubscribeStocks, useSubscribeCoins, useSubscribeUs } from '../../store/RealtimeContext';
 import type { AlertKey, Candle, DetailTab, Period, Stock, Stocks, TabId } from '../../types';
 import { CandleChart } from '../CandleChart';
+import { fetchOlderCandles } from '../../lib/candleHistory';
 import { Kanalyst } from './Kanalyst';
 import { SourceNote, UpdateNote } from '../SourceNote';
 import { TermTip } from '../GlossaryTip';
@@ -648,7 +649,8 @@ export function Detail({ id }: { id: string }) {
                   <InlineSpinner /> 차트를 불러오는 중…
                 </div>
               ) : candles.length ? (
-                <CandleChart candles={candles} period={state.period} cur={sel.cur} theme={state.theme} />
+                <CandleChart candles={candles} period={state.period} cur={sel.cur} theme={state.theme}
+                  loadOlder={selTicker ? (ms) => fetchOlderCandles(state.activeTab, selTicker, state.period, ms) : undefined} />
               ) : (
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 280, color: 'var(--c-tx5)', fontSize: 14 }}>
                   차트 데이터를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.
