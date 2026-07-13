@@ -8,6 +8,7 @@ import { RealtimeProvider } from '@/store/RealtimeContext';
 import { Header } from './Header';
 import { Footer } from './Footer';
 import { EventModal } from './EventModal';
+import { InstallPrompt } from './InstallPrompt';
 
 interface ViewportLayout {
   vw: number;
@@ -67,6 +68,7 @@ export function DashboardChrome({ data, children, authed = true, isAdmin = false
             </div>
 
             <EventModal />
+            <InstallPrompt />
           </div>
         </LayoutCtx.Provider>
         </AdminCtx.Provider>

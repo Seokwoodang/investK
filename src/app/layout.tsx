@@ -16,6 +16,8 @@ export const metadata: Metadata = {
   },
   description: DESC,
   applicationName: 'InvestKang',
+  // iOS Safari에서 '홈 화면에 추가' 시 standalone 앱으로 동작(주소창 없는 전체화면).
+  appleWebApp: { capable: true, statusBarStyle: 'black-translucent', title: 'InvestKang' },
   keywords: ['투자', '주식', '대시보드', '코스피', '코스닥', '업종', '저평가 우량주', '경제 캘린더'],
   alternates: { canonical: '/' },
   openGraph: {
