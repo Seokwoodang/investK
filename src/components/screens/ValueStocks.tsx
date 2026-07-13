@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { fmtPct, upColor } from '../../lib/format';
 import { useDashboard } from '../../store/DashboardContext';
 import { SourceNote, UpdateNote } from '../SourceNote';
-import { TermTip, useClampPop } from '../GlossaryTip';
+import { TermTip, Popover } from '../GlossaryTip';
 import { InlineSpinner } from '../Footer';
 import type { Currency, TabId } from '../../types';
 
@@ -98,21 +98,13 @@ function Metric({ label, value, color, tip }: { label: string; value: string; co
   );
 }
 function Badge({ text, color, bg, tip }: { text: string; color: string; bg: string; tip?: string }) {
-  const { popRef, onReveal } = useClampPop(); // 모바일에서 오른쪽 배지 툴팁이 화면 밖으로 나가지 않게
   const chip = <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 6, color, background: bg, whiteSpace: 'nowrap' }}>{text}</span>;
   if (!tip) return chip;
+  // portal 팝오버 — 다음 카드/overflow에 덮이거나 화면 밖으로 잘리지 않음(모바일 안전)
   return (
-    <span className="gloss" tabIndex={0} onMouseEnter={onReveal} onFocus={onReveal} style={{ position: 'relative', display: 'inline-flex', cursor: 'help', outline: 'none' }}>
+    <Popover width={270} content={<><span style={{ display: 'block', fontSize: 11, fontWeight: 700, color, marginBottom: 5 }}>{text}</span><span style={{ display: 'block', fontSize: 12, lineHeight: 1.55, color: 'var(--c-tx3)', fontWeight: 400 }}>{tip}</span></>}>
       {chip}
-      <span
-        ref={popRef}
-        className="gloss-pop"
-        style={{ position: 'absolute', top: 'calc(100% + 6px)', left: 0, width: 'min(270px, calc(100vw - 24px))', background: 'var(--c-panel)', border: '1px solid var(--c-w12)', borderRadius: 12, padding: '12px 14px', boxShadow: '0 14px 36px var(--c-shadow)', zIndex: 80, textAlign: 'left', whiteSpace: 'normal' }}
-      >
-        <span style={{ display: 'block', fontSize: 11, fontWeight: 700, color, marginBottom: 5 }}>{text}</span>
-        <span style={{ display: 'block', fontSize: 12, lineHeight: 1.55, color: 'var(--c-tx3)', fontWeight: 400 }}>{tip}</span>
-      </span>
-    </span>
+    </Popover>
   );
 }
 

@@ -11,7 +11,7 @@ import { SRC } from '../../lib/sources';
 import { useDashboard } from '../../store/DashboardContext';
 import { useAuthed, useViewportLayout } from '../DashboardChrome';
 import { TAB_LABELS, type Impact, type SectorRow, type SectorPhase } from '../../types';
-import { GlossaryTip, ImpactTag } from '../GlossaryTip';
+import { GlossaryTip, ImpactTag, Popover } from '../GlossaryTip';
 import { IndexModal } from '../IndexModal';
 import { SectorModal } from '../SectorModal';
 import { AdSlot } from '../AdSlot';
@@ -599,13 +599,17 @@ export function Dashboard() {
           <div style={{ marginBottom: 36, position: 'relative', zIndex: 5 }}>
             <h2 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 700 }}>시장 심리 · 지표</h2>
             <div style={{ display: 'grid', gridTemplateColumns: layout.assetCols, gap: 16 }}>
-              {gauges.map((g, gi) => (
-                // 지표 뜻·해석을 모르는 사용자를 위해 카드 자체를 호버(또는 포커스)하면 설명 팝오버 표시.
-                <div key={g!.label} className={g!.hint ? 'gloss' : undefined} tabIndex={g!.hint ? 0 : undefined} style={{ ...CARD, padding: 20, position: 'relative', cursor: g!.hint ? 'help' : 'default', outline: 'none' }}>
+              {gauges.map((g) => (
+                <div key={g!.label} style={{ ...CARD, padding: 20 }}>
+                  {/* 라벨+ⓘ를 호버/탭하면 설명 팝오버(portal — 다음 카드에 안 덮이고 화면 안에 클램프) */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span style={{ fontSize: 13, color: 'var(--c-tx5)' }}>{g!.label}</span>
-                    {g!.hint && (
-                      <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 15, height: 15, borderRadius: '50%', border: '1px solid var(--c-w22)', color: 'var(--c-tx5)', fontSize: 9, fontWeight: 700, flexShrink: 0 }}>i</span>
+                    {g!.hint ? (
+                      <Popover width={280} content={<><span style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--c-accyanbr)', marginBottom: 5 }}>{g!.label}</span><span style={{ display: 'block', fontSize: 12, lineHeight: 1.6, color: 'var(--c-tx3)', fontWeight: 400 }}>{g!.hint}</span></>}>
+                        <span style={{ fontSize: 13, color: 'var(--c-tx5)' }}>{g!.label}</span>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 15, height: 15, marginLeft: 6, borderRadius: '50%', border: '1px solid var(--c-w22)', color: 'var(--c-tx5)', fontSize: 9, fontWeight: 700, flexShrink: 0 }}>i</span>
+                      </Popover>
+                    ) : (
+                      <span style={{ fontSize: 13, color: 'var(--c-tx5)' }}>{g!.label}</span>
                     )}
                   </div>
                   <div style={{ fontSize: 26, fontWeight: 800, letterSpacing: '-0.01em', color: toneColor(g!.tone), marginTop: 8 }}>{g!.value}</div>
@@ -618,20 +622,6 @@ export function Dashboard() {
                       </span>
                     )}
                   </div>
-                  {g!.hint && (
-                    <span
-                      className="gloss-pop"
-                      style={{
-                        position: 'absolute', top: 'calc(100% + 6px)', width: 280, zIndex: 70,
-                        ...(gi >= gauges.length - 2 ? { right: 0 } : { left: 0 }), // 우측 카드는 오른쪽 정렬(화면 밖 방지)
-                        background: 'var(--c-panel)', border: '1px solid var(--c-w12)', borderRadius: 12,
-                        padding: '12px 14px', boxShadow: '0 14px 36px var(--c-shadow)', textAlign: 'left', whiteSpace: 'normal',
-                      }}
-                    >
-                      <span style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--c-accyanbr)', marginBottom: 5 }}>{g!.label}</span>
-                      <span style={{ display: 'block', fontSize: 12, lineHeight: 1.6, color: 'var(--c-tx3)', fontWeight: 400 }}>{g!.hint}</span>
-                    </span>
-                  )}
                 </div>
               ))}
             </div>

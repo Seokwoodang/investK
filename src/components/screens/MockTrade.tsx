@@ -222,7 +222,9 @@ export function MockTrade() {
 
           {/* 종목 검색 드롭다운 */}
           {pickerOpen && (
-            <div style={{ position: 'absolute', top: 60, left: 18, right: 18, zIndex: 20, ...CARD, padding: 14, boxShadow: '0 16px 48px rgba(0,0,0,.4)' }}>
+            // 차트 위에 뜨는 종목 검색창 — CARD의 반투명 배경(var(--c-w04))을 쓰면 뒤 차트가 비쳐
+            // 글씨가 안 읽힘. 불투명 패널색으로 덮는다(backdrop-filter는 canvas를 못 흐리게 함).
+            <div style={{ position: 'absolute', top: 60, left: 18, right: 18, zIndex: 20, background: 'var(--c-panel)', border: '1px solid var(--c-w12)', borderRadius: 16, padding: 14, boxShadow: '0 16px 48px rgba(0,0,0,.55)' }}>
               <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
                 {TABS.map((t) => (
                   <button key={t.id} onClick={() => { setPickerTab(t.id); setQuery(''); }}
