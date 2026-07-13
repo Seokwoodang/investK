@@ -490,6 +490,8 @@ function SectorFlowCard() {
 }
 
 const SLOT_TEXT: Record<string, string> = { am: '오전 6시(KST) 생성분', pm: '오후 5시(KST) 생성분', ny: '오후 10시(KST) 생성분' };
+// 데일리 브리핑(헤드라인·팩트·인과·자산군별 한 줄) 공통 출처 — 실시장 데이터로 하루 3회 AI 생성.
+const BRIEF_SRC = 'AI 생성 — Claude(Anthropic) · 실시장 데이터로 하루 3회(오전 6시·오후 5시·오후 10시 KST) 자동 생성해 서버에 저장';
 
 export function Dashboard() {
   const { vw, layout } = useViewportLayout();
@@ -565,35 +567,38 @@ export function Dashboard() {
       {/* ① 오늘의 한 줄 (데일리 헤드라인) */}
       <HeadlineBanner headline={brief?.headline ?? null} loading={briefLoading} slot={slotText} />
 
-      {/* ①-b 3줄 팩트 요약 + 왜 움직였나 (데일리 흡수) */}
+      {/* ①-b 3줄 팩트 요약 + 왜 움직였나 (데일리 흡수) — 두 카드 높이 stretch로 맞춤 */}
       {brief && (
-        <div style={{ display: 'grid', gridTemplateColumns: layout.briefCols, gap: 16, marginBottom: 36, alignItems: 'start' }}>
-          <div style={{ ...CARD, padding: 24 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', color: 'var(--c-accyan)', marginBottom: 16 }}>3줄 팩트 요약</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              {brief.facts.map((f, i) => (
-                <div key={i} style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-                  <span style={{ fontSize: 11, fontWeight: 700, padding: '4px 9px', borderRadius: 7, whiteSpace: 'nowrap', background: 'var(--c-w06)', color: 'var(--c-tx4)', flexShrink: 0, marginTop: 1 }}>{f.k}</span>
-                  <span style={{ fontSize: 14, lineHeight: 1.6, color: 'var(--c-tx2)' }}>{f.t}</span>
-                </div>
-              ))}
+        <div style={{ marginBottom: 36 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: layout.briefCols, gap: 16, alignItems: 'stretch' }}>
+            <div style={{ ...CARD, padding: 24, display: 'flex', flexDirection: 'column' }}>
+              <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', color: 'var(--c-accyan)', marginBottom: 16 }}>3줄 팩트 요약</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                {brief.facts.map((f, i) => (
+                  <div key={i} style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, padding: '4px 9px', borderRadius: 7, whiteSpace: 'nowrap', background: 'var(--c-w06)', color: 'var(--c-tx4)', flexShrink: 0, marginTop: 1 }}>{f.k}</span>
+                    <span style={{ fontSize: 14, lineHeight: 1.6, color: 'var(--c-tx2)' }}>{f.t}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div style={{ ...CARD, padding: 24, display: 'flex', flexDirection: 'column' }}>
+              <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', color: 'var(--c-accyan)', marginBottom: 16 }}>왜 움직였나</div>
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                {brief.causes.map((steps, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', padding: '11px 0', borderBottom: i < brief.causes.length - 1 ? '1px solid var(--c-w05)' : 'none' }}>
+                    {steps.map((t, si) => (
+                      <span key={si} style={{ display: 'contents' }}>
+                        {si > 0 && <span style={{ fontSize: 13, color: 'var(--c-accyanbr)' }}>→</span>}
+                        <span style={{ fontSize: 13, lineHeight: 1.4, color: si === steps.length - 1 ? 'var(--c-tx1c)' : 'var(--c-tx4)', fontWeight: si === steps.length - 1 ? 600 : 400 }}>{t}</span>
+                      </span>
+                    ))}
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
-          <div style={{ ...CARD, padding: 24 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', color: 'var(--c-accyan)', marginBottom: 16 }}>왜 움직였나</div>
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              {brief.causes.map((steps, i) => (
-                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', padding: '11px 0', borderBottom: '1px solid var(--c-w05)' }}>
-                  {steps.map((t, si) => (
-                    <span key={si} style={{ display: 'contents' }}>
-                      {si > 0 && <span style={{ fontSize: 13, color: 'var(--c-accyanbr)' }}>→</span>}
-                      <span style={{ fontSize: 13, lineHeight: 1.4, color: si === steps.length - 1 ? 'var(--c-tx1c)' : 'var(--c-tx4)', fontWeight: si === steps.length - 1 ? 600 : 400 }}>{t}</span>
-                    </span>
-                  ))}
-                </div>
-              ))}
-            </div>
-          </div>
+          <SourceNote text={BRIEF_SRC} style={{ marginTop: 12 }} />
         </div>
       )}
 
@@ -688,9 +693,9 @@ export function Dashboard() {
       {brief && brief.byAsset.length > 0 && (
         <div style={{ marginBottom: 36 }}>
           <h2 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 700 }}>자산군별 한 줄</h2>
-          <div style={{ display: 'grid', gridTemplateColumns: layout.assetCols, gap: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: layout.assetCols, gap: 16, alignItems: 'stretch' }}>
             {brief.byAsset.map((a, i) => (
-              <div key={i} style={{ ...CARD, padding: 22 }}>
+              <div key={i} style={{ ...CARD, padding: 22, display: 'flex', flexDirection: 'column' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
                   <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--c-tx1b)', whiteSpace: 'nowrap' }}>{a.label}</span>
                   <span style={{ fontSize: 13, fontWeight: 700, marginLeft: 'auto', color: dirColor(a.dir) }}>{dirArrow(a.dir)}</span>
@@ -699,6 +704,7 @@ export function Dashboard() {
               </div>
             ))}
           </div>
+          <SourceNote text={BRIEF_SRC} style={{ marginTop: 14 }} />
         </div>
       )}
 
