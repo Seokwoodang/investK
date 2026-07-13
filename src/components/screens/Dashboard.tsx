@@ -91,28 +91,47 @@ function MacroCard({ title, rows, source, onRow }: { title: string; rows: { labe
 // ① 오늘의 한 줄 — 데일리 브리핑 헤드라인. 데이터는 상위(Dashboard)에서 /api/briefing로 한 번만 받아 주입.
 //    데일리 페이지를 흡수하면서(v0.15.0) 별도 링크 대신 아래에 팩트·인과·자산군별 한 줄·체크포인트를 함께 표시.
 function HeadlineBanner({ headline, loading, slot }: { headline: string | null; loading: boolean; slot?: string }) {
+  const { vw } = useViewportLayout();
+  // 좁은 화면(모바일)에선 배지 2개를 헤드라인과 한 줄에 두면 헤드라인이 좁은 폭에 끼여 여러 줄로 쪼개짐.
+  //  → 위 줄에 배지(오늘의 한 줄 · 생성분), 아래 줄에 헤드라인 전체폭으로 세로 배치.
+  const narrow = vw < 640;
   const BANNER: React.CSSProperties = {
-    display: 'flex', alignItems: 'center', gap: 14, marginBottom: 20,
-    padding: '18px 22px', borderRadius: 18, border: '1px solid var(--c-cy18)',
+    display: 'flex', flexDirection: narrow ? 'column' : 'row', alignItems: narrow ? 'flex-start' : 'center',
+    gap: narrow ? 10 : 14, marginBottom: 20,
+    padding: narrow ? '16px 18px' : '18px 22px', borderRadius: 18, border: '1px solid var(--c-cy18)',
     background: 'linear-gradient(135deg, var(--c-cy07), var(--c-bl05))',
   };
-  const PILL: React.CSSProperties = { fontSize: 11, fontWeight: 800, letterSpacing: '0.06em', padding: '4px 10px', borderRadius: 6, whiteSpace: 'nowrap', background: 'var(--c-cy18)', color: 'var(--c-accyanbr)' };
+  const PILL: React.CSSProperties = { fontSize: 11, fontWeight: 800, letterSpacing: '0.06em', padding: '4px 10px', borderRadius: 6, whiteSpace: 'nowrap', background: 'var(--c-cy18)', color: 'var(--c-accyanbr)', flexShrink: 0 };
+  const SLOT: React.CSSProperties = { fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 6, background: 'var(--c-w06)', color: 'var(--c-tx4)', whiteSpace: 'nowrap', flexShrink: 0 };
+  const HEAD: React.CSSProperties = { fontSize: 16, fontWeight: 700, lineHeight: 1.5, color: 'var(--c-tx1)', flex: narrow ? undefined : 1, minWidth: 0 };
 
   // 로딩 중엔 스켈레톤(예전엔 null → 준비되면 '덜컥'). 헤드라인이 실제로 없으면(생성 전/실패) 숨김.
   if (loading) {
     return (
       <div style={BANNER} aria-hidden>
         <span style={PILL}>오늘의 한 줄</span>
-        <div className="skeleton-pulse" style={{ flex: 1, height: 16, borderRadius: 8, background: 'var(--c-w06)' }} />
+        <div className="skeleton-pulse" style={{ width: narrow ? '100%' : undefined, flex: narrow ? undefined : 1, height: 16, borderRadius: 8, background: 'var(--c-w06)' }} />
       </div>
     );
   }
   if (!headline) return null;
+  // 모바일: [배지들] 줄 + [헤드라인] 줄. 데스크톱: [배지] [헤드라인 flex:1] [생성분].
+  if (narrow) {
+    return (
+      <div style={BANNER}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <span style={PILL}>오늘의 한 줄</span>
+          {slot && <span style={SLOT}>{slot}</span>}
+        </div>
+        <span style={HEAD}>{headline}</span>
+      </div>
+    );
+  }
   return (
     <div style={BANNER}>
       <span style={PILL}>오늘의 한 줄</span>
-      <span style={{ fontSize: 16, fontWeight: 700, lineHeight: 1.5, color: 'var(--c-tx1)', flex: 1, minWidth: 0 }}>{headline}</span>
-      {slot && <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 6, background: 'var(--c-w06)', color: 'var(--c-tx4)', whiteSpace: 'nowrap' }}>{slot}</span>}
+      <span style={HEAD}>{headline}</span>
+      {slot && <span style={SLOT}>{slot}</span>}
     </div>
   );
 }
