@@ -428,7 +428,7 @@ export function MockTrade() {
               </div>
             ))}
           </div>
-          <p style={{ fontSize: 11, color: 'var(--c-tx6)', marginTop: 10, lineHeight: 1.5 }}>매수는 현재가가 지정가 이하, 매도는 지정가 이상일 때 자동 체결돼요(약 10분마다·접속 시 즉시 확인).</p>
+          <p style={{ fontSize: 11, color: 'var(--c-tx6)', marginTop: 10, lineHeight: 1.5 }}>매수는 현재가가 지정가 이하, 매도는 지정가 이상일 때 자동 체결돼요(약 1분마다·접속 시 즉시 확인).</p>
         </div>
       )}
 
