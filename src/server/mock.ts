@@ -32,11 +32,15 @@ export interface HoldingRow {
   tab: MockTab; code: string; name: string; qty: number; avgCost: number;
   price: number; value: number; cost: number; pnl: number; pnlPct: number;
 }
+export interface OpenOrder {
+  id: number; tab: MockTab; code: string; name: string; side: 'buy' | 'sell';
+  limitPrice: number; qty: number; reserved: number;
+}
 export interface AccountView {
   kind: AcctKind; season: string | null;
   cash: number; holdings: HoldingRow[]; holdingsValue: number; totalAsset: number;
   pnl: number; pnlPct: number; canReset: boolean; resets: number; seed: number;
-  rank: number | null; players: number;
+  rank: number | null; players: number; openOrders: OpenOrder[];
 }
 export interface BoardRow { rank: number; name: string; totalAsset: number; pnlPct: number; isMe?: boolean }
 export interface AllocSeg { name: string; value: number; pct: number; tab: MockTab | 'cash' }
@@ -94,6 +98,7 @@ async function rolloverOne(user: string, old: { cash: number; season: string | n
     );
   }
   await sb.from('mock_holdings').delete().eq('username', user).eq('account_type', 'season');
+  await sb.from('mock_orders').delete().eq('username', user).eq('account_type', 'season').eq('status', 'open');
   await sb.from('mock_accounts').update({ cash: SEED, season: seasonKey(), resets: 0, last_reset: null, updated_at: new Date().toISOString() })
     .eq('username', user).eq('account_type', 'season');
 }
@@ -119,7 +124,9 @@ async function ensureAccount(user: string, kind: AcctKind): Promise<{ cash: numb
 export async function getAccount(user: string, kind: AcctKind): Promise<AccountView> {
   const sb = getSupabase();
   if (!sb) throw new Error('supabase 미설정');
-  const acct = await ensureAccount(user, kind);
+  await ensureAccount(user, kind);
+  await fillOrders(user, kind); // 조회 시점에 조건 충족한 지정가 주문 체결
+  const acct = await ensureAccount(user, kind); // 체결로 현금/보유 바뀌었을 수 있어 재로드
   const { data: rows } = await sb.from('mock_holdings').select('tab, code, name, qty, avg_cost').eq('username', user).eq('account_type', kind);
   const raw = (rows ?? []) as RawHolding[];
   const prices = await priceMany(raw.map((r) => ({ tab: r.tab, code: r.code })));
@@ -132,18 +139,23 @@ export async function getAccount(user: string, kind: AcctKind): Promise<AccountV
   }).sort((a, b) => b.value - a.value);
 
   const holdingsValue = holdings.reduce((s, h) => s + h.value, 0);
-  const totalAsset = acct.cash + holdingsValue;
+
+  // 미체결 지정가 주문 + 매수 예약 현금(총자산에 다시 더해 일관성 유지 — 예약해도 총자산 불변).
+  const { data: ordRows } = await sb.from('mock_orders').select('id, tab, code, name, side, limit_price, qty, reserved').eq('username', user).eq('account_type', kind).eq('status', 'open').order('created_at', { ascending: false });
+  const openOrders: OpenOrder[] = (ordRows ?? []).map((o) => ({ id: Number(o.id), tab: o.tab as MockTab, code: o.code as string, name: o.name as string, side: o.side as 'buy' | 'sell', limitPrice: Number(o.limit_price), qty: Number(o.qty), reserved: Number(o.reserved) }));
+  const reservedBuy = openOrders.reduce((s, o) => s + (o.side === 'buy' ? o.reserved : 0), 0);
+
+  const totalAsset = acct.cash + holdingsValue + reservedBuy;
   const pnl = totalAsset - SEED;
   const canReset = totalAsset <= SEED && acct.last_reset !== kstToday();
   const { rank, players } = await myRank(user, kind, totalAsset);
 
-  // 오늘 스냅샷 upsert — 크론과 별개로 방문 시점 값을 남겨 선 그래프가 첫날부터 보이게.
   await sb.from('mock_snapshots').upsert(
     { username: user, account_type: kind, season: acct.season, date: kstToday(), total_asset: Math.round(totalAsset) },
     { onConflict: 'username,account_type,date' },
   );
 
-  return { kind, season: acct.season, cash: acct.cash, holdings, holdingsValue, totalAsset, pnl, pnlPct: (pnl / SEED) * 100, canReset, resets: acct.resets, seed: SEED, rank, players };
+  return { kind, season: acct.season, cash: acct.cash, holdings, holdingsValue, totalAsset, pnl, pnlPct: (pnl / SEED) * 100, canReset, resets: acct.resets, seed: SEED, rank, players, openOrders };
 }
 
 // 매수/매도.
@@ -202,6 +214,7 @@ export async function reset(user: string, kind: AcctKind): Promise<AccountView> 
   if (acct.cash + holdingsValue > SEED) throw new Error('총자산이 시드(1,000만원)를 넘어 재충전할 수 없습니다');
 
   await sb.from('mock_holdings').delete().eq('username', user).eq('account_type', kind);
+  await sb.from('mock_orders').delete().eq('username', user).eq('account_type', kind).eq('status', 'open'); // 미체결 주문도 소멸
   await sb.from('mock_accounts').update({ cash: SEED, last_reset: today, resets: acct.resets + 1, updated_at: new Date().toISOString() }).eq('username', user).eq('account_type', kind);
   await sb.from('mock_trades').insert({ username: user, account_type: kind, tab: '-', code: '-', name: '재충전(리스타트)', side: 'reset', amount: SEED });
   invalidateBoard();
@@ -231,6 +244,9 @@ async function computeBoard(kind: AcctKind): Promise<{ username: string; totalAs
   const total = new Map<string, number>();
   for (const a of (accts ?? []) as { username: string; cash: number }[]) total.set(a.username, Number(a.cash));
   for (const h of holdings) total.set(h.username, (total.get(h.username) ?? 0) + h.qty * (prices.get(`${h.tab}:${h.code}`) ?? 0));
+  // 매수 지정가 예약 현금도 총자산에 포함(현금에서 빠져 있으므로).
+  const { data: ords } = await sb.from('mock_orders').select('username, reserved').eq('account_type', kind).eq('status', 'open').eq('side', 'buy');
+  for (const o of (ords ?? []) as { username: string; reserved: number }[]) if (acctUsers.has(o.username)) total.set(o.username, (total.get(o.username) ?? 0) + Number(o.reserved));
   const rows = [...total.entries()].map(([username, totalAsset]) => ({ username, totalAsset })).sort((a, b) => b.totalAsset - a.totalAsset);
   boardCache[kind] = { at: Date.now(), rows };
   return rows;
@@ -288,6 +304,131 @@ export async function history(user: string, kind: AcctKind): Promise<{ snapshots
   return { snapshots, allocation: segs.filter((s) => s.value > 0), seasonRecords };
 }
 
+// ── 지정가(limit) 주문 ──
+interface OrderRow { id: number; account_type: AcctKind; tab: MockTab; code: string; name: string; side: 'buy' | 'sell'; limit_price: number; qty: number; reserved: number }
+
+// 주문 1건을 현재가로 체결 시도. 매수: 현재가 ≤ 지정가 / 매도: 현재가 ≥ 지정가일 때 체결.
+// 체결가는 유리한 쪽(매수=min(지정가,현재가)·매도=max)으로 하고, 매수 예약 잔여는 현금 환불.
+async function fillOne(user: string, o: OrderRow, price: number): Promise<boolean> {
+  const sb = getSupabase();
+  if (!sb || !(price > 0)) return false;
+  const hit = o.side === 'buy' ? price <= o.limit_price : price >= o.limit_price;
+  if (!hit) return false;
+
+  const { data: h } = await sb.from('mock_holdings').select('qty, avg_cost').eq('username', user).eq('account_type', o.account_type).eq('tab', o.tab).eq('code', o.code).maybeSingle();
+  const curQty = h ? Number(h.qty) : 0;
+  const curAvg = h ? Number(h.avg_cost) : 0;
+  const { data: acc } = await sb.from('mock_accounts').select('cash').eq('username', user).eq('account_type', o.account_type).maybeSingle();
+  if (!acc) return false;
+  const cash = Number(acc.cash);
+
+  if (o.side === 'buy') {
+    const fillPrice = Math.min(o.limit_price, price);
+    const cost = Math.round(o.qty * fillPrice);
+    const refund = Math.max(0, Number(o.reserved) - cost); // 예약 - 실체결 = 환불
+    const newQty = curQty + o.qty;
+    const newAvg = (curQty * curAvg + o.qty * fillPrice) / newQty;
+    await sb.from('mock_holdings').upsert({ username: user, account_type: o.account_type, tab: o.tab, code: o.code, name: o.name, qty: newQty, avg_cost: newAvg, updated_at: new Date().toISOString() }, { onConflict: 'username,account_type,tab,code' });
+    if (refund > 0) await sb.from('mock_accounts').update({ cash: cash + refund, updated_at: new Date().toISOString() }).eq('username', user).eq('account_type', o.account_type);
+    await sb.from('mock_trades').insert({ username: user, account_type: o.account_type, tab: o.tab, code: o.code, name: o.name, side: 'buy', qty: o.qty, price: fillPrice, amount: cost });
+  } else {
+    if (o.qty > curQty + 1e-9) { // 팔 물량이 없어짐 → 주문 취소 처리
+      await sb.from('mock_orders').update({ status: 'canceled' }).eq('id', o.id);
+      return false;
+    }
+    const fillPrice = Math.max(o.limit_price, price);
+    const proceeds = Math.round(o.qty * fillPrice);
+    const rest = curQty - o.qty;
+    if (rest <= 1e-9) await sb.from('mock_holdings').delete().eq('username', user).eq('account_type', o.account_type).eq('tab', o.tab).eq('code', o.code);
+    else await sb.from('mock_holdings').update({ qty: rest, updated_at: new Date().toISOString() }).eq('username', user).eq('account_type', o.account_type).eq('tab', o.tab).eq('code', o.code);
+    await sb.from('mock_accounts').update({ cash: cash + proceeds, updated_at: new Date().toISOString() }).eq('username', user).eq('account_type', o.account_type);
+    await sb.from('mock_trades').insert({ username: user, account_type: o.account_type, tab: o.tab, code: o.code, name: o.name, side: 'sell', qty: o.qty, price: fillPrice, amount: proceeds });
+  }
+  await sb.from('mock_orders').update({ status: 'filled', filled_price: o.side === 'buy' ? Math.min(o.limit_price, price) : Math.max(o.limit_price, price), filled_at: new Date().toISOString() }).eq('id', o.id);
+  return true;
+}
+
+// 특정 유저/kind의 미체결 주문을 현재가로 체결 시도(조회 시점 호출).
+async function fillOrders(user: string, kind: AcctKind): Promise<void> {
+  const sb = getSupabase();
+  if (!sb) return;
+  const { data } = await sb.from('mock_orders').select('id, account_type, tab, code, name, side, limit_price, qty, reserved').eq('username', user).eq('account_type', kind).eq('status', 'open');
+  const orders = (data ?? []) as OrderRow[];
+  if (!orders.length) return;
+  const prices = await priceMany(orders.map((o) => ({ tab: o.tab, code: o.code })));
+  let any = false;
+  for (const o of orders) {
+    const p = prices.get(`${o.tab}:${o.code}`);
+    if (p != null && await fillOne(user, { ...o, id: Number(o.id) }, p)) any = true;
+  }
+  if (any) invalidateBoard();
+}
+
+// 지정가 주문 등록. 매수=현금 예약(차감), 매도=보유 수량 예약(미체결 매도분만큼 잠금). 등록 즉시 조건 충족 시 체결.
+export async function placeOrder(
+  user: string, kind: AcctKind,
+  input: { tab: MockTab; code: string; name: string; side: 'buy' | 'sell'; limitPrice: number; qty: number },
+): Promise<AccountView> {
+  const sb = getSupabase();
+  if (!sb) throw new Error('supabase 미설정');
+  const { tab, code, name, side } = input;
+  if (!MOCK_TABS.includes(tab)) throw new Error('지원하지 않는 종목');
+  const limitPrice = Number(input.limitPrice);
+  let qty = Number(input.qty);
+  if (!(limitPrice > 0)) throw new Error('지정가를 확인하세요');
+  if (!(qty > 0)) throw new Error('수량을 확인하세요');
+  if (tab === 'kr_stock') { qty = Math.floor(qty); if (qty < 1) throw new Error('1주 이상 입력하세요'); }
+
+  const acct = await ensureAccount(user, kind);
+  if (side === 'buy') {
+    const reserved = Math.round(qty * limitPrice);
+    if (reserved > acct.cash) throw new Error('현금이 부족합니다(지정가 기준 예약)');
+    await sb.from('mock_accounts').update({ cash: acct.cash - reserved, updated_at: new Date().toISOString() }).eq('username', user).eq('account_type', kind);
+    await sb.from('mock_orders').insert({ username: user, account_type: kind, tab, code, name, side, limit_price: limitPrice, qty, reserved });
+  } else {
+    const { data: h } = await sb.from('mock_holdings').select('qty').eq('username', user).eq('account_type', kind).eq('tab', tab).eq('code', code).maybeSingle();
+    const owned = h ? Number(h.qty) : 0;
+    const { data: openSells } = await sb.from('mock_orders').select('qty').eq('username', user).eq('account_type', kind).eq('tab', tab).eq('code', code).eq('side', 'sell').eq('status', 'open');
+    const reservedQty = (openSells ?? []).reduce((s, o) => s + Number(o.qty), 0);
+    if (qty > owned - reservedQty + 1e-9) throw new Error('매도할 보유 수량이 부족합니다(미체결 매도 제외)');
+    await sb.from('mock_orders').insert({ username: user, account_type: kind, tab, code, name, side, limit_price: limitPrice, qty, reserved: 0 });
+  }
+  invalidateBoard();
+  return getAccount(user, kind); // getAccount가 즉시 체결 시도까지 함
+}
+
+// 미체결 주문 취소. 매수면 예약 현금 환불.
+export async function cancelOrder(user: string, kind: AcctKind, orderId: number): Promise<AccountView> {
+  const sb = getSupabase();
+  if (!sb) throw new Error('supabase 미설정');
+  const { data: o } = await sb.from('mock_orders').select('side, reserved, status').eq('id', orderId).eq('username', user).eq('account_type', kind).maybeSingle();
+  if (!o || o.status !== 'open') throw new Error('취소할 수 없는 주문입니다');
+  if (o.side === 'buy' && Number(o.reserved) > 0) {
+    const { data: acc } = await sb.from('mock_accounts').select('cash').eq('username', user).eq('account_type', kind).maybeSingle();
+    if (acc) await sb.from('mock_accounts').update({ cash: Number(acc.cash) + Number(o.reserved), updated_at: new Date().toISOString() }).eq('username', user).eq('account_type', kind);
+  }
+  await sb.from('mock_orders').update({ status: 'canceled' }).eq('id', orderId);
+  invalidateBoard();
+  return getAccount(user, kind);
+}
+
+// 크론: 전 유저 미체결 주문 체결 시도(백그라운드).
+export async function fillAllOrders(): Promise<{ filled: number }> {
+  const sb = getSupabase();
+  if (!sb) return { filled: 0 };
+  const { data } = await sb.from('mock_orders').select('id, username, account_type, tab, code, name, side, limit_price, qty, reserved').eq('status', 'open');
+  const orders = (data ?? []) as (OrderRow & { username: string })[];
+  if (!orders.length) return { filled: 0 };
+  const prices = await priceMany(orders.map((o) => ({ tab: o.tab, code: o.code })));
+  let filled = 0;
+  for (const o of orders) {
+    const p = prices.get(`${o.tab}:${o.code}`);
+    if (p != null && await fillOne(o.username, { ...o, id: Number(o.id) }, p)) filled++;
+  }
+  if (filled) invalidateBoard();
+  return { filled };
+}
+
 // ── 크론: 전 계좌 일별 스냅샷 + 분기 롤오버(rank 포함) ──
 export async function snapshotAll(): Promise<{ snapshots: number; rolled: number }> {
   const sb = getSupabase();
@@ -326,6 +467,7 @@ export async function snapshotAll(): Promise<{ snapshots: number; rolled: number
     }
     const users = group.map((a) => a.username);
     await sb.from('mock_holdings').delete().eq('account_type', 'season').in('username', users);
+    await sb.from('mock_orders').delete().eq('account_type', 'season').eq('status', 'open').in('username', users);
     await sb.from('mock_accounts').update({ cash: SEED, season: curSeason, resets: 0, last_reset: null, updated_at: new Date().toISOString() }).eq('account_type', 'season').in('username', users);
     rolled += group.length;
   }

@@ -1,0 +1,17 @@
+name: Mock limit fill (10m)
+
+# 10분마다 지정가 미체결 주문을 현재가로 체결 시도(사용자 부재 시에도 체결되게).
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch: {}
+
+jobs:
+  fill:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call mock fill endpoint
+        run: |
+          curl -fsS --max-time 115 --retry 2 --retry-delay 15 -X GET \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "https://investk.app/api/cron/mock-fill"

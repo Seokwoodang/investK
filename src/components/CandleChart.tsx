@@ -51,7 +51,7 @@ export function CandleChart({
   fit?: boolean; // true면 리사이즈 때도 전체 구간을 fit(모달 등 갓 열린 컨테이너용)
   loadOlder?: (oldestMs: number) => Promise<Candle[]>; // 주어지면 왼쪽 끝 스크롤 시 과거 봉 추가 로드
 }) {
-  const intraday = period === '1분' || period === '5분' || period === '15분' || period === '1시간';
+  const intraday = period === '1분' || period === '5분' || period === '15분' || period === '30분' || period === '1시간' || period === '4시간';
   const intradayRef = useRef(intraday);
   intradayRef.current = intraday;
   const elRef = useRef<HTMLDivElement>(null);

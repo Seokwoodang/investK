@@ -258,8 +258,10 @@ async function getOverseasIndex(symb: string): Promise<IndexQuote> {
 // ── 캔들(과거 OHLC) ──
 // 봉 단위별 조회 기간(일수)과 KIS 기간코드. 주식은 분봉 미지원이라 '1시간'은 일봉으로 대체.
 // 분봉(1·5·15분)은 주식 셀렉터에 없으므로 KIS에선 안 쓰이지만, 타입 충족용 폴백(일봉 취급).
-const CANDLE_BACK: Record<Period, number> = { '1분': 5, '5분': 5, '15분': 5, '1시간': 40, '일봉': 130, '주봉': 400, '월봉': 1100 };
-const PERIOD_DIV: Record<Period, 'D' | 'W' | 'M'> = { '1분': 'D', '5분': 'D', '15분': 'D', '1시간': 'D', '일봉': 'D', '주봉': 'W', '월봉': 'M' };
+const CANDLE_BACK: Record<Period, number> = { '1분': 5, '5분': 5, '15분': 5, '30분': 5, '1시간': 40, '4시간': 60, '일봉': 130, '주봉': 400, '월봉': 1100 };
+const PERIOD_DIV: Record<Period, 'D' | 'W' | 'M'> = { '1분': 'D', '5분': 'D', '15분': 'D', '30분': 'D', '1시간': 'D', '4시간': 'D', '일봉': 'D', '주봉': 'W', '월봉': 'M' };
+// 분봉 단위(분). 주식 분봉용 — 4시간은 KIS 미지원(코인만).
+const MINUTE_UNIT: Partial<Record<Period, number>> = { '1분': 1, '5분': 5, '15분': 15, '30분': 30, '1시간': 60 };
 // 'YYYYMMDD' → epoch ms
 const dateMs = (s: string | undefined): number | undefined => {
   if (!s || s.length < 8) return undefined;
@@ -292,6 +294,62 @@ export async function getDomesticCandles(code: string, period: Period, opts?: { 
       .map((o) => ({ o: Number(o.stck_oprc), h: Number(o.stck_hgpr), l: Number(o.stck_lwpr), c: Number(o.stck_clpr), t: dateMs(o.stck_bsop_date) }))
       .reverse();
   });
+}
+
+// 국내주식 분봉 (FHKST03010200, inquire-time-itemchartprice). 1분봉을 여러 페이지(각 ~30개) 모아
+// 요청 단위(5·30·60분)로 집계. KIS 분봉은 당일~최근 위주라 히스토리는 제한적이다.
+export async function getDomesticMinuteCandles(code: string, period: Period): Promise<Candle[]> {
+  const unit = MINUTE_UNIT[period] ?? 1;
+  const raw: { t: number; o: number; h: number; l: number; c: number }[] = [];
+  let hour = ''; // 다음 페이지 기준시각(HHMMSS). 빈값이면 현재부터.
+  const PAGES = unit >= 30 ? 8 : unit >= 5 ? 5 : 3; // 상위 단위일수록 더 많은 1분봉 필요
+
+  for (let p = 0; p < PAGES; p++) {
+    const page = await kisThrottle(async () => {
+      const token = await getToken();
+      const u = new URL(`${env.KIS_BASE}/uapi/domestic-stock/v1/quotations/inquire-time-itemchartprice`);
+      u.searchParams.set('FID_ETC_CLS_CODE', '');
+      u.searchParams.set('FID_COND_MRKT_DIV_CODE', 'J');
+      u.searchParams.set('FID_INPUT_ISCD', code);
+      u.searchParams.set('FID_INPUT_HOUR_1', hour || '153000'); // 기준시각 이전 ~30봉
+      u.searchParams.set('FID_PW_DATA_INCU_YN', 'Y');
+      const res = await fetch(u, {
+        headers: { authorization: `Bearer ${token}`, appkey: env.KIS_APP_KEY, appsecret: env.KIS_APP_SECRET, tr_id: 'FHKST03010200', custtype: 'P' },
+        next: { revalidate: REVALIDATE.quotes },
+      });
+      if (!res.ok) throw new Error(`KIS mcandle ${code} ${res.status}`);
+      const j = (await res.json()) as { output2?: Record<string, string>[] };
+      return j.output2 ?? [];
+    });
+    if (!page.length) break;
+    for (const o of page) {
+      const d = o.stck_bsop_date; // YYYYMMDD (KST)
+      const hm = (o.stck_cntg_hour || '').padStart(6, '0'); // HHMMSS (KST)
+      if (!d || Number(o.stck_prpr) <= 0) continue;
+      // KST → UTC ms
+      const t = Date.UTC(+d.slice(0, 4), +d.slice(4, 6) - 1, +d.slice(6, 8), +hm.slice(0, 2), +hm.slice(2, 4), 0) - 9 * 3600e3;
+      raw.push({ t, o: Number(o.stck_oprc), h: Number(o.stck_hgpr), l: Number(o.stck_lwpr), c: Number(o.stck_prpr) });
+    }
+    // 다음 페이지: 이번 페이지 가장 이른 시각 1분 전
+    const last = page[page.length - 1];
+    const lh = (last.stck_cntg_hour || '').padStart(6, '0');
+    const prevMin = Math.max(0, +lh.slice(0, 2) * 60 + +lh.slice(2, 4) - 1);
+    hour = `${String(Math.floor(prevMin / 60)).padStart(2, '0')}${String(prevMin % 60).padStart(2, '0')}00`;
+    if (prevMin <= 0) break; // 장 시작 이전
+  }
+
+  raw.sort((a, b) => a.t - b.t);
+  if (unit === 1) return raw;
+  // 집계: unit분 버킷(버킷 시작시각 기준)
+  const bucketMs = unit * 60e3;
+  const byBucket = new Map<number, Candle>();
+  for (const b of raw) {
+    const key = Math.floor(b.t / bucketMs) * bucketMs;
+    const cur = byBucket.get(key);
+    if (!cur) byBucket.set(key, { t: key, o: b.o, h: b.h, l: b.l, c: b.c });
+    else { cur.h = Math.max(cur.h, b.h); cur.l = Math.min(cur.l, b.l); cur.c = b.c; }
+  }
+  return [...byBucket.values()].sort((a, b) => (a.t ?? 0) - (b.t ?? 0));
 }
 
 // 해외주식 일봉 (FHKST03030100, MRKT_DIV='N' — 지수와 동일 엔드포인트).

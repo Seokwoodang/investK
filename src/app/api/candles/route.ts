@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getDomesticCandles, getOverseasCandles } from '@/server/providers/kis';
+import { getDomesticCandles, getDomesticMinuteCandles, getOverseasCandles } from '@/server/providers/kis';
 import { getUpbitCandles } from '@/server/providers/upbit';
 import { getBinanceCandles } from '@/server/providers/binance';
 import { symbolFor } from '@/server/providers/binance';
@@ -13,9 +13,10 @@ export async function POST(req: Request) {
     tab: TabId; ticker: string; period: Period; from?: string; to?: string;
   };
   const win = from || to ? { from, to } : undefined; // 'YYYYMMDD' 구간(사용자 지정 기간)
+  const isMinute = period === '1분' || period === '5분' || period === '15분' || period === '30분' || period === '1시간';
   try {
     let candles: Candle[] = [];
-    if (tab === 'kr_stock') candles = await getDomesticCandles(ticker, period, win);
+    if (tab === 'kr_stock') candles = isMinute ? await getDomesticMinuteCandles(ticker, period) : await getDomesticCandles(ticker, period, win);
     else if (tab === 'us_stock') candles = await getOverseasCandles(ticker, period, win);
     else if (tab === 'kr_coin') candles = await getUpbitCandles('KRW-' + ticker.split('/')[0], period);
     else if (tab === 'global_coin') candles = await getBinanceCandles(symbolFor(ticker), period);

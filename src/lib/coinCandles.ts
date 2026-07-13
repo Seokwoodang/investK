@@ -6,7 +6,9 @@ const UPBIT: Record<Period, { path: string }> = {
   '1분': { path: 'minutes/1' },
   '5분': { path: 'minutes/5' },
   '15분': { path: 'minutes/15' },
+  '30분': { path: 'minutes/30' },
   '1시간': { path: 'minutes/60' },
+  '4시간': { path: 'minutes/240' },
   '일봉': { path: 'days' },
   '주봉': { path: 'weeks' },
   '월봉': { path: 'months' },
@@ -16,7 +18,9 @@ const BINANCE: Record<Period, { interval: string }> = {
   '1분': { interval: '1m' },
   '5분': { interval: '5m' },
   '15분': { interval: '15m' },
+  '30분': { interval: '30m' },
   '1시간': { interval: '1h' },
+  '4시간': { interval: '4h' },
   '일봉': { interval: '1d' },
   '주봉': { interval: '1w' },
   '월봉': { interval: '1M' },
@@ -27,14 +31,16 @@ const SPAN_MS: Record<Period, number> = {
   '1분': 60e3,
   '5분': 300e3,
   '15분': 900e3,
+  '30분': 1800e3,
   '1시간': 3600e3,
+  '4시간': 4 * 3600e3,
   '일봉': 86400e3,
   '주봉': 7 * 86400e3,
   '월봉': 30 * 86400e3,
 };
 
 // 기본 개수(기간 미지정 시) — 기존 동작 유지.
-const DEFAULT_COUNT: Record<Period, number> = { '1분': 200, '5분': 200, '15분': 200, '1시간': 168, '일봉': 90, '주봉': 52, '월봉': 36 };
+const DEFAULT_COUNT: Record<Period, number> = { '1분': 200, '5분': 200, '15분': 200, '30분': 200, '1시간': 168, '4시간': 200, '일봉': 90, '주봉': 52, '월봉': 36 };
 
 // 기간(fromMs~toMs)을 덮을 캔들 개수. 거래소 1회 호출 상한(cap) 안으로 제한.
 function countFor(period: Period, fromMs: number | undefined, toMs: number | undefined, cap: number): number {

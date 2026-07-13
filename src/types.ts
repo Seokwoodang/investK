@@ -4,7 +4,7 @@ export type TabId = 'kr_stock' | 'us_stock' | 'kr_coin' | 'global_coin';
 export type Page = 'dashboard' | 'daily' | 'stocks' | 'portfolio' | 'report' | 'news' | 'detail';
 export type DetailTab = 'kanalyst' | 'chart' | 'news' | 'ai' | 'risk';
 // 봉(캔들) 단위. 코인은 4종 전부, 주식(KIS)은 일/주/월 지원(1시간 선택 시 일봉으로 대체).
-export type Period = '1분' | '5분' | '15분' | '1시간' | '일봉' | '주봉' | '월봉';
+export type Period = '1분' | '5분' | '15분' | '30분' | '1시간' | '4시간' | '일봉' | '주봉' | '월봉';
 export type SortKey = 'vol' | 'shares' | 'price' | 'pct' | 'risk';
 export type SortDir = 'desc' | 'asc';
 export type EventView = 'list' | 'calendar';

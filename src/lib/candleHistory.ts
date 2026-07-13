@@ -5,7 +5,7 @@ import { fetchCoinCandles } from './coinCandles';
 //  · 코인: 브라우저에서 거래소 직접(fetchCoinCandles, toMs로 그 이전 구간).
 //  · 주식: 서버(/api/candles)에 from/to(YYYYMMDD) 구간 조회. KIS는 요청당 ~100봉이라 한 번에 그만큼씩.
 
-const BACK_DAYS: Record<Period, number> = { '1분': 1, '5분': 2, '15분': 5, '1시간': 20, '일봉': 160, '주봉': 800, '월봉': 2600 };
+const BACK_DAYS: Record<Period, number> = { '1분': 1, '5분': 2, '15분': 5, '30분': 10, '1시간': 20, '4시간': 60, '일봉': 160, '주봉': 800, '월봉': 2600 };
 const pad = (n: number) => String(n).padStart(2, '0');
 const ymd = (d: Date) => `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}`;
 

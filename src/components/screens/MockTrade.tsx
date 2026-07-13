@@ -27,10 +27,12 @@ const won = (n: number) => '₩' + Math.round(n).toLocaleString('ko-KR');
 type MockTab = 'kr_stock' | 'kr_coin';
 type AcctKind = 'season' | 'longterm';
 interface Holding { tab: MockTab; code: string; name: string; qty: number; avgCost: number; price: number; value: number; cost: number; pnl: number; pnlPct: number }
+interface OpenOrder { id: number; tab: MockTab; code: string; name: string; side: 'buy' | 'sell'; limitPrice: number; qty: number; reserved: number }
 interface Account {
   kind: AcctKind; season: string | null;
   cash: number; holdings: Holding[]; holdingsValue: number; totalAsset: number;
   pnl: number; pnlPct: number; canReset: boolean; resets: number; seed: number; rank: number | null; players: number;
+  openOrders: OpenOrder[];
 }
 interface BoardRow { rank: number; name: string; totalAsset: number; pnlPct: number; isMe?: boolean }
 interface Sel { tab: MockTab; code: string; name: string; ticker: string }
@@ -48,9 +50,9 @@ const TABS: { id: MockTab; label: string }[] = [
   { id: 'kr_stock', label: '국내주식' },
   { id: 'kr_coin', label: '국내코인' },
 ];
-const PERIODS_STOCK: Period[] = ['일봉', '주봉', '월봉'];
-const PERIODS_COIN: Period[] = ['15분', '1시간', '일봉', '주봉', '월봉'];
-const PERIOD_LABEL: Record<Period, string> = { '1분': '1분', '5분': '5분', '15분': '15분', '1시간': '1시간', '일봉': '일', '주봉': '주', '월봉': '월' };
+const PERIODS_STOCK: Period[] = ['1분', '5분', '30분', '1시간', '일봉', '주봉', '월봉']; // 국내주식은 KIS 분봉(4시간 미지원)
+const PERIODS_COIN: Period[] = ['1분', '5분', '30분', '1시간', '4시간', '일봉', '주봉', '월봉'];
+const PERIOD_LABEL: Record<Period, string> = { '1분': '1분', '5분': '5분', '15분': '15분', '30분': '30분', '1시간': '1시간', '4시간': '4시간', '일봉': '일', '주봉': '주', '월봉': '월' };
 
 export function MockTrade() {
   const { data, state, universeReady } = useDashboard();
@@ -71,6 +73,8 @@ export function MockTrade() {
   const [query, setQuery] = useState('');
   const [qty, setQty] = useState('');
   const [busy, setBusy] = useState(false);
+  const [orderType, setOrderType] = useState<'market' | 'limit'>('market');
+  const [limitPrice, setLimitPrice] = useState('');
 
   const loadAccount = useCallback(async () => {
     const r = await fetch(`/api/mock?kind=${kind}`, { cache: 'no-store' });
@@ -135,9 +139,11 @@ export function MockTrade() {
     return acct.holdings.find((h) => h.tab === sel.tab && h.code === sel.code)?.qty ?? 0;
   }, [sel, acct]);
 
-  const estCost = curPrice > 0 && Number(qty) > 0 ? Number(qty) * curPrice : 0;
-  const maxBuy = acct && curPrice > 0
-    ? (sel?.tab === 'kr_stock' ? Math.floor(acct.cash / curPrice) : Math.floor((acct.cash / curPrice) * 1e4) / 1e4)
+  // 지정가 모드면 지정가로 금액·최대수량 계산(예약 기준).
+  const effPrice = orderType === 'limit' && Number(limitPrice) > 0 ? Number(limitPrice) : curPrice;
+  const estCost = effPrice > 0 && Number(qty) > 0 ? Number(qty) * effPrice : 0;
+  const maxBuy = acct && effPrice > 0
+    ? (sel?.tab === 'kr_stock' ? Math.floor(acct.cash / effPrice) : Math.floor((acct.cash / effPrice) * 1e4) / 1e4)
     : 0;
 
   // 유니버스(실 종목코드)가 도착한 뒤에만 선택 가능 — 큐레이션 시드의 임시 id 매매를 방지.
@@ -151,24 +157,43 @@ export function MockTrade() {
 
   function selectSymbol(tab: MockTab, code: string, name: string, ticker: string) {
     setSel({ tab, code, name, ticker });
-    if (tab === 'kr_stock' && (period === '1분' || period === '5분' || period === '15분' || period === '1시간')) setPeriod('일봉');
+    // 국내주식은 4시간봉 미지원 → 코인에서 4시간 보다가 주식으로 바꾸면 1시간으로.
+    if (tab === 'kr_stock' && period === '4시간') setPeriod('1시간');
     setPickerOpen(false); setQuery(''); setQty('');
   }
 
   async function submitTrade(side: 'buy' | 'sell') {
     if (!sel || !(Number(qty) > 0) || busy) return;
+    const limit = orderType === 'limit';
+    if (limit && !(Number(limitPrice) > 0)) { setMsg({ t: '지정가를 입력하세요', ok: false }); return; }
     setBusy(true); setMsg(null);
     try {
-      const r = await fetch('/api/mock/trade', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ kind, tab: sel.tab, code: sel.code, name: sel.name, side, qty: Number(qty) }),
-      });
+      const url = limit ? '/api/mock/order' : '/api/mock/trade';
+      const body = limit
+        ? { kind, tab: sel.tab, code: sel.code, name: sel.name, side, limitPrice: Number(limitPrice), qty: Number(qty) }
+        : { kind, tab: sel.tab, code: sel.code, name: sel.name, side, qty: Number(qty) };
+      const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       const j = await r.json();
-      if (!r.ok) { setMsg({ t: j.error || '체결 실패', ok: false }); return; }
+      if (!r.ok) { setMsg({ t: j.error || '주문 실패', ok: false }); return; }
       setAcct(j); setQty('');
-      setMsg({ t: `${sel.name} ${side === 'buy' ? '매수' : '매도'} 체결`, ok: true });
-      track('mock_trade', { side, tab: sel.tab, kind });
+      // 지정가 주문이 즉시 체결됐는지(미체결 목록에 없으면 체결)로 메시지 구분
+      const stillOpen = limit && (j.openOrders ?? []).some((o: OpenOrder) => o.side === side && o.code === sel.code && o.limitPrice === Number(limitPrice));
+      setMsg({ t: `${sel.name} ${side === 'buy' ? '매수' : '매도'} ${limit ? (stillOpen ? '지정가 주문 등록' : '지정가 즉시 체결') : '체결'}`, ok: true });
+      track('mock_trade', { side, tab: sel.tab, kind, type: orderType });
       loadBoard(); loadHistory();
+    } catch { setMsg({ t: '네트워크 오류', ok: false }); }
+    finally { setBusy(false); }
+  }
+
+  async function cancelOrder(id: number) {
+    if (busy) return;
+    setBusy(true); setMsg(null);
+    try {
+      const r = await fetch('/api/mock/order', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kind, orderId: id }) });
+      const j = await r.json();
+      if (!r.ok) { setMsg({ t: j.error || '취소 실패', ok: false }); return; }
+      setAcct(j); setMsg({ t: '주문을 취소했어요', ok: true });
+      loadBoard();
     } catch { setMsg({ t: '네트워크 오류', ok: false }); }
     finally { setBusy(false); }
   }
@@ -201,8 +226,9 @@ export function MockTrade() {
   }
   if (!acct) return <div style={{ ...CARD, padding: 32, color: 'var(--c-tx6)' }}>계좌를 불러오지 못했습니다. 새로고침해 주세요.</div>;
 
-  const canBuy = !busy && Number(qty) > 0 && estCost <= acct.cash;
-  const canSell = !busy && Number(qty) > 0 && heldQty > 0 && Number(qty) <= heldQty + 1e-9;
+  const limitOk = orderType === 'market' || Number(limitPrice) > 0;
+  const canBuy = !busy && Number(qty) > 0 && limitOk && estCost <= acct.cash;
+  const canSell = !busy && Number(qty) > 0 && limitOk && heldQty > 0 && Number(qty) <= heldQty + 1e-9;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -306,7 +332,26 @@ export function MockTrade() {
         <div style={{ ...CARD, padding: '16px 18px', flex: '0 1 300px', minWidth: 260, display: 'flex', flexDirection: 'column' }}>
           <h2 style={{ fontSize: 15, fontWeight: 800, color: 'var(--c-tx1c)', margin: '0 0 12px' }}>주문</h2>
           <div style={{ fontSize: 12, color: 'var(--c-tx6)', marginBottom: 2 }}>{sel?.name ?? '—'} · 현재가</div>
-          <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--c-tx1c)', marginBottom: 14 }}>{curPrice > 0 ? fmtPrice(curPrice, '₩') : '—'}</div>
+          <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--c-tx1c)', marginBottom: 12 }}>{curPrice > 0 ? fmtPrice(curPrice, '₩') : '—'}</div>
+
+          {/* 시장가 / 지정가 토글 */}
+          <div style={{ display: 'flex', gap: 4, padding: 3, background: 'var(--c-w04)', border: '1px solid var(--c-w08)', borderRadius: 9, marginBottom: 12 }}>
+            {([['market', '시장가'], ['limit', '지정가']] as const).map(([t, label]) => (
+              <button key={t} onClick={() => { setOrderType(t); if (t === 'limit' && !limitPrice && curPrice > 0) setLimitPrice(String(Math.round(curPrice))); }}
+                style={{ flex: 1, cursor: 'pointer', borderRadius: 7, padding: '6px 0', fontSize: 12, fontWeight: 700, fontFamily: 'inherit', border: 'none',
+                  background: orderType === t ? 'var(--c-cy18)' : 'transparent', color: orderType === t ? 'var(--c-accyanbr)' : 'var(--c-tx6)' }}>
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {orderType === 'limit' && (
+            <>
+              <label style={{ fontSize: 12, color: 'var(--c-tx6)', display: 'block', marginBottom: 6 }}>지정가 (원)</label>
+              <input style={inputStyle} type="number" inputMode="decimal" min={0} placeholder={curPrice > 0 ? String(Math.round(curPrice)) : '0'} value={limitPrice} onChange={(e) => setLimitPrice(e.target.value)} />
+              <div style={{ height: 10 }} />
+            </>
+          )}
 
           <label style={{ fontSize: 12, color: 'var(--c-tx6)', display: 'block', marginBottom: 6 }}>수량 {sel?.tab === 'kr_coin' && '(소수 가능)'}</label>
           <input style={inputStyle} type="number" inputMode="decimal" min={0} placeholder="0" value={qty} onChange={(e) => setQty(e.target.value)} />
@@ -362,6 +407,24 @@ export function MockTrade() {
           </span>
         </div>
       </div>
+
+      {/* 미체결 지정가 주문 */}
+      {acct.openOrders.length > 0 && (
+        <div style={{ ...CARD, padding: '18px 20px' }}>
+          <h2 style={{ fontSize: 15, fontWeight: 800, color: 'var(--c-tx1c)', margin: '0 0 14px' }}>⏳ 미체결 지정가 주문</h2>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {acct.openOrders.map((o) => (
+              <div key={o.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 10, background: 'var(--c-w04)', border: '1px solid var(--c-w08)' }}>
+                <span style={{ fontSize: 11, fontWeight: 800, padding: '2px 8px', borderRadius: 6, flexShrink: 0, color: o.side === 'buy' ? 'var(--c-up)' : 'var(--c-down)', background: o.side === 'buy' ? 'color-mix(in srgb, var(--c-up) 16%, transparent)' : 'color-mix(in srgb, var(--c-down) 16%, transparent)' }}>{o.side === 'buy' ? '매수' : '매도'}</span>
+                <span style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: 700, color: 'var(--c-tx1d)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{o.name}</span>
+                <span style={{ fontSize: 12, color: 'var(--c-tx5)', flexShrink: 0 }}>{o.qty.toLocaleString('ko-KR')}{o.tab === 'kr_stock' ? '주' : ''} · {fmtPrice(o.limitPrice, '₩')}</span>
+                <button onClick={() => cancelOrder(o.id)} disabled={busy} style={{ flexShrink: 0, cursor: busy ? 'not-allowed' : 'pointer', background: 'var(--c-w05)', border: '1px solid var(--c-w10)', borderRadius: 8, padding: '6px 10px', fontSize: 12, color: 'var(--c-tx5)', fontFamily: 'inherit' }}>취소</button>
+              </div>
+            ))}
+          </div>
+          <p style={{ fontSize: 11, color: 'var(--c-tx6)', marginTop: 10, lineHeight: 1.5 }}>매수는 현재가가 지정가 이하, 매도는 지정가 이상일 때 자동 체결돼요(약 10분마다·접속 시 즉시 확인).</p>
+        </div>
+      )}
 
       {/* 자산 변화 그래프 + 자산 비중 도넛 */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
