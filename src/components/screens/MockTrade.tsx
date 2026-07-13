@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { fmtPct, fmtPrice, upColor } from '../../lib/format';
 import { useDashboard } from '../../store/DashboardContext';
 import { track } from '../../lib/ga';
@@ -60,7 +60,9 @@ export function MockTrade() {
   const [acct, setAcct] = useState<Account | null>(null);
   const [board, setBoard] = useState<BoardRow[] | null>(null);
   const [hist, setHist] = useState<History | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true); // 최초 진입 시에만 전체 스피너
+  const [switching, setSwitching] = useState(false); // 모드 전환 시 subtle 표시
+  const firstRef = useRef(true);
   const [msg, setMsg] = useState<{ t: string; ok: boolean } | null>(null);
 
   const [sel, setSel] = useState<Sel | null>(null);
@@ -89,13 +91,14 @@ export function MockTrade() {
     if (r.ok) setHist(await r.json());
   }, [kind]);
 
-  // kind(시즌/장기) 전환 시 계좌·랭킹·히스토리 모두 다시 로드.
+  // kind(시즌/장기) 전환 시 다시 로드. 첫 진입만 전체 스피너, 전환은 기존 화면 유지한 채 데이터만 교체.
   useEffect(() => {
     let alive = true;
-    setAcct(null); setBoard(null); setHist(null);
+    if (!firstRef.current) setSwitching(true); // 전환: 화면 유지 + subtle 표시(데이터는 새 값 오면 교체)
     (async () => {
       await Promise.all([loadAccount(), loadBoard(), loadHistory()]);
-      if (alive) setLoading(false);
+      if (!alive) return;
+      setLoading(false); setSwitching(false); firstRef.current = false;
     })();
     return () => { alive = false; };
   }, [loadAccount, loadBoard, loadHistory]);
@@ -235,14 +238,17 @@ export function MockTrade() {
       <div>
         <h1 style={{ fontSize: 22, fontWeight: 800, color: 'var(--c-tx1c)', margin: '0 0 10px' }}>모의투자 🎮</h1>
         {/* 모드 토글: 시즌전(분기 리셋·경쟁) / 장기투자(리셋 없는 영속 계좌) */}
-        <div style={{ display: 'inline-flex', gap: 4, padding: 4, background: 'var(--c-w04)', border: '1px solid var(--c-w08)', borderRadius: 12, marginBottom: 8 }}>
-          {KINDS.map((k) => (
-            <button key={k.id} onClick={() => { if (k.id !== kind) { setLoading(true); setKind(k.id); } }}
-              style={{ cursor: 'pointer', borderRadius: 9, padding: '7px 16px', fontSize: 13, fontWeight: 800, fontFamily: 'inherit', border: 'none',
-                background: kind === k.id ? 'var(--c-cy18)' : 'transparent', color: kind === k.id ? 'var(--c-accyanbr)' : 'var(--c-tx6)' }}>
-              {k.emoji} {k.label}
-            </button>
-          ))}
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+          <div style={{ display: 'inline-flex', gap: 4, padding: 4, background: 'var(--c-w04)', border: '1px solid var(--c-w08)', borderRadius: 12 }}>
+            {KINDS.map((k) => (
+              <button key={k.id} onClick={() => { if (k.id !== kind) setKind(k.id); }}
+                style={{ cursor: 'pointer', borderRadius: 9, padding: '7px 16px', fontSize: 13, fontWeight: 800, fontFamily: 'inherit', border: 'none',
+                  background: kind === k.id ? 'var(--c-cy18)' : 'transparent', color: kind === k.id ? 'var(--c-accyanbr)' : 'var(--c-tx6)' }}>
+                {k.emoji} {k.label}
+              </button>
+            ))}
+          </div>
+          {switching && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, color: 'var(--c-tx6)' }}><InlineSpinner size={12} /> 전환 중…</span>}
         </div>
         <p style={{ fontSize: 13, color: 'var(--c-tx6)', margin: 0, lineHeight: 1.6 }}>
           {kind === 'season' ? (
