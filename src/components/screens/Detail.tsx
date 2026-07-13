@@ -40,6 +40,15 @@ const IMPACT_STYLE: Record<string, { bg: string; color: string; border: string }
   중립: { bg: 'var(--c-gy18)', color: 'var(--c-tx4b)', border: 'var(--c-gy40)' },
 };
 
+// 오늘 등락 상태 — 급락/하락/보합/상승/급등(색·이모지). 헤더 아래 큰 배너로, 오늘 흐름을 즉시 알린다.
+function moveStatus(pct: number): { label: string; emoji: string; color: string; bg: string; border: string } {
+  if (pct <= -7) return { label: '오늘 급락 중', emoji: '📉', color: 'var(--c-downbr)', bg: 'var(--c-rd22)', border: 'var(--c-rd50)' };
+  if (pct <= -1.5) return { label: '오늘 하락', emoji: '🔻', color: 'var(--c-downbr)', bg: 'var(--c-rd14)', border: 'var(--c-rd22)' };
+  if (pct < 1.5) return { label: '오늘 보합', emoji: '➖', color: 'var(--c-tx4)', bg: 'var(--c-w05)', border: 'var(--c-w10)' };
+  if (pct < 7) return { label: '오늘 상승', emoji: '🔺', color: 'var(--c-upbr)', bg: 'var(--c-gn20)', border: 'var(--c-gn22)' };
+  return { label: '오늘 급등 중', emoji: '📈', color: 'var(--c-upbr)', bg: 'var(--c-gn22)', border: 'var(--c-gn50)' };
+}
+
 // 주식: K-리서치의 'AI 애널리스트 의견'(실재무 기반)이 AI 관점을 대체 → AI 관점 탭 생략.
 // 코인: 재무가 없어 K-리서치가 안 뜨므로 AI 관점을 유일한 AI 의견으로 유지(K-리서치 탭은 생략).
 const STOCK_TABS: { id: DetailTab; label: string }[] = [
@@ -328,7 +337,8 @@ export function Detail({ id }: { id: string }) {
   const selNameForNews = sel?.name;
   const [relatedNews, setRelatedNews] = useState<RelatedNewsItem[] | null>(null);
   useEffect(() => {
-    if (state.detailTab !== 'news' || !selId || !selTickerForNews) return;
+    // 진입 시 바로 로드(헤더 아래 '오늘 흐름' 배너의 이유 표시 + 뉴스탭 공용).
+    if (!selId || !selTickerForNews) return;
     let cancelled = false;
     setRelatedNews(null);
     fetch('/api/news', {
@@ -346,7 +356,7 @@ export function Detail({ id }: { id: string }) {
     return () => {
       cancelled = true;
     };
-  }, [selId, selTickerForNews, selNameForNews, state.activeTab, state.detailTab]);
+  }, [selId, selTickerForNews, selNameForNews, state.activeTab]);
 
   // '뉴스·정세' 탭: 국내 종목(6자리 코드)의 DART 주요 공시(수주·실적 등, 최근 6개월). 미국·코인은 스킵.
   const [disc, setDisc] = useState<DiscItem[] | null>(null);
@@ -546,6 +556,40 @@ export function Detail({ id }: { id: string }) {
           )}
         </div>
       </div>
+
+      {/* 오늘의 흐름 — 오늘 등락을 크게·색으로 즉시 알림(K-리서치 장기판정에 묻히지 않게). 이유(뉴스)도 함께. */}
+      {(() => {
+        const st = moveStatus(livePct);
+        // 하락이면 악재를, 상승이면 호재를 우선(이유가 등락 방향과 맞게). 없으면 아무 판별 뉴스 → 첫 뉴스.
+        const want: '악재' | '호재' | null = livePct <= -1.5 ? '악재' : livePct >= 1.5 ? '호재' : null;
+        const topN = (want && relatedNews?.find((n) => n.impact === want))
+          ?? relatedNews?.find((n) => n.impact === '악재' || n.impact === '호재')
+          ?? relatedNews?.[0];
+        const imp = topN?.impact ? IMPACT_STYLE[topN.impact] : null;
+        return (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', padding: '14px 18px', borderRadius: 16, background: st.bg, border: `1px solid ${st.border}`, marginBottom: 20 }}>
+            <span style={{ fontSize: 24, flexShrink: 0 }}>{st.emoji}</span>
+            <div style={{ flexShrink: 0 }}>
+              <div style={{ fontSize: 17, fontWeight: 800, color: st.color }}>{st.label} · {fmtPct(livePct)}</div>
+              <div style={{ fontSize: 12, color: 'var(--c-tx5)', marginTop: 2 }}>현재가 {fmtPrice(livePrice, sel.cur)}{state.activeTab === 'us_stock' ? ' · 15분 지연' : ''}</div>
+            </div>
+            {topN ? (
+              <button
+                onClick={() => actions.setDetailTab('news')}
+                title="뉴스·정세에서 자세히 보기"
+                style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, cursor: 'pointer', background: 'var(--c-w04)', border: '1px solid var(--c-w08)', borderRadius: 12, padding: '8px 12px', fontFamily: 'inherit', textAlign: 'left' }}
+              >
+                <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--c-tx6)', flexShrink: 0 }}>왜?</span>
+                {imp && <span style={{ fontSize: 10, fontWeight: 800, padding: '2px 7px', borderRadius: 5, flexShrink: 0, background: imp.bg, color: imp.color }}>{topN.impact}</span>}
+                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--c-tx3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{topN.title}</span>
+                <span style={{ fontSize: 12, color: 'var(--c-accyanbr)', flexShrink: 0 }}>→</span>
+              </button>
+            ) : relatedNews === null ? (
+              <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--c-tx6)' }}>관련 뉴스 확인 중…</span>
+            ) : null}
+          </div>
+        );
+      })()}
 
       <UpdateNote text="시세 실시간(국내주식·코인) · 해외주식 약 15분 지연 · AI 차트분석·관점은 하루 1회(KST 기준) 캐시" style={{ marginBottom: 20 }} />
 
