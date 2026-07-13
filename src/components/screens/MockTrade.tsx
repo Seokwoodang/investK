@@ -7,6 +7,7 @@ import { track } from '../../lib/ga';
 import type { Candle, Period, TabId } from '../../types';
 import { CandleChart } from '../CandleChart';
 import { InlineSpinner } from '../Footer';
+import { AssetLineChart, AllocationDonut } from '../MockCharts';
 
 // 모의투자 (HTS 스타일) — 가운데 큰 차트 + 종목 전환 + 오른쪽 주문창.
 // 씨드 1,000만원(원화). 국내주식·국내코인 실시간 매매 + 총자산 랭킹.
@@ -23,13 +24,24 @@ const inputStyle: React.CSSProperties = {
 const won = (n: number) => '₩' + Math.round(n).toLocaleString('ko-KR');
 
 type MockTab = 'kr_stock' | 'kr_coin';
+type AcctKind = 'season' | 'longterm';
 interface Holding { tab: MockTab; code: string; name: string; qty: number; avgCost: number; price: number; value: number; cost: number; pnl: number; pnlPct: number }
 interface Account {
+  kind: AcctKind; season: string | null;
   cash: number; holdings: Holding[]; holdingsValue: number; totalAsset: number;
   pnl: number; pnlPct: number; canReset: boolean; resets: number; seed: number; rank: number | null; players: number;
 }
 interface BoardRow { rank: number; name: string; totalAsset: number; pnlPct: number; isMe?: boolean }
 interface Sel { tab: MockTab; code: string; name: string; ticker: string }
+interface AllocSeg { name: string; value: number; pct: number; tab: string }
+interface SnapPoint { date: string; total: number }
+interface SeasonRecord { season: string; finalAsset: number; returnPct: number; rank: number | null; players: number | null }
+interface History { snapshots: SnapPoint[]; allocation: AllocSeg[]; seasonRecords: SeasonRecord[] }
+
+const KINDS: { id: AcctKind; label: string; emoji: string }[] = [
+  { id: 'season', label: '시즌전', emoji: '🏆' },
+  { id: 'longterm', label: '장기투자', emoji: '🌱' },
+];
 
 const TABS: { id: MockTab; label: string }[] = [
   { id: 'kr_stock', label: '국내주식' },
@@ -41,8 +53,10 @@ const PERIOD_LABEL: Record<Period, string> = { '1분': '1분', '5분': '5분', '
 
 export function MockTrade() {
   const { data, state, universeReady } = useDashboard();
+  const [kind, setKind] = useState<AcctKind>('season');
   const [acct, setAcct] = useState<Account | null>(null);
   const [board, setBoard] = useState<BoardRow[] | null>(null);
+  const [hist, setHist] = useState<History | null>(null);
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState<{ t: string; ok: boolean } | null>(null);
 
@@ -58,17 +72,28 @@ export function MockTrade() {
   const [busy, setBusy] = useState(false);
 
   const loadAccount = useCallback(async () => {
-    const r = await fetch('/api/mock', { cache: 'no-store' });
+    const r = await fetch(`/api/mock?kind=${kind}`, { cache: 'no-store' });
     if (r.ok) setAcct(await r.json());
-  }, []);
+  }, [kind]);
   const loadBoard = useCallback(async () => {
-    const r = await fetch('/api/mock/leaderboard', { cache: 'no-store' });
+    const r = await fetch(`/api/mock/leaderboard?kind=${kind}`, { cache: 'no-store' });
     if (r.ok) setBoard((await r.json()).rows ?? []);
-  }, []);
+  }, [kind]);
+  const loadHistory = useCallback(async () => {
+    const r = await fetch(`/api/mock/history?kind=${kind}`, { cache: 'no-store' });
+    if (r.ok) setHist(await r.json());
+  }, [kind]);
 
+  // kind(시즌/장기) 전환 시 계좌·랭킹·히스토리 모두 다시 로드.
   useEffect(() => {
-    (async () => { await Promise.all([loadAccount(), loadBoard()]); setLoading(false); })();
-  }, [loadAccount, loadBoard]);
+    let alive = true;
+    setAcct(null); setBoard(null); setHist(null);
+    (async () => {
+      await Promise.all([loadAccount(), loadBoard(), loadHistory()]);
+      if (alive) setLoading(false);
+    })();
+    return () => { alive = false; };
+  }, [loadAccount, loadBoard, loadHistory]);
 
   // 기본 종목 = 삼성전자(실제 코드로 고정). 큐레이션 시드의 임시 id('samsung' 등)를 물지 않도록
   // 유니버스 데이터에서 파생하지 않고 실 코드를 직접 지정한다.
@@ -135,14 +160,14 @@ export function MockTrade() {
     try {
       const r = await fetch('/api/mock/trade', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tab: sel.tab, code: sel.code, name: sel.name, side, qty: Number(qty) }),
+        body: JSON.stringify({ kind, tab: sel.tab, code: sel.code, name: sel.name, side, qty: Number(qty) }),
       });
       const j = await r.json();
       if (!r.ok) { setMsg({ t: j.error || '체결 실패', ok: false }); return; }
       setAcct(j); setQty('');
       setMsg({ t: `${sel.name} ${side === 'buy' ? '매수' : '매도'} 체결`, ok: true });
-      track('mock_trade', { side, tab: sel.tab });
-      loadBoard();
+      track('mock_trade', { side, tab: sel.tab, kind });
+      loadBoard(); loadHistory();
     } catch { setMsg({ t: '네트워크 오류', ok: false }); }
     finally { setBusy(false); }
   }
@@ -152,13 +177,16 @@ export function MockTrade() {
     if (!confirm('현재 자산을 모두 몰수하고 1,000만원으로 다시 시작합니다.\n오늘 하루 1회만 가능합니다. 진행할까요?')) return;
     setBusy(true); setMsg(null);
     try {
-      const r = await fetch('/api/mock/reset', { method: 'POST' });
+      const r = await fetch('/api/mock/reset', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kind }),
+      });
       const j = await r.json();
       if (!r.ok) { setMsg({ t: j.error || '재충전 실패', ok: false }); return; }
       setAcct(j); setQty('');
       setMsg({ t: '1,000만원으로 다시 시작했습니다. 행운을 빌어요!', ok: true });
-      track('mock_reset', {});
-      loadBoard();
+      track('mock_reset', { kind });
+      loadBoard(); loadHistory();
     } catch { setMsg({ t: '네트워크 오류', ok: false }); }
     finally { setBusy(false); }
   }
@@ -178,9 +206,23 @@ export function MockTrade() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div>
-        <h1 style={{ fontSize: 22, fontWeight: 800, color: 'var(--c-tx1c)', margin: '0 0 4px' }}>모의투자 🎮</h1>
+        <h1 style={{ fontSize: 22, fontWeight: 800, color: 'var(--c-tx1c)', margin: '0 0 10px' }}>모의투자 🎮</h1>
+        {/* 모드 토글: 시즌전(분기 리셋·경쟁) / 장기투자(리셋 없는 영속 계좌) */}
+        <div style={{ display: 'inline-flex', gap: 4, padding: 4, background: 'var(--c-w04)', border: '1px solid var(--c-w08)', borderRadius: 12, marginBottom: 8 }}>
+          {KINDS.map((k) => (
+            <button key={k.id} onClick={() => { if (k.id !== kind) { setLoading(true); setKind(k.id); } }}
+              style={{ cursor: 'pointer', borderRadius: 9, padding: '7px 16px', fontSize: 13, fontWeight: 800, fontFamily: 'inherit', border: 'none',
+                background: kind === k.id ? 'var(--c-cy18)' : 'transparent', color: kind === k.id ? 'var(--c-accyanbr)' : 'var(--c-tx6)' }}>
+              {k.emoji} {k.label}
+            </button>
+          ))}
+        </div>
         <p style={{ fontSize: 13, color: 'var(--c-tx6)', margin: 0, lineHeight: 1.6 }}>
-          가상의 <b style={{ color: 'var(--c-tx4)' }}>1,000만원</b>으로 실전 시세로 매매하고 수익률을 겨뤄보세요. 망하면 <b style={{ color: 'var(--c-tx4)' }}>하루 한 번</b> 다시 시작할 수 있어요. (실제 투자 아님)
+          {kind === 'season' ? (
+            <>가상 <b style={{ color: 'var(--c-tx4)' }}>1,000만원</b>으로 <b style={{ color: 'var(--c-tx4)' }}>{acct?.season ?? '이번 분기'}</b> 순위를 겨뤄보세요. 분기가 끝나면 기록이 남고 새로 시작해요. (실제 투자 아님)</>
+          ) : (
+            <>가상 <b style={{ color: 'var(--c-tx4)' }}>1,000만원</b>으로 <b style={{ color: 'var(--c-tx4)' }}>리셋 없이 장기</b>로 굴려보세요. 시즌과 별개 계좌예요. (실제 투자 아님)</>
+          )}
         </p>
       </div>
 
@@ -319,6 +361,21 @@ export function MockTrade() {
         </div>
       </div>
 
+      {/* 자산 변화 그래프 + 자산 비중 도넛 */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
+        <div style={{ ...CARD, padding: '18px 20px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 12 }}>
+            <h2 style={{ fontSize: 15, fontWeight: 800, color: 'var(--c-tx1c)', margin: 0 }}>자산 변화</h2>
+            <span style={{ fontSize: 12, color: 'var(--c-tx6)' }}>{kind === 'season' ? (acct.season ?? '이번 분기') : '최근'}</span>
+          </div>
+          <AssetLineChart points={hist?.snapshots ?? []} seed={acct.seed} />
+        </div>
+        <div style={{ ...CARD, padding: '18px 20px' }}>
+          <h2 style={{ fontSize: 15, fontWeight: 800, color: 'var(--c-tx1c)', margin: '0 0 14px' }}>자산 비중</h2>
+          <AllocationDonut segments={hist?.allocation ?? []} />
+        </div>
+      </div>
+
       {/* 보유 종목 + 랭킹 */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
         <div style={{ ...CARD, padding: '18px 20px' }}>
@@ -347,7 +404,7 @@ export function MockTrade() {
 
         <div style={{ ...CARD, padding: '18px 20px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-            <h2 style={{ fontSize: 15, fontWeight: 800, color: 'var(--c-tx1c)', margin: 0 }}>🏆 수익 랭킹</h2>
+            <h2 style={{ fontSize: 15, fontWeight: 800, color: 'var(--c-tx1c)', margin: 0 }}>{kind === 'season' ? '🏆 시즌 랭킹' : '🌱 장기 랭킹'}</h2>
             <span style={{ fontSize: 12, color: 'var(--c-tx6)' }}>총자산 기준 · 60초 갱신</span>
           </div>
           {board === null ? (
@@ -373,6 +430,23 @@ export function MockTrade() {
           )}
         </div>
       </div>
+
+      {/* 시즌 기록 보관함 (시즌 모드 전용) */}
+      {kind === 'season' && hist && hist.seasonRecords.length > 0 && (
+        <div style={{ ...CARD, padding: '18px 20px' }}>
+          <h2 style={{ fontSize: 15, fontWeight: 800, color: 'var(--c-tx1c)', margin: '0 0 14px' }}>📚 지난 시즌 기록</h2>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {hist.seasonRecords.map((r) => (
+              <div key={r.season} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', borderRadius: 9, background: 'var(--c-w04)', border: '1px solid var(--c-w08)' }}>
+                <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--c-tx1d)', width: 76, flexShrink: 0 }}>{r.season}</span>
+                <span style={{ flex: 1, fontSize: 13, color: 'var(--c-tx5)' }}>{r.rank ? `${r.rank}위${r.players ? ` / ${r.players}명` : ''}` : '—'}</span>
+                <span style={{ fontSize: 13, color: 'var(--c-tx4)' }}>{won(r.finalAsset)}</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: upColor(r.returnPct), width: 66, textAlign: 'right' }}>{fmtPct(r.returnPct)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

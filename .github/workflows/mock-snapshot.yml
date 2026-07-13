@@ -1,0 +1,19 @@
+name: Mock snapshot (daily)
+
+# 매일 18:10 KST(=09:10 UTC) 모의투자 전 계좌 총자산을 스냅샷하고 분기 롤오버를 처리한다.
+#  - 자산 변화 선 그래프 데이터 축적
+#  - 분기 바뀐 시즌 계좌 최종 기록 보관 + 리셋
+on:
+  schedule:
+    - cron: '10 9 * * *' # 09:10 UTC = 18:10 KST (KR 장 마감 후)
+  workflow_dispatch: {}
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call mock snapshot endpoint
+        run: |
+          curl -fsS --max-time 115 --retry 2 --retry-delay 20 -X GET \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "https://investk.app/api/cron/mock-snapshot"
