@@ -9,7 +9,6 @@ import { useViewportLayout } from './DashboardChrome';
 
 const NAV: { href: string; label: string }[] = [
   { href: '/', label: '대시보드' },
-  { href: '/daily', label: '데일리' },
   { href: '/stocks', label: '종목' },
   { href: '/value', label: '저평가우량주' },
   { href: '/mock', label: '모의투자' },

@@ -10,7 +10,7 @@ import { usePortfolio, usdKrwFromFx, useResolvedPrices, valuePortfolio } from '.
 import { SRC } from '../../lib/sources';
 import { useDashboard } from '../../store/DashboardContext';
 import { useAuthed, useViewportLayout } from '../DashboardChrome';
-import { TAB_LABELS, type Impact, type SectorRow, type SectorPhase } from '../../types';
+import { type Impact, type SectorRow, type SectorPhase, type Direction, type BriefingDay } from '../../types';
 import { GlossaryTip, ImpactTag, Popover } from '../GlossaryTip';
 import { IndexModal } from '../IndexModal';
 import { SectorModal } from '../SectorModal';
@@ -23,6 +23,10 @@ const CARD: React.CSSProperties = {
   background: 'var(--c-w04)', border: '1px solid var(--c-w08)',
   borderRadius: 20, backdropFilter: 'blur(18px)', WebkitBackdropFilter: 'blur(18px)',
 };
+
+// 데일리 브리핑 자산군별 한 줄 · 체크포인트 방향 표기(데일리 페이지 흡수, v0.15.0).
+const dirColor = (v: Direction) => (v === 'up' ? 'var(--c-up)' : v === 'down' ? 'var(--c-down)' : 'var(--c-tx4)');
+const dirArrow = (v: Direction) => (v === 'up' ? '▲' : v === 'down' ? '▼' : '—');
 
 // 로딩 자리표시자(시머). 로딩 중 null 반환으로 '덜컥' 나타나는 것을 방지.
 function Skel({ w, h, r = 8, mt = 0, ml }: { w: number | string; h: number; r?: number; mt?: number; ml?: number | string }) {
@@ -84,27 +88,9 @@ function MacroCard({ title, rows, source, onRow }: { title: string; rows: { labe
   );
 }
 
-// ① 오늘의 한 줄 — 데일리 브리핑 헤드라인. 공개 읽기 전용 라우트(/api/briefing)라 비로그인도 보인다.
-//    항상 오늘 날짜로 요청(과거엔 state.briefDate에 끌려가 과거 헤드라인이 뜨거나, 미설정 시 아예 안 떴음).
-function HeadlineBanner() {
-  const [headline, setHeadline] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  useEffect(() => {
-    const t = new Date();
-    const date = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
-    let cancelled = false;
-    fetch(`/api/briefing?date=${date}`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((j) => {
-        if (!cancelled && j?.brief?.headline) setHeadline(j.brief.headline as string);
-      })
-      .catch(() => {})
-      .finally(() => { if (!cancelled) setLoading(false); });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
+// ① 오늘의 한 줄 — 데일리 브리핑 헤드라인. 데이터는 상위(Dashboard)에서 /api/briefing로 한 번만 받아 주입.
+//    데일리 페이지를 흡수하면서(v0.15.0) 별도 링크 대신 아래에 팩트·인과·자산군별 한 줄·체크포인트를 함께 표시.
+function HeadlineBanner({ headline, loading, slot }: { headline: string | null; loading: boolean; slot?: string }) {
   const BANNER: React.CSSProperties = {
     display: 'flex', alignItems: 'center', gap: 14, marginBottom: 20,
     padding: '18px 22px', borderRadius: 18, border: '1px solid var(--c-cy18)',
@@ -118,25 +104,16 @@ function HeadlineBanner() {
       <div style={BANNER} aria-hidden>
         <span style={PILL}>오늘의 한 줄</span>
         <div className="skeleton-pulse" style={{ flex: 1, height: 16, borderRadius: 8, background: 'var(--c-w06)' }} />
-        <div className="skeleton-pulse" style={{ width: 48, height: 13, borderRadius: 6, background: 'var(--c-w06)' }} />
       </div>
     );
   }
   if (!headline) return null;
   return (
-    <Link
-      href="/daily"
-      className="card-hover"
-      style={{
-        display: 'flex', alignItems: 'center', gap: 14, textDecoration: 'none', marginBottom: 20,
-        padding: '18px 22px', borderRadius: 18, border: '1px solid var(--c-cy18)',
-        background: 'linear-gradient(135deg, var(--c-cy07), var(--c-bl05))',
-      }}
-    >
-      <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.06em', padding: '4px 10px', borderRadius: 6, whiteSpace: 'nowrap', background: 'var(--c-cy18)', color: 'var(--c-accyanbr)' }}>오늘의 한 줄</span>
+    <div style={BANNER}>
+      <span style={PILL}>오늘의 한 줄</span>
       <span style={{ fontSize: 16, fontWeight: 700, lineHeight: 1.5, color: 'var(--c-tx1)', flex: 1, minWidth: 0 }}>{headline}</span>
-      <span style={{ fontSize: 13, color: 'var(--c-tx6)', whiteSpace: 'nowrap' }}>데일리 →</span>
-    </Link>
+      {slot && <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 6, background: 'var(--c-w06)', color: 'var(--c-tx4)', whiteSpace: 'nowrap' }}>{slot}</span>}
+    </div>
   );
 }
 
@@ -512,11 +489,32 @@ function SectorFlowCard() {
   );
 }
 
+const SLOT_TEXT: Record<string, string> = { am: '오전 6시(KST) 생성분', pm: '오후 5시(KST) 생성분', ny: '오후 10시(KST) 생성분' };
+
 export function Dashboard() {
   const { vw, layout } = useViewportLayout();
   const authed = useAuthed();
-  const { state, actions, data, macroReady, universeReady } = useDashboard();
-  const { macro, assetSummary } = data;
+  const { state, actions, data, macroReady } = useDashboard();
+  const { macro } = data;
+
+  // 데일리 브리핑 — 데일리 페이지를 흡수(v0.15.0). 항상 오늘(KST) 것을 공개 읽기 전용(/api/briefing)으로 한 번 조회.
+  // cron이 하루 3회 미리 생성·저장한 것을 읽기만 한다. 없으면(생성 전) 헤드라인/하위 섹션 모두 숨김 — 낡은 정적 샘플 금지.
+  const [brief, setBrief] = useState<(BriefingDay & { _slot?: string }) | null>(null);
+  const [briefLoading, setBriefLoading] = useState(true);
+  useEffect(() => {
+    const t = new Date();
+    const date = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
+    let cancelled = false;
+    fetch(`/api/briefing?date=${date}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        if (!cancelled && j?.brief?.headline) setBrief(j.brief as BriefingDay & { _slot?: string });
+      })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setBriefLoading(false); });
+    return () => { cancelled = true; };
+  }, []);
+  const slotText = brief?._slot ? SLOT_TEXT[brief._slot] : '';
   // 일정 분류 필터(복수 선택, 최소 1개 유지) — 목록·달력·상세 모달에 공통 적용.
   const [evFilter, setEvFilter] = useState<Impact[]>(['고영향', '중간', '실적']);
   const toggleEvFilter = (t: Impact) =>
@@ -565,7 +563,39 @@ export function Dashboard() {
       </div>
 
       {/* ① 오늘의 한 줄 (데일리 헤드라인) */}
-      <HeadlineBanner />
+      <HeadlineBanner headline={brief?.headline ?? null} loading={briefLoading} slot={slotText} />
+
+      {/* ①-b 3줄 팩트 요약 + 왜 움직였나 (데일리 흡수) */}
+      {brief && (
+        <div style={{ display: 'grid', gridTemplateColumns: layout.briefCols, gap: 16, marginBottom: 36, alignItems: 'start' }}>
+          <div style={{ ...CARD, padding: 24 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', color: 'var(--c-accyan)', marginBottom: 16 }}>3줄 팩트 요약</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {brief.facts.map((f, i) => (
+                <div key={i} style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, padding: '4px 9px', borderRadius: 7, whiteSpace: 'nowrap', background: 'var(--c-w06)', color: 'var(--c-tx4)', flexShrink: 0, marginTop: 1 }}>{f.k}</span>
+                  <span style={{ fontSize: 14, lineHeight: 1.6, color: 'var(--c-tx2)' }}>{f.t}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div style={{ ...CARD, padding: 24 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', color: 'var(--c-accyan)', marginBottom: 16 }}>왜 움직였나</div>
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              {brief.causes.map((steps, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', padding: '11px 0', borderBottom: '1px solid var(--c-w05)' }}>
+                  {steps.map((t, si) => (
+                    <span key={si} style={{ display: 'contents' }}>
+                      {si > 0 && <span style={{ fontSize: 13, color: 'var(--c-accyanbr)' }}>→</span>}
+                      <span style={{ fontSize: 13, lineHeight: 1.4, color: si === steps.length - 1 ? 'var(--c-tx1c)' : 'var(--c-tx4)', fontWeight: si === steps.length - 1 ? 600 : 400 }}>{t}</span>
+                    </span>
+                  ))}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ② 내 자산 스냅샷 (로그인 + 보유 등록 시) — 비로그인은 마운트하지 않아 /api/portfolio 401 호출 자체가 없다 */}
       {authed && <MyAssetsStrip />}
@@ -654,48 +684,46 @@ export function Dashboard() {
         </div>
       </div>
 
-      {/* ⑦ 자산군 현황 (요약 정보 — 아래로 이동) */}
-      <div style={{ marginBottom: 36 }}>
-        <h2 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 700 }}>자산군 현황</h2>
-        <div style={{ display: 'grid', gridTemplateColumns: layout.assetCols, gap: 16 }}>
-          {TAB_LABELS.map((t) => {
-            // 전체 유니버스 기준 집계는 클라가 /api/universe 받아 계산 → 도착 전엔 스켈레톤(예전엔 0으로 잘못 표시).
-            const sum = assetSummary[t.id];
-            const avg = sum.avgPct;
-            const top = sum.top;
-            const loading = !universeReady;
-            return (
-              <button
-                key={t.id}
-                className="card-hover"
-                onClick={() => actions.openTabbedStocks(t.id)}
-                style={{ ...CARD, textAlign: 'left', cursor: 'pointer', display: 'block', width: '100%', padding: 22 }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
-                  <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--c-tx1b)' }}>{t.label}</span>
-                  {loading ? <Skel w={44} h={12} r={6} /> : <span style={{ fontSize: 12, color: 'var(--c-tx6)' }}>{sum.count.toLocaleString('ko-KR')}종목</span>}
+      {/* ⑦ 자산군별 한 줄 (데일리 흡수 — 기존 '자산군 현황' 등락폭 카드 대체) */}
+      {brief && brief.byAsset.length > 0 && (
+        <div style={{ marginBottom: 36 }}>
+          <h2 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 700 }}>자산군별 한 줄</h2>
+          <div style={{ display: 'grid', gridTemplateColumns: layout.assetCols, gap: 16 }}>
+            {brief.byAsset.map((a, i) => (
+              <div key={i} style={{ ...CARD, padding: 22 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                  <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--c-tx1b)', whiteSpace: 'nowrap' }}>{a.label}</span>
+                  <span style={{ fontSize: 13, fontWeight: 700, marginLeft: 'auto', color: dirColor(a.dir) }}>{dirArrow(a.dir)}</span>
                 </div>
-                <div style={{ fontSize: 12, color: 'var(--c-tx5)', marginBottom: 4 }}>평균 등락</div>
-                {loading ? (
-                  <Skel w={96} h={26} mt={2} />
-                ) : (
-                  <div style={{ fontSize: 26, fontWeight: 800, letterSpacing: '-0.01em', color: upColor(avg) }}>{fmtPct(avg)}</div>
-                )}
-                {loading ? (
-                  <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--c-w06)' }}><Skel w="72%" h={13} r={6} /></div>
-                ) : top && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--c-w06)' }}>
-                    <span style={{ fontSize: 12, color: 'var(--c-tx6)' }}>상위</span>
-                    <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--c-tx3)' }}>{top.name}</span>
-                    <span style={{ fontSize: 13, fontWeight: 700, marginLeft: 'auto', color: upColor(top.pct) }}>{fmtPct(top.pct)}</span>
-                  </div>
-                )}
-              </button>
-            );
-          })}
+                <div style={{ fontSize: 13, lineHeight: 1.6, color: 'var(--c-tx4)' }}>{a.line}</div>
+              </div>
+            ))}
+          </div>
         </div>
-        <SourceNote text={SRC.assetStatus} style={{ marginTop: 14 }} />
-      </div>
+      )}
+
+      {/* ⑦-b 체크포인트 (데일리 흡수) */}
+      {brief && brief.checkpoints.length > 0 && (
+        <div style={{ marginBottom: 36 }}>
+          <h2 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 700 }}>체크포인트</h2>
+          <div style={{ ...CARD, padding: '6px 24px' }}>
+            {brief.checkpoints.map((c, i) => {
+              const g = glossDef(c.name);
+              return (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 0', borderBottom: i < brief.checkpoints.length - 1 ? '1px solid var(--c-w05)' : 'none' }}>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--c-tx4)', width: 78, flexShrink: 0 }}>{c.when}</span>
+                  <span style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ fontSize: 14, color: 'var(--c-tx3)' }}>{c.name}</span>
+                    {g && <GlossaryTip hit={g} />}
+                  </span>
+                  <ImpactTag tag={c.tag} />
+                </div>
+              );
+            })}
+          </div>
+          <SourceNote text={SRC.calendar} style={{ marginTop: 12 }} />
+        </div>
+      )}
 
       {/* ⑧ 주요 일정 */}
       <div style={{ marginBottom: 36 }}>

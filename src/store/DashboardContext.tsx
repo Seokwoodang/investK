@@ -61,7 +61,6 @@ function homeYM(data: DashboardData): { y: number; m: number } {
 // 페이지(라우트)는 이제 URL이 소스 오브 트루스. page→경로 매핑.
 const PATH: Record<Exclude<Page, 'detail'>, string> = {
   dashboard: '/',
-  daily: '/daily',
   stocks: '/stocks',
   portfolio: '/portfolio',
   report: '/report',
