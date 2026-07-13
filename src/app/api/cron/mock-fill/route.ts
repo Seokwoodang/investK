@@ -7,8 +7,12 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
 
 export async function GET(req: Request) {
+  // 인증: GitHub Actions는 Bearer CRON_SECRET, Supabase pg_cron은 ?t=MOCK_FILL_TOKEN(쿼리).
   const secret = process.env.CRON_SECRET;
-  if (!secret || req.headers.get('authorization') !== `Bearer ${secret}`) {
+  const token = process.env.MOCK_FILL_TOKEN;
+  const byBearer = !!secret && req.headers.get('authorization') === `Bearer ${secret}`;
+  const byToken = !!token && new URL(req.url).searchParams.get('t') === token;
+  if (!byBearer && !byToken) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   }
   try {

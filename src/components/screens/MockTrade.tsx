@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { fmtPct, fmtPrice, upColor } from '../../lib/format';
 import { useDashboard } from '../../store/DashboardContext';
+import { useRealtime, useSubscribeStocks, useSubscribeCoins } from '../../store/RealtimeContext';
 import { track } from '../../lib/ga';
 import type { Candle, Period, TabId } from '../../types';
 import { CandleChart } from '../CandleChart';
@@ -56,6 +57,9 @@ const PERIOD_LABEL: Record<Period, string> = { '1분': '1분', '5분': '5분', '
 
 export function MockTrade() {
   const { data, state, universeReady } = useDashboard();
+  const rt = useRealtime(); // 실시간 시세(틱) — 접속 중 지정가 즉시 체결·현재가 표시
+  const subStocks = useSubscribeStocks();
+  const subCoins = useSubscribeCoins();
   const [kind, setKind] = useState<AcctKind>('season');
   const [acct, setAcct] = useState<Account | null>(null);
   const [board, setBoard] = useState<BoardRow[] | null>(null);
@@ -63,6 +67,7 @@ export function MockTrade() {
   const [loading, setLoading] = useState(true); // 최초 진입 시에만 전체 스피너
   const [switching, setSwitching] = useState(false); // 모드 전환 시 subtle 표시
   const firstRef = useRef(true);
+  const fillingRef = useRef(false); // 실시간 체결 재요청 중복 방지
   const [msg, setMsg] = useState<{ t: string; ok: boolean } | null>(null);
 
   const [sel, setSel] = useState<Sel | null>(null);
@@ -124,18 +129,56 @@ export function MockTrade() {
     return () => { alive = false; };
   }, [sel, period]);
 
+  // 실시간 구독: 선택 종목 + 미체결 주문 종목들(즉시 체결 감시용). 구독 대상이 바뀔 때만 갱신.
+  const subKey = useMemo(() => {
+    const codes = new Set<string>();
+    if (sel) codes.add(`${sel.tab}:${sel.code}`);
+    (acct?.openOrders ?? []).forEach((o) => codes.add(`${o.tab}:${o.code}`));
+    return [...codes].sort().join(',');
+  }, [sel, acct?.openOrders]);
+  useEffect(() => {
+    const stocks: string[] = [];
+    const coins: Record<string, string> = {};
+    subKey.split(',').filter(Boolean).forEach((k) => {
+      const [tab, code] = k.split(':');
+      if (tab === 'kr_stock') stocks.push(code);
+      else coins[code] = code; // 업비트 market=id=code(KRW-BTC)
+    });
+    subStocks(stocks);
+    subCoins(coins, {});
+    return () => { subStocks([]); subCoins({}, {}); };
+  }, [subKey, subStocks, subCoins]);
+
+  // 접속 중 지정가 즉시 체결: 실시간 틱이 지정가를 넘으면 서버 체결(권위) 재조회. 중복 방지 가드.
+  useEffect(() => {
+    const orders = acct?.openOrders ?? [];
+    if (!orders.length || fillingRef.current) return;
+    const crossed = orders.some((o) => {
+      const p = rt[o.code]?.price;
+      if (p == null || !(p > 0)) return false;
+      return o.side === 'buy' ? p <= o.limitPrice : p >= o.limitPrice;
+    });
+    if (!crossed) return;
+    fillingRef.current = true;
+    Promise.all([loadAccount(), loadBoard(), loadHistory()]).finally(() => { fillingRef.current = false; });
+  }, [rt, acct, loadAccount, loadBoard, loadHistory]);
+
   const periods = sel?.tab === 'kr_coin' ? PERIODS_COIN : PERIODS_STOCK;
 
-  // 현재가: 유니버스 실시간가 우선, 없으면 마지막 캔들 종가.
+  // 현재가: 실시간 틱(rt) 우선 → 유니버스 → 마지막 캔들 종가.
   const curPrice = useMemo(() => {
     if (!sel) return 0;
+    const live = rt[sel.code]?.price;
+    if (live && live > 0) return live;
     const m = (data.stocks[sel.tab as TabId] ?? []).find((s) => s.id === sel.code);
     return m?.price || (candles.length ? candles[candles.length - 1].c : 0);
-  }, [sel, data.stocks, candles]);
+  }, [sel, data.stocks, candles, rt]);
   const curPct = useMemo(() => {
     if (!sel) return 0;
+    const live = rt[sel.code]?.pct;
+    if (live != null) return live;
     return (data.stocks[sel.tab as TabId] ?? []).find((s) => s.id === sel.code)?.pct ?? 0;
-  }, [sel, data.stocks]);
+  }, [sel, data.stocks, rt]);
 
   const heldQty = useMemo(() => {
     if (!sel || !acct) return 0;
