@@ -1,0 +1,18 @@
+name: Backup core data (daily)
+
+# 재생성 불가한 사용자 데이터(계정·포트폴리오·모의투자·보고서·알림·팩터스냅샷)를
+# 매일 Supabase Storage 비공개 버킷에 JSON으로 백업. 테이블 실수 삭제/손상 대비.
+on:
+  schedule:
+    - cron: '30 18 * * *' # 03:30 KST (한산한 새벽)
+  workflow_dispatch: {}
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call backup endpoint
+        run: |
+          curl -fsS --max-time 110 --retry 2 --retry-delay 30 -X GET \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "https://investk.app/api/cron/backup"
