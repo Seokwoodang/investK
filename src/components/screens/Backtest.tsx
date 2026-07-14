@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useRef, useEffect } from 'react';
 import { UpdateNote, SourceNote } from '../SourceNote';
 import { InlineSpinner } from '../Footer';
 import { Popover } from '../GlossaryTip';
@@ -98,8 +98,40 @@ function EquityChart({ pts, startCapital }: { pts: EquityPoint[]; startCapital: 
     };
     const area = 'M' + `${x(0).toFixed(1)},${y(ds[0].v).toFixed(1)} L` + ds.map((p, i) => `${x(i).toFixed(1)},${y(p.v).toFixed(1)}`).join(' L') + ` L${x(n - 1).toFixed(1)},${(padT + ih).toFixed(1)} L${x(0).toFixed(1)},${(padT + ih).toFixed(1)} Z`;
     const has = (key: 'spx' | 'ndx') => ds.some((p) => fin(p[key]));
-    return { line: path('v'), bench: path('bench'), spx: path('spx'), ndx: path('ndx'), hasSpx: has('spx'), hasNdx: has('ndx'), area, seedY: y(startCapital), ih };
+    return { ds, line: path('v'), bench: path('bench'), spx: path('spx'), ndx: path('ndx'), hasSpx: has('spx'), hasNdx: has('ndx'), area, seedY: y(startCapital), x, ih, n };
   }, [pts, startCapital]);
+
+  // ── 리플레이(옵션 A): ▶ 누르면 시간순으로 4선이 좌→우로 그려지며 날짜·수익률 카운터가 올라감 ──
+  // 프레임마다 React setState하면 SVG 전체 리렌더로 버벅임 → clip/marker/label을 ref로 직접 갱신(리렌더 0).
+  const [playing, setPlaying] = useState(false);
+  const clipRef = useRef<SVGRectElement>(null);
+  const markerRef = useRef<SVGLineElement>(null);
+  const labelRef = useRef<HTMLSpanElement>(null);
+  const raf = useRef(0);
+  useEffect(() => () => cancelAnimationFrame(raf.current), []);
+  const play = () => {
+    if (!g) return;
+    cancelAnimationFrame(raf.current);
+    setPlaying(true);
+    const x0 = g.x(0), span = g.x(g.n - 1) - x0, dur = 6500;
+    let t0 = 0;
+    const tick = (t: number) => {
+      if (!t0) t0 = t;
+      const p = Math.min(1, (t - t0) / dur);
+      const revW = x0 + p * span;
+      const fp = g.ds[Math.round(p * (g.n - 1))];
+      clipRef.current?.setAttribute('width', String(revW));
+      if (markerRef.current) { markerRef.current.setAttribute('x1', String(revW)); markerRef.current.setAttribute('x2', String(revW)); markerRef.current.style.opacity = '0.7'; }
+      if (labelRef.current) {
+        const sr = fp.v / startCapital - 1, nr = fp.ndx != null ? fp.ndx / startCapital - 1 : null;
+        labelRef.current.textContent = `${fp.d}  전략 ${pct(sr)}${nr != null ? ` · 나스닥 ${pct(nr)}` : ''}`;
+      }
+      if (p < 1) raf.current = requestAnimationFrame(tick);
+      else { setPlaying(false); clipRef.current?.setAttribute('width', String(W)); if (markerRef.current) markerRef.current.style.opacity = '0'; if (labelRef.current) labelRef.current.textContent = ''; }
+    };
+    raf.current = requestAnimationFrame(tick);
+  };
+
   if (!g) return null;
   const stratUp = pts[pts.length - 1].v >= startCapital;
   const col = stratUp ? 'var(--c-up)' : 'var(--c-down)';
@@ -108,21 +140,35 @@ function EquityChart({ pts, startCapital }: { pts: EquityPoint[]; startCapital: 
       <span style={{ width: 16, height: 0, borderTop: `2px ${dash ? 'dashed' : 'solid'} ${c}` }} />{label}
     </span>
   );
+
   return (
     <div>
+      {/* 재생 컨트롤 + 라이브 카운터(ref로 갱신) */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8, flexWrap: 'wrap' }}>
+        <button onClick={play} disabled={playing} style={{
+          cursor: playing ? 'default' : 'pointer', fontFamily: 'inherit', fontSize: 12, fontWeight: 700,
+          padding: '5px 12px', borderRadius: 8, border: '1px solid var(--c-cy40)',
+          background: playing ? 'var(--c-w06)' : 'var(--c-cy16)', color: 'var(--c-accyanbr)',
+        }}>{playing ? '▶ 재생 중…' : '▶ 리플레이'}</button>
+        <span ref={labelRef} style={{ fontSize: 12, color: 'var(--c-tx3)', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }} />
+      </div>
       <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} preserveAspectRatio="none" style={{ display: 'block', overflow: 'visible' }}>
         <defs>
           <linearGradient id="btArea" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0" stopColor={col} stopOpacity="0.20" />
             <stop offset="1" stopColor={col} stopOpacity="0" />
           </linearGradient>
+          <clipPath id="btReveal"><rect ref={clipRef} x="0" y="0" width={W} height={H} /></clipPath>
         </defs>
         <line x1={padL} y1={g.seedY} x2={W - padR} y2={g.seedY} stroke="var(--c-w12)" strokeWidth="1" strokeDasharray="4 4" />
-        <path d={g.area} fill="url(#btArea)" />
-        <path d={g.bench} fill="none" stroke="var(--c-tx6)" strokeWidth="1.6" strokeDasharray="5 4" vectorEffect="non-scaling-stroke" />
-        {g.hasSpx && <path d={g.spx} fill="none" stroke={LINE.spx} strokeWidth="1.8" vectorEffect="non-scaling-stroke" />}
-        {g.hasNdx && <path d={g.ndx} fill="none" stroke={LINE.ndx} strokeWidth="1.8" vectorEffect="non-scaling-stroke" />}
-        <path d={g.line} fill="none" stroke={col} strokeWidth="2.4" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+        <g clipPath="url(#btReveal)">
+          <path d={g.area} fill="url(#btArea)" />
+          <path d={g.bench} fill="none" stroke="var(--c-tx6)" strokeWidth="1.6" strokeDasharray="5 4" vectorEffect="non-scaling-stroke" />
+          {g.hasSpx && <path d={g.spx} fill="none" stroke={LINE.spx} strokeWidth="1.8" vectorEffect="non-scaling-stroke" />}
+          {g.hasNdx && <path d={g.ndx} fill="none" stroke={LINE.ndx} strokeWidth="1.8" vectorEffect="non-scaling-stroke" />}
+          <path d={g.line} fill="none" stroke={col} strokeWidth="2.4" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+        </g>
+        <line ref={markerRef} x1={0} y1={padT} x2={0} y2={padT + g.ih} stroke="var(--c-accyanbr)" strokeWidth="1" style={{ opacity: 0 }} />
       </svg>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, fontSize: 11, color: 'var(--c-tx6)', gap: 8 }}>
         <span style={{ whiteSpace: 'nowrap' }}>{pts[0].d}</span>
