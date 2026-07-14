@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { priceCoverage } from '@/server/backtest/prices';
 import { backfillKrx, krxDailyAppend } from '@/server/backtest/krx';
 import { ingestExtBackfill, ingestExtDaily } from '@/server/backtest/ext';
+import { buildBacktestCache } from '@/server/backtest/cache';
 
 // 백테스트용 국내주식 일별 종가 수집 크론(KRX 공식 OpenAPI = 단일 소스, 상폐 포함).
 //  · mode=daily(기본): 오늘 KOSPI 전종목 종가+주식수 증분 upsert(장 마감 후 매일). ~수초.
@@ -23,6 +24,11 @@ export async function GET(req: Request) {
   const mode = url.searchParams.get('mode') ?? 'daily';
 
   try {
+    if (mode === 'build-cache') {
+      // 백테스트 입력 매트릭스를 gzip 블롭으로 미리 빌드(느린 전종목 로드 1회).
+      const res = await buildBacktestCache();
+      return NextResponse.json({ ok: true, mode, ...res });
+    }
     if (mode === 'ext-backfill') {
       // 미국 지수·환율(S&P500·나스닥100·USD/KRW) 1회성 백필. 소량이라 여기서 바로.
       const ext = await ingestExtBackfill(url.searchParams.get('from')?.replace(/-/g, '') || '20150101');
@@ -35,7 +41,8 @@ export async function GET(req: Request) {
       const cov = await priceCoverage();
       return NextResponse.json({ ok: true, mode, from, to, ...res, coverage: cov });
     }
-    // daily — 국내 종가 + 미국 지수·환율 함께 증분
+    // daily — 국내 종가 + 미국 지수·환율 증분만(빠름). 캐시 재빌드는 별도 호출(mode=build-cache)로
+    // 분리 — Vercel Hobby 60초 상한 안에 각각 들어오게(수집+빌드 합치면 아슬아슬).
     const saved = await krxDailyAppend(url.searchParams.get('ymd') || undefined);
     const ext = await ingestExtDaily();
     const cov = await priceCoverage();

@@ -13,6 +13,11 @@ jobs:
     steps:
       - name: Call price-ingest (daily append)
         run: |
-          curl -fsS --max-time 120 --retry 2 --retry-delay 30 -X GET \
+          curl -fsS --max-time 60 --retry 2 --retry-delay 30 -X GET \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
-            "https://investk.app/api/cron/price-ingest?mode=daily&n=200"
+            "https://investk.app/api/cron/price-ingest?mode=daily"
+      - name: Rebuild backtest cache blob
+        run: |
+          curl -fsS --max-time 60 --retry 2 --retry-delay 30 -X GET \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "https://investk.app/api/cron/price-ingest?mode=build-cache"

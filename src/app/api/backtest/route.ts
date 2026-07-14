@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getPriceSeries, getPitUniverse } from '@/server/backtest/prices';
-import { getExtSeries } from '@/server/backtest/ext';
+import { loadBacktestCache, sliceExt } from '@/server/backtest/cache';
 import { runBacktest, type BacktestConfig, type StrategyId, type Rebalance } from '@/server/backtest/engine';
 
 // 미국 지수를 '원화로 산' 가치로 환산해 백테스트 자산곡선에 겹칠 비교선 계산.
@@ -59,26 +58,19 @@ export async function POST(req: Request) {
       to: typeof b.to === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(b.to) ? b.to : ymd(now),
     };
 
-    // 시점별 유니버스(상폐 포함) — 이 안의 종목 합집합만 가격 로드.
-    const { snapshots, names } = await getPitUniverse(cfg.from, cfg.to);
-    if (!snapshots.length) {
-      return NextResponse.json({ error: '시점별 유니버스 데이터가 없습니다. 먼저 KRX 백필이 필요합니다.' }, { status: 409 });
+    // 미리 만든 캐시 블롭 1개 로드(분할보정 매트릭스 + 시점별 유니버스 + 미국지수). 콜드도 빠름.
+    const cache = await loadBacktestCache();
+    if (!cache || !cache.snapshots.length) {
+      return NextResponse.json({ error: '백테스트 데이터 캐시가 아직 없습니다(빌드 필요).' }, { status: 409 });
     }
-    const codeSet = new Set<string>();
-    for (const s of snapshots) for (const c of s.codes) codeSet.add(c);
-    const codes = [...codeSet];
-
-    const priceMap = await getPriceSeries(codes, cfg.from, cfg.to);
-    if (![...priceMap.values()].some((r) => r.length > 0)) {
-      return NextResponse.json({ error: '저장된 가격 데이터가 없습니다. 먼저 데이터 수집(백필)이 필요합니다.' }, { status: 409 });
-    }
+    const { priceMap, snapshots, names, ext: extAll } = cache;
 
     const result = runBacktest(cfg, priceMap, snapshots);
     const rebalances = result.rebalances.map((r) => ({ d: r.d, picks: r.picks.map((c) => ({ code: c, name: names[c] ?? c })) }));
 
     // 미국 지수(원화 환산) 비교선 — 자산곡선에 겹침.
     const eqDates = result.equity.map((e) => e.d);
-    const ext = await getExtSeries(cfg.from, cfg.to);
+    const ext = sliceExt(extAll, cfg.from, cfg.to);
     const spx = krwLine(eqDates, ext.SPX ?? [], ext.USDKRW ?? [], cfg.startCapital);
     const ndx = krwLine(eqDates, ext.NDX ?? [], ext.USDKRW ?? [], cfg.startCapital);
     const equity = result.equity.map((e, i) => ({ ...e, spx: spx ? spx[i] : null, ndx: ndx ? ndx[i] : null }));
