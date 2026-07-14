@@ -89,8 +89,29 @@ export async function appendRecent(codes: string[]): Promise<number> {
   return total;
 }
 
-// 유니버스 전체 종가 매트릭스를 메모리에 캐시(웜 인스턴스). 40만 행을 순차로 읽으면 ~30초라
-// 요청마다 반복하면 느리고 Vercel 60초 한계에 근접 → 종목별 병렬 읽기 + 1시간 캐시로 완화.
+interface RawRow { d: string; c: number; shrs: number }
+
+// 액면분할 보정(back-adjustment): KRX 종가는 raw(수정주가 미반영)라, 상장주식수 급변 + 종가 비례 급락을
+// '분할'로 감지해 보유자 관점의 연속 수익률로 되돌린다. 분할일 수익률≈0(가치 불변), 증자/자사주는 그대로.
+//   보유자 하루 수익 = 종가비 × 주식수비 가 1에 가까우면(시총 연속) 분할 → 그만큼 보정.
+function splitAdjust(rows: RawRow[]): PriceRow[] {
+  if (rows.length === 0) return [];
+  const out: PriceRow[] = [{ d: rows[0].d, c: rows[0].c }];
+  let adj = rows[0].c;
+  for (let i = 1; i < rows.length; i++) {
+    const pr = rows[i].c / rows[i - 1].c; // 종가비
+    const sh0 = rows[i - 1].shrs, sh1 = rows[i].shrs;
+    const sr = sh0 > 0 && sh1 > 0 ? sh1 / sh0 : 1; // 주식수비
+    const sharesChanged = sr > 1.15 || sr < 0.87;
+    const capContinuous = Math.abs(pr * sr - 1) < 0.2; // 종가가 주식수와 반비례(시총 연속) = 분할
+    const ret = sharesChanged && capContinuous ? pr * sr : pr; // 분할이면 보유자 수익(≈1)로
+    adj = adj * ret;
+    out.push({ d: rows[i].d, c: adj });
+  }
+  return out;
+}
+
+// 유니버스 전체 종가 매트릭스를 메모리에 캐시(웜 인스턴스). 종목별 병렬 읽기 + 1시간 캐시.
 let matrixCache: { key: string; at: number; map: Map<string, PriceRow[]> } | null = null;
 const MATRIX_TTL = 60 * 60e3;
 
@@ -104,17 +125,17 @@ async function loadFullMatrix(codes: string[]): Promise<Map<string, PriceRow[]>>
   const worker = async () => {
     while (idx < codes.length) {
       const code = codes[idx++];
-      const arr: PriceRow[] = [];
+      const raw: RawRow[] = [];
       let offset = 0;
       for (;;) {
-        const { data, error } = await sb.from('kr_prices').select('d,c').eq('code', code).order('d', { ascending: true }).range(offset, offset + 999);
+        const { data, error } = await sb.from('kr_prices').select('d,c,shrs').eq('code', code).order('d', { ascending: true }).range(offset, offset + 999);
         if (error) throw new Error(`kr_prices read ${code}: ${error.message}`);
         if (!data || !data.length) break;
-        for (const r of data as { d: string; c: number }[]) arr.push({ d: r.d, c: r.c });
+        for (const r of data as { d: string; c: number; shrs: number | null }[]) raw.push({ d: r.d, c: r.c, shrs: r.shrs ?? 0 });
         if (data.length < 1000) break;
         offset += 1000;
       }
-      if (arr.length) map.set(code, arr);
+      if (raw.length) map.set(code, splitAdjust(raw)); // 분할 보정된 시계열 저장
     }
   };
   await Promise.all(Array.from({ length: 8 }, worker)); // 8병렬
@@ -122,7 +143,7 @@ async function loadFullMatrix(codes: string[]): Promise<Map<string, PriceRow[]>>
   return map;
 }
 
-// 백테스트 입력: 종목별 (날짜 오름차순) 종가 시계열. from/to는 'YYYY-MM-DD'. 캐시된 전체 매트릭스를 메모리 슬라이스.
+// 백테스트 입력: 종목별 (날짜 오름차순, 분할 보정) 종가 시계열. from/to는 'YYYY-MM-DD'.
 export async function getPriceSeries(codes: string[], from: string, to: string): Promise<Map<string, PriceRow[]>> {
   const full = await loadFullMatrix(codes);
   const out = new Map<string, PriceRow[]>();
@@ -131,6 +152,34 @@ export async function getPriceSeries(codes: string[], from: string, to: string):
     if (sliced.length) out.set(code, sliced);
   }
   return out;
+}
+
+// 시점별 유니버스(월별 시총 상위 스냅샷). 반환: 날짜 오름차순 [{d, codes[]}] + 종목명 맵.
+export interface PitSnapshot { d: string; codes: string[] }
+export async function getPitUniverse(from: string, to: string): Promise<{ snapshots: PitSnapshot[]; names: Record<string, string> }> {
+  const sb = getSupabase();
+  if (!sb) throw new Error('supabase not configured');
+  const byDate = new Map<string, string[]>();
+  const names: Record<string, string> = {};
+  let offset = 0;
+  for (;;) {
+    const { data, error } = await sb
+      .from('pit_universe').select('d,code,name,rank')
+      .gte('d', from).lte('d', to).order('d', { ascending: true }).order('rank', { ascending: true })
+      .range(offset, offset + 999);
+    if (error) throw new Error(`pit_universe read: ${error.message}`);
+    if (!data || !data.length) break;
+    for (const r of data as { d: string; code: string; name: string | null; rank: number }[]) {
+      const arr = byDate.get(r.d) ?? [];
+      arr.push(r.code);
+      byDate.set(r.d, arr);
+      if (r.name) names[r.code] = r.name;
+    }
+    if (data.length < 1000) break;
+    offset += 1000;
+  }
+  const snapshots = [...byDate.entries()].map(([d, codes]) => ({ d, codes })).sort((a, b) => (a.d < b.d ? -1 : 1));
+  return { snapshots, names };
 }
 
 // 저장소 현황(UI 상태 표시용): 행 수, 날짜 범위.

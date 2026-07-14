@@ -52,7 +52,7 @@ function HintLabel({ text, hint, style }: { text: string; hint?: string; style: 
   );
 }
 
-interface EquityPoint { d: string; v: number; bench: number }
+interface EquityPoint { d: string; v: number; bench: number; spx: number | null; ndx: number | null }
 interface Metrics { totalReturn: number; cagr: number; mdd: number; vol: number; sharpe: number; winRateM: number; turnover: number; days: number }
 interface Result {
   config: { from: string; to: string; strategy: StrategyId };
@@ -61,8 +61,13 @@ interface Result {
   benchMetrics: Metrics;
   rebalances: { d: string; picks: { code: string; name: string }[] }[];
   universeUsed: number;
+  delistings: number;
+  benchExt: { spxCagr: number | null; ndxCagr: number | null };
   notes: string[];
 }
+
+// 자산곡선 4개 선 색상. S&P·나스닥은 라이트/다크 모두 보이는 중간 톤 고정.
+const LINE = { spx: '#f0a53e', ndx: '#a98bff' };
 
 const pct = (v: number) => (v >= 0 ? '+' : '') + (v * 100).toFixed(1) + '%';
 const won = (v: number) => '₩' + Math.round(v).toLocaleString('ko-KR');
@@ -78,41 +83,57 @@ function EquityChart({ pts, startCapital }: { pts: EquityPoint[]; startCapital: 
     const step = Math.max(1, Math.ceil(pts.length / MAX));
     const ds = pts.filter((_, i) => i % step === 0);
     if (ds[ds.length - 1] !== pts[pts.length - 1]) ds.push(pts[pts.length - 1]);
-    const all = ds.flatMap((p) => [p.v, p.bench]).filter((v) => v > 0);
+    const fin = (v: number | null): v is number => v != null && Number.isFinite(v) && v > 0;
+    const all = ds.flatMap((p) => [p.v, p.bench, p.spx, p.ndx]).filter(fin);
     const lo = Math.max(1, Math.min(startCapital, ...all)), hi = Math.max(startCapital, ...all);
     const lLo = Math.log(lo), lSpan = Math.log(hi) - lLo || 1;
     const iw = W - padL - padR, ih = H - padT - padB, n = ds.length;
     const x = (i: number) => padL + (i / (n - 1)) * iw;
     const y = (v: number) => padT + (1 - (Math.log(Math.max(1, v)) - lLo) / lSpan) * ih;
-    const path = (key: 'v' | 'bench') => 'M' + ds.map((p, i) => `${x(i).toFixed(1)},${y(p[key]).toFixed(1)}`).join(' L');
+    // NaN(null) 구간은 선을 끊는다(M로 재시작).
+    const path = (key: 'v' | 'bench' | 'spx' | 'ndx') => {
+      let d = '', pen = false;
+      ds.forEach((p, i) => { const val = p[key]; if (fin(val)) { d += `${pen ? ' L' : 'M'}${x(i).toFixed(1)},${y(val).toFixed(1)}`; pen = true; } else pen = false; });
+      return d;
+    };
     const area = 'M' + `${x(0).toFixed(1)},${y(ds[0].v).toFixed(1)} L` + ds.map((p, i) => `${x(i).toFixed(1)},${y(p.v).toFixed(1)}`).join(' L') + ` L${x(n - 1).toFixed(1)},${(padT + ih).toFixed(1)} L${x(0).toFixed(1)},${(padT + ih).toFixed(1)} Z`;
-    return { line: path('v'), bench: path('bench'), area, seedY: y(startCapital), ih };
+    const has = (key: 'spx' | 'ndx') => ds.some((p) => fin(p[key]));
+    return { line: path('v'), bench: path('bench'), spx: path('spx'), ndx: path('ndx'), hasSpx: has('spx'), hasNdx: has('ndx'), area, seedY: y(startCapital), ih };
   }, [pts, startCapital]);
   if (!g) return null;
   const stratUp = pts[pts.length - 1].v >= startCapital;
   const col = stratUp ? 'var(--c-up)' : 'var(--c-down)';
+  const chip = (c: string, label: string, dash = false) => (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+      <span style={{ width: 16, height: 0, borderTop: `2px ${dash ? 'dashed' : 'solid'} ${c}` }} />{label}
+    </span>
+  );
   return (
     <div>
       <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} preserveAspectRatio="none" style={{ display: 'block', overflow: 'visible' }}>
         <defs>
           <linearGradient id="btArea" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" stopColor={col} stopOpacity="0.22" />
+            <stop offset="0" stopColor={col} stopOpacity="0.20" />
             <stop offset="1" stopColor={col} stopOpacity="0" />
           </linearGradient>
         </defs>
         <line x1={padL} y1={g.seedY} x2={W - padR} y2={g.seedY} stroke="var(--c-w12)" strokeWidth="1" strokeDasharray="4 4" />
         <path d={g.area} fill="url(#btArea)" />
         <path d={g.bench} fill="none" stroke="var(--c-tx6)" strokeWidth="1.6" strokeDasharray="5 4" vectorEffect="non-scaling-stroke" />
+        {g.hasSpx && <path d={g.spx} fill="none" stroke={LINE.spx} strokeWidth="1.8" vectorEffect="non-scaling-stroke" />}
+        {g.hasNdx && <path d={g.ndx} fill="none" stroke={LINE.ndx} strokeWidth="1.8" vectorEffect="non-scaling-stroke" />}
         <path d={g.line} fill="none" stroke={col} strokeWidth="2.4" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
       </svg>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, fontSize: 11, color: 'var(--c-tx6)' }}>
-        <span>{pts[0].d}</span>
-        <span style={{ display: 'flex', gap: 14, flexWrap: 'wrap', justifyContent: 'center' }}>
-          <span style={{ color: col, fontWeight: 700 }}>— 전략</span>
-          <span>--- 벤치마크</span>
-          <span>로그 스케일</span>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, fontSize: 11, color: 'var(--c-tx6)', gap: 8 }}>
+        <span style={{ whiteSpace: 'nowrap' }}>{pts[0].d}</span>
+        <span style={{ display: 'flex', gap: 12, flexWrap: 'wrap', justifyContent: 'center' }}>
+          {chip(col, '전략')}
+          {chip('var(--c-tx6)', '국내벤치', true)}
+          {g.hasSpx && chip(LINE.spx, 'S&P500(원화)')}
+          {g.hasNdx && chip(LINE.ndx, '나스닥100(원화)')}
+          <span>로그</span>
         </span>
-        <span>{pts[pts.length - 1].d}</span>
+        <span style={{ whiteSpace: 'nowrap' }}>{pts[pts.length - 1].d}</span>
       </div>
     </div>
   );
@@ -186,8 +207,8 @@ export function Backtest() {
           <h1 style={{ margin: 0, fontSize: 28, fontWeight: 800, letterSpacing: '-0.02em' }}>백테스트</h1>
           <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.06em', padding: '4px 10px', borderRadius: 6, background: 'var(--c-cy16)', color: 'var(--c-accyanbr)' }}>실험실 · 가격 기반</span>
         </div>
-        <p style={{ margin: '8px 0 0', fontSize: 14, color: 'var(--c-tx5)' }}>과거 종가로 규칙 기반 전략의 성과를 검증합니다. KOSPI 시총 상위 200 · 최근 10년.</p>
-        <UpdateNote text="look-ahead 없음 · 종가-종가 체결 · 거래비용 반영 · 투자 권유 아님(교육용)" style={{ marginTop: 8 }} />
+        <p style={{ margin: '8px 0 0', fontSize: 14, color: 'var(--c-tx5)' }}>과거 종가로 규칙 기반 전략의 성과를 검증합니다. 시점별 KOSPI 시총 상위(상폐 종목 포함) · 최근 10년.</p>
+        <UpdateNote text="look-ahead 없음 · 생존편향 제거(시점별 유니버스·상폐 포함) · 종가체결 · 거래비용·분할 보정 · 투자 권유 아님(교육용)" style={{ marginTop: 8 }} />
       </div>
 
       {/* 초심자 안내 — 접이식(처음 오는 사람이 결과를 읽을 수 있게) */}
@@ -196,7 +217,7 @@ export function Backtest() {
         <div style={{ marginTop: 10, fontSize: 12.5, color: 'var(--c-tx4)', lineHeight: 1.8 }}>
           ① “이 규칙대로 과거에 투자했다면 지금 얼마가 됐을까?”를 실제 과거 종가로 재생합니다. 가상 원금 1,000만원으로 시작해요.<br />
           ② 아래에서 전략을 고르고 <b>백테스트 실행</b>을 누르면, 결과 차트에 <b style={{ color: 'var(--c-up)' }}>전략(실선)</b>과 <b>벤치마크(점선 — 후보 200종목을 그냥 다 사서 보유)</b>가 함께 그려집니다.<br />
-          ③ 절대 수익률보다 <b>벤치마크를 얼마나 이겼는지(초과성과)</b>가 전략의 실력입니다. 각 지표 옆 <b>ⓘ</b>를 누르면 뜻을 볼 수 있어요.
+          ③ 유니버스는 <b>그 시점의</b> KOSPI 시총 상위(상폐 종목 포함)라 생존편향이 없습니다 — 절대 수익률도, <b>벤치마크 대비 초과성과</b>도 함께 보세요. 각 지표 옆 <b>ⓘ</b>를 누르면 뜻을 볼 수 있어요.
         </div>
       </details>
 
@@ -255,13 +276,13 @@ export function Backtest() {
       {/* 결과 */}
       {result && (
         <>
-          {/* 생존편향 경고 — 절대수익률이 부풀려짐. 알파(벤치 대비)로 해석하도록 최상단에 크게. */}
-          <div style={{ background: 'var(--c-am16)', border: '1px solid var(--c-warn)', borderRadius: 16, padding: '16px 20px', marginBottom: 16 }}>
-            <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--c-warnchip)', marginBottom: 6 }}>⚠ 절대수익률은 생존편향으로 부풀려져 있습니다</div>
+          {/* 생존편향 제거됨 — 시점별 유니버스(상폐 포함). 남은 한계(근사·배당)는 정직하게 함께 고지. */}
+          <div style={{ background: 'var(--c-gn22)', border: '1px solid var(--c-up)', borderRadius: 16, padding: '16px 20px', marginBottom: 16 }}>
+            <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--c-upbr)', marginBottom: 6 }}>✓ 생존편향 제거됨 — 시점별 유니버스(상폐 종목 포함)</div>
             <div style={{ fontSize: 12.5, color: 'var(--c-tx3)', lineHeight: 1.6 }}>
-              유니버스가 <b>현재</b> KOSPI 상위 종목이라, 과거에 그걸 샀다는 건 이미 오늘의 승자를 미리 안 셈입니다(과거 상폐·부진 종목 제외).
-              그래서 <b>총수익·CAGR 같은 절대 숫자는 실제보다 높게 나옵니다.</b> 전략과 벤치마크는 같은 유니버스를 쓰므로,
-              의미 있는 신호는 <b>벤치마크 대비 초과성과(알파)</b>입니다 — 아래 지표에서 벤치와의 차이를 보세요.
+              각 리밸런싱 시점의 <b>그때 KOSPI 시총 상위</b>에서 고르고, 그 시점엔 살아있던 <b>나중에 상폐된 종목도 후보에 포함</b>합니다
+              (기간 중 <b>{result.delistings}건</b> 보유 종목 상폐 처분됨). 즉 "오늘의 승자를 미리 아는" 왜곡이 없어 <b>절대 수익률도 신뢰할 수 있습니다.</b>
+              <br />남은 한계(정직 고지): 시총 상위 = 실제 KOSPI200 지수와 완전히 같진 않은 근사 · 종가-종가 체결 · 배당 재투자 미반영(price return).
             </div>
           </div>
           <div style={{ ...CARD, padding: 22, marginBottom: 16 }}>
@@ -290,6 +311,18 @@ export function Backtest() {
                       위험 대비 효율(샤프)은 {result.metrics.sharpe.toFixed(2)} vs {result.benchMetrics.sharpe.toFixed(2)}로{' '}
                       {aSharpe >= 0 ? '더 효율적이었습니다' : '더 비효율적이었습니다'}.
                     </>
+                  )}
+                  {/* 미국 지수(원화) 대비 — "그냥 S&P/나스닥 사는 것보다 나았나" */}
+                  {(result.benchExt?.spxCagr != null || result.benchExt?.ndxCagr != null) && (
+                    <span style={{ display: 'block', marginTop: 8, fontSize: 12.5, color: 'var(--c-tx4)' }}>
+                      같은 기간 <b style={{ color: LINE.spx }}>S&P500(원화)</b> {result.benchExt.spxCagr != null ? pct(result.benchExt.spxCagr) : '—'}
+                      {' · '}<b style={{ color: LINE.ndx }}>나스닥100(원화)</b> {result.benchExt.ndxCagr != null ? pct(result.benchExt.ndxCagr) : '—'}
+                      {' '}(연복리). {result.benchExt.spxCagr != null && (
+                        result.metrics.cagr >= result.benchExt.spxCagr
+                          ? '이 전략이 S&P도 이겼습니다.'
+                          : '이 전략도 그냥 S&P500 사는 것엔 못 미쳤습니다.'
+                      )}
+                    </span>
                   )}
                 </span>
               </div>
@@ -332,7 +365,7 @@ export function Backtest() {
         </>
       )}
 
-      <SourceNote text="국내주식 일별 종가 — 한국투자증권(KIS) · 저장소(kr_prices)에서 조회 · 매일 장마감 후 갱신" style={{ marginTop: 20 }} />
+      <SourceNote text="국내주식 일별 종가·시가총액·상장주식수 — 한국거래소(KRX) 공식 OpenAPI · 저장소(kr_prices·pit_universe)에서 조회 · 매일 장마감 후 갱신" style={{ marginTop: 20 }} />
     </div>
   );
 }

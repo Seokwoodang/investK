@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
-import { getBacktestUniverse, snapshotUniverse } from '@/server/backtest/universe';
-import { ingestMany, appendRecent, priceCoverage } from '@/server/backtest/prices';
+import { priceCoverage } from '@/server/backtest/prices';
+import { backfillKrx, krxDailyAppend } from '@/server/backtest/krx';
+import { ingestExtBackfill, ingestExtDaily } from '@/server/backtest/ext';
 
-// 백테스트용 국내주식 일별 종가 수집 크론.
-//  · mode=daily(기본): 유니버스 최근 종가 증분 upsert(장 마감 후 매일). ~30초.
-//  · mode=backfill: 과거 다년치 백필. KIS 150ms throttle이라 200종목×10년 ≈ 12분 →
-//    Vercel 함수 타임아웃을 넘으므로 로컬 dev(타임아웃 없음)에서 실행하거나 offset/count로 청크 분할.
+// 백테스트용 국내주식 일별 종가 수집 크론(KRX 공식 OpenAPI = 단일 소스, 상폐 포함).
+//  · mode=daily(기본): 오늘 KOSPI 전종목 종가+주식수 증분 upsert(장 마감 후 매일). ~수초.
+//  · mode=backfill: 과거 다년치(from~to) 백필. 매 거래일 1콜 → 로컬(타임아웃 없음)에서 실행.
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
 
@@ -21,35 +21,25 @@ export async function GET(req: Request) {
   if (!authed(req)) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   const url = new URL(req.url);
   const mode = url.searchParams.get('mode') ?? 'daily';
-  const n = Math.min(500, Math.max(10, Number(url.searchParams.get('n')) || 200));
 
   try {
-    const universe = await getBacktestUniverse(n);
-    await snapshotUniverse(universe);
-    const codes = universe.map((u) => u.code);
-
-    if (mode === 'backfill') {
-      const yearsBack = Math.min(25, Math.max(1, Number(url.searchParams.get('years')) || 10));
-      const start = new Date();
-      start.setFullYear(start.getFullYear() - yearsBack);
-      const startYmd = `${start.getFullYear()}${String(start.getMonth() + 1).padStart(2, '0')}${String(start.getDate()).padStart(2, '0')}`;
-      const offset = Math.max(0, Number(url.searchParams.get('offset')) || 0);
-      const count = Number(url.searchParams.get('count')) || codes.length;
-      const slice = codes.slice(offset, offset + count);
-      const res = await ingestMany(slice, startYmd);
-      const cov = await priceCoverage();
-      return NextResponse.json({
-        ok: true, mode, from: startYmd, offset, processed: slice.length,
-        saved: res.reduce((a, b) => a + Math.max(0, b.n), 0),
-        failed: res.filter((r) => r.n < 0).map((r) => r.code),
-        coverage: cov,
-      });
+    if (mode === 'ext-backfill') {
+      // 미국 지수·환율(S&P500·나스닥100·USD/KRW) 1회성 백필. 소량이라 여기서 바로.
+      const ext = await ingestExtBackfill(url.searchParams.get('from')?.replace(/-/g, '') || '20150101');
+      return NextResponse.json({ ok: true, mode, ext });
     }
-
-    // daily
-    const saved = await appendRecent(codes);
+    if (mode === 'backfill') {
+      const from = url.searchParams.get('from') || '20160101'; // YYYYMMDD
+      const to = url.searchParams.get('to') || (() => { const t = new Date(); return `${t.getFullYear()}${String(t.getMonth() + 1).padStart(2, '0')}${String(t.getDate()).padStart(2, '0')}`; })();
+      const res = await backfillKrx(from, to);
+      const cov = await priceCoverage();
+      return NextResponse.json({ ok: true, mode, from, to, ...res, coverage: cov });
+    }
+    // daily — 국내 종가 + 미국 지수·환율 함께 증분
+    const saved = await krxDailyAppend(url.searchParams.get('ymd') || undefined);
+    const ext = await ingestExtDaily();
     const cov = await priceCoverage();
-    return NextResponse.json({ ok: true, mode, codes: codes.length, saved, coverage: cov });
+    return NextResponse.json({ ok: true, mode, saved, ext, coverage: cov });
   } catch (e) {
     console.error('[price-ingest]', (e as Error).message);
     return NextResponse.json({ error: (e as Error).message }, { status: 500 });
