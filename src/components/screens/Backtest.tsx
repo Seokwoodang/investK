@@ -237,10 +237,12 @@ export function Backtest() {
     };
     try {
       const r = await fetch('/api/backtest', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
-      const j = await r.json();
-      if (!r.ok) { setErr(j?.error ?? '실행 실패'); setResult(null); }
+      // 게이트웨이 타임아웃 등은 JSON이 아닌 텍스트 에러 페이지가 옴 → 그대로 파싱하면 암호 같은
+      // "Unexpected token ..." 에러가 노출됨. 안전 파싱 + 사람이 읽을 메시지로.
+      const j = await r.json().catch(() => null);
+      if (!r.ok || !j) { setErr(j?.error ?? '서버 응답이 지연되고 있어요. 잠시 후 다시 실행해 주세요.'); setResult(null); }
       else setResult(j as Result);
-    } catch (e) { setErr((e as Error).message); }
+    } catch { setErr('네트워크 오류가 발생했어요. 연결 확인 후 다시 시도해 주세요.'); }
     finally { setLoading(false); }
   };
 
