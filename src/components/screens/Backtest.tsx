@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import { UpdateNote, SourceNote } from '../SourceNote';
 import { InlineSpinner } from '../Footer';
+import { Popover } from '../GlossaryTip';
 
 // 가격 기반 백테스트 화면(1단계). 저장된 국내주식 종가(kr_prices)로 모멘텀·이평추세·로우볼 전략을
 // 유니버스 동일비중 매수후보유(벤치마크)와 비교한다. look-ahead 없음 · 종가체결 · 거래비용 반영.
@@ -15,11 +16,41 @@ const CARD: React.CSSProperties = {
 type StrategyId = 'momentum' | 'ma_trend' | 'low_vol' | 'buy_hold';
 
 const STRATS: { id: StrategyId; label: string; desc: string; uses: ('lookback' | 'ma' | 'topN')[] }[] = [
-  { id: 'momentum', label: '모멘텀', desc: '최근 룩백 수익률 상위 종목을 동일비중 보유(추세추종)', uses: ['lookback', 'topN'] },
-  { id: 'ma_trend', label: '이동평균 추세', desc: '종가가 N일 이평선 위인 종목만 보유(추세 상단)', uses: ['ma', 'topN'] },
-  { id: 'low_vol', label: '로우볼(저변동성)', desc: '최근 변동성이 가장 낮은 종목을 동일비중 보유', uses: ['lookback', 'topN'] },
-  { id: 'buy_hold', label: '전체 매수 후 보유', desc: '유니버스 전체를 동일비중으로 한 번 사서 보유', uses: [] },
+  { id: 'momentum', label: '모멘텀', desc: '최근 많이 오른 종목 상위 N개를 사서 보유 — “오르는 말에 올라타기”(추세추종)', uses: ['lookback', 'topN'] },
+  { id: 'ma_trend', label: '이동평균 추세', desc: '종가가 이동평균선 위(상승 흐름)인 종목만 보유 — 조건 만족 종목이 없으면 전량 현금', uses: ['ma', 'topN'] },
+  { id: 'low_vol', label: '로우볼(저변동성)', desc: '최근 가장 덜 출렁인(안정적인) 종목을 보유 — 방어형', uses: ['lookback', 'topN'] },
+  { id: 'buy_hold', label: '전체 매수 후 보유', desc: '후보 200종목을 똑같이 나눠 한 번 사서 끝까지 보유 — 벤치마크(비교 기준)와 같은 개념', uses: [] },
 ];
+
+// 지표·파라미터 설명(초심자용 ⓘ 툴팁). 숫자만 던지지 않고 읽는 법을 함께 제공.
+const METRIC_HINTS: Record<string, string> = {
+  '총수익률': '기간 전체 동안 원금이 몇 % 늘었는지. 예: +100%면 원금의 2배.',
+  '연복리(CAGR)': '전체 수익을 “매년 평균 몇 %씩 복리로 불었나”로 환산한 값. 예: 연 35%면 10년에 약 20배. 참고로 시장 장기 평균은 연 7~10% 수준.',
+  '최대낙폭(MDD)': '기간 중 최악의 순간, 고점 대비 몇 %까지 떨어졌었는지. -45%면 자산이 반토막 근처까지 갔다는 뜻 — 실제로 버틸 수 있는 낙폭인지 보세요.',
+  '샤프비율': '감수한 출렁임(위험) 1단위당 얻은 수익. 높을수록 효율적인 전략. 대략 1 이상이면 준수.',
+  '연변동성': '1년 기준 자산이 얼마나 출렁이는지. 낮을수록 안정적(마음 편함).',
+  '월간 승률': '플러스로 마감한 달의 비율. 100번 중 몇 번 웃었는지.',
+  '평균 회전율': '리밸런싱 때마다 포트폴리오의 몇 %를 갈아탔는지(매수+매도 합산). 높을수록 거래비용 부담이 큼.',
+};
+const PARAM_HINTS: Record<string, string> = {
+  '보유 종목 수': '고른 종목 중 몇 개를 살지. 적을수록 집중(수익도 손실도 커짐), 많을수록 분산(완만해짐).',
+  '룩백(거래일)': '과거 며칠을 보고 종목을 고를지. 주식시장은 1년 ≈ 252거래일이라 120일 ≈ 6개월.',
+  '이평 기간(거래일)': '이동평균선을 몇 거래일 평균으로 그릴지. 길수록 장기 추세를 봄.',
+  '리밸런싱': '종목을 다시 골라 갈아타는 주기. 잦을수록 신호 반영이 빠르지만 거래비용이 늘어남.',
+  '거래비용(편도 bps)': '사고팔 때마다 내는 비용. 20bps = 0.2%(수수료+세금+체결오차 근사). 0으로 두면 비현실적으로 유리해짐.',
+  '기간(년)': '과거 몇 년치를 재생해볼지.',
+};
+
+// 라벨 + ⓘ 팝오버(모바일 탭·데스크톱 호버 겸용, 기존 Popover 재사용).
+function HintLabel({ text, hint, style }: { text: string; hint?: string; style: React.CSSProperties }) {
+  if (!hint) return <span style={style}>{text}</span>;
+  return (
+    <Popover width={270} content={<><span style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--c-accyanbr)', marginBottom: 5 }}>{text}</span><span style={{ display: 'block', fontSize: 12, lineHeight: 1.6, color: 'var(--c-tx3)', fontWeight: 400 }}>{hint}</span></>}>
+      <span style={style}>{text}</span>
+      <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 13, height: 13, marginLeft: 5, borderRadius: '50%', border: '1px solid var(--c-w22)', color: 'var(--c-tx5)', fontSize: 8, fontWeight: 700, flexShrink: 0, verticalAlign: 'middle' }}>i</span>
+    </Popover>
+  );
+}
 
 interface EquityPoint { d: string; v: number; bench: number }
 interface Metrics { totalReturn: number; cagr: number; mdd: number; vol: number; sharpe: number; winRateM: number; turnover: number; days: number }
@@ -94,7 +125,9 @@ function MetricCell({ label, s, b, fmt, better = 'high', noBench = false }: { la
   const win = better === 'none' ? 0 : better === 'high' ? Math.sign(s - b) : Math.sign(b - s);
   return (
     <div style={{ ...FLAT_CARD, padding: 16 }}>
-      <div style={{ fontSize: 11, color: 'var(--c-tx5)', marginBottom: 8 }}>{label}</div>
+      <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center' }}>
+        <HintLabel text={label} hint={METRIC_HINTS[label]} style={{ fontSize: 11, color: 'var(--c-tx5)' }} />
+      </div>
       <div style={{ fontSize: 21, fontWeight: 800, color: better === 'none' ? 'var(--c-tx1)' : win > 0 ? 'var(--c-up)' : win < 0 ? 'var(--c-down)' : 'var(--c-tx1)' }}>{fmt(s)}</div>
       <div style={{ fontSize: 11, color: 'var(--c-tx6)', marginTop: 4 }}>{noBench ? ' ' : `벤치 ${fmt(b)}`}</div>
     </div>
@@ -106,6 +139,10 @@ const inputStyle: React.CSSProperties = {
   fontSize: 13, fontFamily: 'inherit', padding: '8px 10px', width: '100%',
 };
 const labelStyle: React.CSSProperties = { fontSize: 11, color: 'var(--c-tx5)', marginBottom: 6, display: 'block', fontWeight: 600 };
+// 파라미터 라벨(블록 배치 유지 + ⓘ 툴팁).
+const paramLabel = (text: string) => (
+  <span style={labelStyle}><HintLabel text={text} hint={PARAM_HINTS[text]} style={{ fontSize: 11, color: 'var(--c-tx5)', fontWeight: 600 }} /></span>
+);
 
 export function Backtest() {
   const [strategy, setStrategy] = useState<StrategyId>('momentum');
@@ -153,6 +190,16 @@ export function Backtest() {
         <UpdateNote text="look-ahead 없음 · 종가-종가 체결 · 거래비용 반영 · 투자 권유 아님(교육용)" style={{ marginTop: 8 }} />
       </div>
 
+      {/* 초심자 안내 — 접이식(처음 오는 사람이 결과를 읽을 수 있게) */}
+      <details style={{ ...CARD, padding: '14px 20px', marginBottom: 20 }}>
+        <summary style={{ cursor: 'pointer', fontSize: 13, fontWeight: 700, color: 'var(--c-accyanbr)', listStylePosition: 'inside' }}>백테스트가 처음이라면 — 30초 요약</summary>
+        <div style={{ marginTop: 10, fontSize: 12.5, color: 'var(--c-tx4)', lineHeight: 1.8 }}>
+          ① “이 규칙대로 과거에 투자했다면 지금 얼마가 됐을까?”를 실제 과거 종가로 재생합니다. 가상 원금 1,000만원으로 시작해요.<br />
+          ② 아래에서 전략을 고르고 <b>백테스트 실행</b>을 누르면, 결과 차트에 <b style={{ color: 'var(--c-up)' }}>전략(실선)</b>과 <b>벤치마크(점선 — 후보 200종목을 그냥 다 사서 보유)</b>가 함께 그려집니다.<br />
+          ③ 절대 수익률보다 <b>벤치마크를 얼마나 이겼는지(초과성과)</b>가 전략의 실력입니다. 각 지표 옆 <b>ⓘ</b>를 누르면 뜻을 볼 수 있어요.
+        </div>
+      </details>
+
       {/* 설정 */}
       <div style={{ ...CARD, padding: 22, marginBottom: 20 }}>
         <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', color: 'var(--c-accyan)', marginBottom: 14 }}>전략 설정</div>
@@ -169,26 +216,26 @@ export function Backtest() {
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 12 }}>
           {meta.uses.includes('topN') && (
-            <label><span style={labelStyle}>보유 종목 수</span>
+            <label>{paramLabel('보유 종목 수')}
               <input type="number" min={1} max={50} value={topN} onChange={(e) => setTopN(+e.target.value)} style={inputStyle} /></label>
           )}
           {meta.uses.includes('lookback') && (
-            <label><span style={labelStyle}>룩백(거래일)</span>
+            <label>{paramLabel('룩백(거래일)')}
               <input type="number" min={20} max={500} value={lookbackDays} onChange={(e) => setLookbackDays(+e.target.value)} style={inputStyle} /></label>
           )}
           {meta.uses.includes('ma') && (
-            <label><span style={labelStyle}>이평 기간(거래일)</span>
+            <label>{paramLabel('이평 기간(거래일)')}
               <input type="number" min={20} max={300} value={maWindow} onChange={(e) => setMaWindow(+e.target.value)} style={inputStyle} /></label>
           )}
           {strategy !== 'buy_hold' && (
-            <label><span style={labelStyle}>리밸런싱</span>
+            <label>{paramLabel('리밸런싱')}
               <select value={rebalance} onChange={(e) => setRebalance(e.target.value as 'M' | 'Q')} style={inputStyle}>
                 <option value="M">매월</option><option value="Q">분기</option>
               </select></label>
           )}
-          <label><span style={labelStyle}>거래비용(편도 bps)</span>
+          <label>{paramLabel('거래비용(편도 bps)')}
             <input type="number" min={0} max={100} value={costBps} onChange={(e) => setCostBps(+e.target.value)} style={inputStyle} /></label>
-          <label><span style={labelStyle}>기간(년)</span>
+          <label>{paramLabel('기간(년)')}
             <select value={years} onChange={(e) => setYears(+e.target.value)} style={inputStyle}>
               {[3, 5, 7, 10].map((y) => <option key={y} value={y}>{y}년</option>)}
             </select></label>
@@ -225,6 +272,30 @@ export function Backtest() {
             <EquityChart pts={result.equity} startCapital={startCapital} />
           </div>
 
+          {/* 한 줄 해석 — 초심자가 숫자 더미에서 길을 잃지 않게, 알파(벤치 대비)를 자동 요약 */}
+          {(() => {
+            const aCagr = result.metrics.cagr - result.benchMetrics.cagr;
+            const aSharpe = result.metrics.sharpe - result.benchMetrics.sharpe;
+            const isBH = result.config.strategy === 'buy_hold';
+            return (
+              <div style={{ ...FLAT_CARD, padding: '14px 20px', marginBottom: 16, borderLeft: `3px solid ${upc(aCagr)}` }}>
+                <span style={{ fontSize: 13, lineHeight: 1.7, color: 'var(--c-tx2)' }}>
+                  {isBH ? (
+                    <>전체 매수 후 보유는 벤치마크와 같은 개념이라 두 곡선이 거의 겹칩니다 — 다른 전략과 비교하는 기준선으로 보세요.</>
+                  ) : (
+                    <>
+                      <b>한 줄 해석:</b> 이 전략은 같은 기간 벤치마크보다 연복리 기준{' '}
+                      <b style={{ color: upc(aCagr) }}>{aCagr >= 0 ? '+' : ''}{(aCagr * 100).toFixed(1)}%p {aCagr >= 0 ? '앞섰습니다' : '뒤졌습니다'}</b>
+                      {' '}({pct(result.metrics.cagr)} vs {pct(result.benchMetrics.cagr)}).
+                      위험 대비 효율(샤프)은 {result.metrics.sharpe.toFixed(2)} vs {result.benchMetrics.sharpe.toFixed(2)}로{' '}
+                      {aSharpe >= 0 ? '더 효율적이었습니다' : '더 비효율적이었습니다'}.
+                    </>
+                  )}
+                </span>
+              </div>
+            );
+          })()}
+
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12, marginBottom: 16 }}>
             <MetricCell label="총수익률" s={result.metrics.totalReturn} b={result.benchMetrics.totalReturn} fmt={pct} />
             <MetricCell label="연복리(CAGR)" s={result.metrics.cagr} b={result.benchMetrics.cagr} fmt={pct} />
@@ -235,6 +306,11 @@ export function Backtest() {
             <MetricCell label="평균 회전율" s={result.metrics.turnover} b={0} fmt={(v) => (v * 100).toFixed(0) + '%'} better="none" noBench />
           </div>
 
+          {lastReb && lastReb.picks.length === 0 && (
+            <div style={{ ...FLAT_CARD, padding: '14px 20px', marginBottom: 16 }}>
+              <span style={{ fontSize: 13, color: 'var(--c-tx4)' }}>최근 리밸런싱({lastReb.d})에서는 조건을 만족한 종목이 없어 <b>전량 현금 보유</b>로 끝났습니다.</span>
+            </div>
+          )}
           {lastReb && lastReb.picks.length > 0 && (
             <div style={{ ...CARD, padding: 22, marginBottom: 16 }}>
               <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', color: 'var(--c-accyan)', marginBottom: 4 }}>최근 리밸런싱 보유 종목</div>

@@ -149,16 +149,20 @@ export function runBacktest(cfg: BacktestConfig, priceMap: Map<string, PriceRow[
   const series = new Map<string, Float64Array>();
   for (const c of codes) series.set(c, alignToCalendar(priceMap.get(c)!, cal));
 
-  const minIdx = Math.max(cfg.strategy === 'ma_trend' ? cfg.maWindow : cfg.lookbackDays, 1);
+  // buy_hold는 룩백이 필요 없으니 즉시 시작(예전엔 lookbackDays만큼 기간을 잘라먹었음).
+  const minIdx = cfg.strategy === 'buy_hold' ? 1 : Math.max(cfg.strategy === 'ma_trend' ? cfg.maWindow : cfg.lookbackDays, 1);
   if (minIdx >= cal.length - 5) throw new Error('룩백 기간이 데이터 범위보다 큽니다.');
   const rebIdx = cfg.strategy === 'buy_hold' ? [minIdx] : rebalanceIndices(cal, minIdx, cfg.rebalance);
   const rebSet = new Map<number, string[]>();
   const rebalances: RebalanceRec[] = [];
+  // ma_trend는 '이평선 위 종목만 보유'가 규칙이므로, 조건 만족 종목이 없으면 전량 현금(빈 picks 허용).
+  // 다른 전략의 빈 picks는 데이터 부족일 뿐이라 직전 보유 유지(리밸런싱 스킵).
+  const allowEmpty = cfg.strategy === 'ma_trend';
   for (const ri of rebIdx) {
     const picks = selectPicks(cfg, codes, series, ri);
-    if (picks.length) { rebSet.set(ri, picks); rebalances.push({ d: cal[ri], picks }); }
+    if (picks.length || allowEmpty) { rebSet.set(ri, picks); rebalances.push({ d: cal[ri], picks }); }
   }
-  if (!rebalances.length) throw new Error('선택된 종목이 없습니다(조건을 완화해 보세요).');
+  if (!rebalances.some((r) => r.picks.length)) throw new Error('선택된 종목이 없습니다(조건을 완화해 보세요).');
 
   // 시뮬레이션(전략).
   const cost = cfg.costBps / 10000;
@@ -176,8 +180,8 @@ export function runBacktest(cfg: BacktestConfig, priceMap: Map<string, PriceRow[
 
     const picks = rebSet.get(i);
     if (picks) {
-      // 목표 = 동일비중. 회전 = Σ|목표금액 - 현재금액| / 평가액.
-      const target = curValue / picks.length;
+      // 목표 = 동일비중(빈 picks = 전량 현금). 회전 = Σ|목표금액 - 현재금액| / 평가액.
+      const target = picks.length ? curValue / picks.length : 0;
       const curVal = new Map<string, number>();
       for (const [code, sh] of shares) curVal.set(code, sh * (series.get(code)![i] || 0));
       const allCodes = new Set<string>([...curVal.keys(), ...picks]);
@@ -190,10 +194,12 @@ export function runBacktest(cfg: BacktestConfig, priceMap: Map<string, PriceRow[
       const c = traded * cost;
       curValue -= c;
       turnoverSum += curValue > 0 ? traded / curValue : 0; turnoverCnt++;
-      // 새 보유 수량
+      // 새 보유 수량(빈 picks면 현금 보유)
       shares = new Map();
-      const per = curValue / picks.length;
-      for (const code of picks) { const px = series.get(code)![i]; if (px > 0) shares.set(code, per / px); }
+      if (picks.length) {
+        const per = curValue / picks.length;
+        for (const code of picks) { const px = series.get(code)![i]; if (px > 0) shares.set(code, per / px); }
+      }
     }
     // 리밸런싱 반영 후 평가액
     let v = 0;
