@@ -8,6 +8,7 @@ import { useDashboard } from '../../store/DashboardContext';
 import { track } from '../../lib/ga';
 import { SourceNote, UpdateNote } from '../SourceNote';
 import { InlineSpinner } from '../Footer';
+import { SubNav } from '../SubNav';
 
 const CARD: React.CSSProperties = {
   background: 'var(--c-w04)', border: '1px solid var(--c-w08)', borderRadius: 20,
@@ -155,6 +156,8 @@ export function Report() {
 
   return (
     <div>
+      {/* 내 투자 섹션 탭 — 보유 관리 ↔ AI 보고서 */}
+      <SubNav items={[{ href: '/portfolio', label: '내 자산' }, { href: '/report', label: 'AI 보고서' }]} />
       <div style={{ marginBottom: 24 }}>
         <h1 style={{ margin: 0, fontSize: 28, fontWeight: 800, letterSpacing: '-0.02em' }}>내 투자 보고서</h1>
         <p style={{ margin: '8px 0 0', fontSize: 14, color: 'var(--c-tx5)' }}>

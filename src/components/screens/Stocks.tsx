@@ -10,6 +10,7 @@ import { TabBar } from '../TabBar';
 import { SourceNote, UpdateNote } from '../SourceNote';
 import { Tip } from '../GlossaryTip';
 import { useViewportLayout } from '../DashboardChrome';
+import { SubNav } from '../SubNav';
 
 const SORTS: { key: SortKey; label: string }[] = [
   { key: 'vol', label: '거래대금' },
@@ -134,6 +135,8 @@ export function Stocks() {
 
   return (
     <div>
+      {/* 종목 찾기 섹션 탭 — 전체 목록 ↔ 저평가 스크리너(메뉴 다이어트로 최상위에서 내려옴) */}
+      <SubNav items={[{ href: '/stocks', label: '전체 종목' }, { href: '/value', label: '저평가 우량주' }]} />
       <div style={{ marginBottom: 24 }}>
         <h1 style={{ margin: 0, fontSize: 28, fontWeight: 800, letterSpacing: '-0.02em' }}>종목</h1>
         <p style={{ margin: '8px 0 0', fontSize: 14, color: 'var(--c-tx5)' }}>자산군을 고르고 거래대금·가격·변동률 기준으로 정렬해 보세요.</p>

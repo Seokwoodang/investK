@@ -7,15 +7,21 @@ import { useDashboard } from '../store/DashboardContext';
 import { TAB_MAP, type TabId } from '../types';
 import { useViewportLayout } from './DashboardChrome';
 
+// 메뉴 다이어트(v0.17.0): 저평가우량주→종목의 탭, 보고서→내자산의 탭으로 내려 8→6개.
+// 모바일 햄버거에선 그룹 라벨(시장/종목 찾기/실험실/내 투자)로 묶어 사이트 구조가 드러나게.
 const NAV: { href: string; label: string }[] = [
   { href: '/', label: '대시보드' },
   { href: '/stocks', label: '종목' },
-  { href: '/value', label: '저평가우량주' },
-  { href: '/backtest', label: '백테스트' },
-  { href: '/mock', label: '모의투자' },
-  { href: '/portfolio', label: '내자산' },
-  { href: '/report', label: '보고서' },
   { href: '/news', label: '뉴스' },
+  { href: '/mock', label: '모의투자' },
+  { href: '/backtest', label: '백테스트' },
+  { href: '/portfolio', label: '내자산' },
+];
+const NAV_GROUPS: { title: string; items: { href: string; label: string }[] }[] = [
+  { title: '시장', items: [{ href: '/', label: '대시보드' }, { href: '/news', label: '뉴스' }] },
+  { title: '종목 찾기', items: [{ href: '/stocks', label: '종목' }, { href: '/value', label: '저평가 우량주' }] },
+  { title: '실험실', items: [{ href: '/mock', label: '모의투자' }, { href: '/backtest', label: '백테스트' }] },
+  { title: '내 투자', items: [{ href: '/portfolio', label: '내 자산' }, { href: '/report', label: 'AI 보고서' }] },
 ];
 
 function SearchIcon({ size, stroke = 'var(--c-tx6)' }: { size: number; stroke?: string }) {
@@ -150,8 +156,12 @@ export function Header({ authed = true, isAdmin = false, user = null }: { authed
     };
   }, [now]);
 
+  // /value·/report는 메뉴에서 내려갔지만(각각 종목·내자산의 탭) 상위 메뉴가 활성으로 보이게 매핑.
   const activeHref =
-    pathname === '/' ? '/' : pathname.startsWith('/instrument') ? '/stocks' : '/' + (pathname.split('/')[1] || '');
+    pathname === '/' ? '/'
+      : pathname.startsWith('/instrument') || pathname.startsWith('/value') ? '/stocks'
+      : pathname.startsWith('/report') ? '/portfolio'
+      : '/' + (pathname.split('/')[1] || '');
   const gq = state.gQuery.trim().toLowerCase();
 
   const gResults = useMemo(() => {
@@ -431,22 +441,28 @@ export function Header({ authed = true, isAdmin = false, user = null }: { authed
             }}
           >
             <nav style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              {navItems.map((n) => {
-                const active = activeHref === n.href;
-                return (
-                  <Link
-                    key={n.href}
-                    href={n.href}
-                    onClick={() => setMenuOpen(false)}
-                    style={{
-                      textDecoration: 'none', display: 'block', padding: '11px 12px', borderRadius: 10, fontSize: 15, fontWeight: 600,
-                      background: active ? 'var(--c-w06)' : 'transparent', color: active ? 'var(--c-tx1c)' : 'var(--c-tx4)',
-                    }}
-                  >
-                    {n.label}
-                  </Link>
-                );
-              })}
+              {/* 그룹 라벨로 사이트 구조를 드러냄(시장/종목 찾기/실험실/내 투자). /value·/report는 여기서 직접 진입 가능. */}
+              {(isAdmin ? [...NAV_GROUPS, { title: '관리', items: [{ href: '/admin', label: '회원관리' }] }] : NAV_GROUPS).map((g) => (
+                <div key={g.title}>
+                  <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', color: 'var(--c-tx6)', padding: '9px 12px 3px' }}>{g.title}</div>
+                  {g.items.map((n) => {
+                    const active = n.href === '/' ? pathname === '/' : pathname.startsWith(n.href);
+                    return (
+                      <Link
+                        key={n.href}
+                        href={n.href}
+                        onClick={() => setMenuOpen(false)}
+                        style={{
+                          textDecoration: 'none', display: 'block', padding: '10px 12px', borderRadius: 10, fontSize: 15, fontWeight: 600,
+                          background: active ? 'var(--c-w06)' : 'transparent', color: active ? 'var(--c-tx1c)' : 'var(--c-tx4)',
+                        }}
+                      >
+                        {n.label}
+                      </Link>
+                    );
+                  })}
+                </div>
+              ))}
             </nav>
           </div>
         </>

@@ -6,6 +6,7 @@ import { useDashboard } from '../../store/DashboardContext';
 import { SourceNote, UpdateNote } from '../SourceNote';
 import { TermTip, Popover } from '../GlossaryTip';
 import { InlineSpinner } from '../Footer';
+import { SubNav } from '../SubNav';
 import type { Currency, TabId } from '../../types';
 
 type Market = 'kr' | 'us';
@@ -207,6 +208,8 @@ export function ValueStocks() {
 
   return (
     <div>
+      {/* 종목 찾기 섹션 탭 — 전체 목록 ↔ 저평가 스크리너 */}
+      <SubNav items={[{ href: '/stocks', label: '전체 종목' }, { href: '/value', label: '저평가 우량주' }]} />
       <div style={{ marginBottom: 18 }}>
         <h1 style={{ margin: 0, fontSize: 28, fontWeight: 800, letterSpacing: '-0.02em' }}>저평가 우량주</h1>
         <p style={{ margin: '8px 0 0', fontSize: 14, color: 'var(--c-tx5)' }}>
