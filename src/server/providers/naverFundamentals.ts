@@ -66,6 +66,22 @@ export async function getTopByMarketCap(limit: number): Promise<Candidate[]> {
     .slice(0, limit);
 }
 
+// KOSPI 전용 시총 상위 N(백테스트 유니버스 = KOSPI200 근사). 시장 단일이라 페이지만 순서대로 모은다.
+export async function getTopKospi(limit: number): Promise<Candidate[]> {
+  const pages = Math.ceil(limit / 100) + 1; // 여유 1페이지
+  const out: MvStock[] = [];
+  for (let i = 0; i < pages; i += 6) {
+    const nums = Array.from({ length: Math.min(6, pages - i) }, (_, k) => i + k + 1);
+    const res = await Promise.allSettled(nums.map((p) => fetchMvPage('KOSPI', p)));
+    res.forEach((r) => r.status === 'fulfilled' && out.push(...r.value));
+  }
+  return out
+    .map((s) => ({ code: s.itemCode, name: s.stockName, price: pnum(s.closePrice) ?? 0, marketCap: pnum(s.marketValue) ?? 0, marketCapText: s.marketValueHangeul ?? '' }))
+    .filter((c) => c.code && c.marketCap > 0)
+    .sort((a, b) => b.marketCap - a.marketCap)
+    .slice(0, limit);
+}
+
 // 미국(나스닥+뉴욕) 시총 상위 N. code=심볼(AAPL 등, 야후/상세와 동일).
 export async function getTopUsByMarketCap(limit: number): Promise<Candidate[]> {
   const pagesPerEx = Math.min(15, Math.ceil(limit / 100) + 3);

@@ -11,6 +11,7 @@ const NAV: { href: string; label: string }[] = [
   { href: '/', label: '대시보드' },
   { href: '/stocks', label: '종목' },
   { href: '/value', label: '저평가우량주' },
+  { href: '/backtest', label: '백테스트' },
   { href: '/mock', label: '모의투자' },
   { href: '/portfolio', label: '내자산' },
   { href: '/report', label: '보고서' },
