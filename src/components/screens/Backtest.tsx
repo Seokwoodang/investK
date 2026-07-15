@@ -101,35 +101,62 @@ function EquityChart({ pts, startCapital }: { pts: EquityPoint[]; startCapital: 
     return { ds, line: path('v'), bench: path('bench'), spx: path('spx'), ndx: path('ndx'), hasSpx: has('spx'), hasNdx: has('ndx'), area, seedY: y(startCapital), x, ih, n };
   }, [pts, startCapital]);
 
-  // ── 리플레이(옵션 A): ▶ 누르면 시간순으로 4선이 좌→우로 그려지며 날짜·수익률 카운터가 올라감 ──
-  // 프레임마다 React setState하면 SVG 전체 리렌더로 버벅임 → clip/marker/label을 ref로 직접 갱신(리렌더 0).
+  // ── 리플레이: '라이브 차트' 방식 — 폭은 고정, "지금까지의 데이터"가 항상 전체 폭을 꽉 채운다.
+  // 선 끝이 항상 오른쪽 끝에 붙고, 시간이 갈수록 과거가 왼쪽으로 압축 + y축은 값이 커질수록 줌아웃.
+  // (예전 clip-reveal(커튼 걷기)은 릴스 느낌이 안 나서 폐기.) 매 프레임 4선의 path d를 ref로 직접
+  // 재계산·갱신(React 리렌더 0). 마지막 프레임 = 정적 전체 차트와 동일 수식이라 복원 불필요.
   const [playing, setPlaying] = useState(false);
-  const clipRef = useRef<SVGRectElement>(null);
-  const markerRef = useRef<SVGLineElement>(null);
   const labelRef = useRef<HTMLSpanElement>(null);
+  const pathRefs = { v: useRef<SVGPathElement>(null), bench: useRef<SVGPathElement>(null), spx: useRef<SVGPathElement>(null), ndx: useRef<SVGPathElement>(null) };
+  const areaRef = useRef<SVGPathElement>(null);
+  const seedRef = useRef<SVGLineElement>(null);
   const raf = useRef(0);
   useEffect(() => () => cancelAnimationFrame(raf.current), []);
   const play = () => {
     if (!g) return;
     cancelAnimationFrame(raf.current);
     setPlaying(true);
-    const x0 = g.x(0), span = g.x(g.n - 1) - x0, dur = 6500;
+    const { ds, n, ih } = g;
+    const iw = W - padL - padR;
+    const fin = (v: number | null): v is number => v != null && Number.isFinite(v) && v > 0;
+    const dur = 6500;
     let t0 = 0;
-    const tick = (t: number) => {
+    const frame = (t: number) => {
       if (!t0) t0 = t;
       const p = Math.min(1, (t - t0) / dur);
-      const revW = x0 + p * span;
-      const fp = g.ds[Math.round(p * (g.n - 1))];
-      clipRef.current?.setAttribute('width', String(revW));
-      if (markerRef.current) { markerRef.current.setAttribute('x1', String(revW)); markerRef.current.setAttribute('x2', String(revW)); markerRef.current.style.opacity = '0.7'; }
+      const m = Math.max(2, Math.floor(p * (n - 1)) + 1); // 지금까지의 포인트 수
+      // y 도메인 = 지금까지 나온 값들(원금 포함) → 값이 커질수록 줌아웃
+      let lo = startCapital, hi = startCapital;
+      for (let i = 0; i < m; i++) {
+        const q = ds[i];
+        for (const v of [q.v, q.bench, q.spx, q.ndx]) if (fin(v)) { if (v < lo) lo = v; if (v > hi) hi = v; }
+      }
+      lo = Math.max(1, lo);
+      const lLo = Math.log(lo), lSpan = Math.log(hi) - lLo || 1;
+      // x = 지금까지의 구간을 전체 폭에 펼침 → 시간이 갈수록 과거가 압축
+      const x = (i: number) => padL + (i / (m - 1)) * iw;
+      const y = (v: number) => padT + (1 - (Math.log(Math.max(1, v)) - lLo) / lSpan) * ih;
+      const build = (key: 'v' | 'bench' | 'spx' | 'ndx') => {
+        let d = '', pen = false;
+        for (let i = 0; i < m; i++) { const val = ds[i][key]; if (fin(val)) { d += `${pen ? ' L' : 'M'}${x(i).toFixed(1)},${y(val).toFixed(1)}`; pen = true; } else pen = false; }
+        return d;
+      };
+      pathRefs.v.current?.setAttribute('d', build('v'));
+      pathRefs.bench.current?.setAttribute('d', build('bench'));
+      pathRefs.spx.current?.setAttribute('d', build('spx'));
+      pathRefs.ndx.current?.setAttribute('d', build('ndx'));
+      areaRef.current?.setAttribute('d', build('v') + ` L${x(m - 1).toFixed(1)},${(padT + ih).toFixed(1)} L${x(0).toFixed(1)},${(padT + ih).toFixed(1)} Z`);
+      const sy = y(startCapital).toFixed(1);
+      seedRef.current?.setAttribute('y1', sy); seedRef.current?.setAttribute('y2', sy);
+      const fp = ds[m - 1];
       if (labelRef.current) {
         const sr = fp.v / startCapital - 1, nr = fp.ndx != null ? fp.ndx / startCapital - 1 : null;
         labelRef.current.textContent = `${fp.d}  전략 ${pct(sr)}${nr != null ? ` · 나스닥 ${pct(nr)}` : ''}`;
       }
-      if (p < 1) raf.current = requestAnimationFrame(tick);
-      else { setPlaying(false); clipRef.current?.setAttribute('width', String(W)); if (markerRef.current) markerRef.current.style.opacity = '0'; if (labelRef.current) labelRef.current.textContent = ''; }
+      if (p < 1) raf.current = requestAnimationFrame(frame);
+      else { setPlaying(false); if (labelRef.current) labelRef.current.textContent = ''; }
     };
-    raf.current = requestAnimationFrame(tick);
+    raf.current = requestAnimationFrame(frame);
   };
 
   if (!g) return null;
@@ -158,17 +185,13 @@ function EquityChart({ pts, startCapital }: { pts: EquityPoint[]; startCapital: 
             <stop offset="0" stopColor={col} stopOpacity="0.20" />
             <stop offset="1" stopColor={col} stopOpacity="0" />
           </linearGradient>
-          <clipPath id="btReveal"><rect ref={clipRef} x="0" y="0" width={W} height={H} /></clipPath>
         </defs>
-        <line x1={padL} y1={g.seedY} x2={W - padR} y2={g.seedY} stroke="var(--c-w12)" strokeWidth="1" strokeDasharray="4 4" />
-        <g clipPath="url(#btReveal)">
-          <path d={g.area} fill="url(#btArea)" />
-          <path d={g.bench} fill="none" stroke="var(--c-tx6)" strokeWidth="1.6" strokeDasharray="5 4" vectorEffect="non-scaling-stroke" />
-          {g.hasSpx && <path d={g.spx} fill="none" stroke={LINE.spx} strokeWidth="1.8" vectorEffect="non-scaling-stroke" />}
-          {g.hasNdx && <path d={g.ndx} fill="none" stroke={LINE.ndx} strokeWidth="1.8" vectorEffect="non-scaling-stroke" />}
-          <path d={g.line} fill="none" stroke={col} strokeWidth="2.4" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
-        </g>
-        <line ref={markerRef} x1={0} y1={padT} x2={0} y2={padT + g.ih} stroke="var(--c-accyanbr)" strokeWidth="1" style={{ opacity: 0 }} />
+        <line ref={seedRef} x1={padL} y1={g.seedY} x2={W - padR} y2={g.seedY} stroke="var(--c-w12)" strokeWidth="1" strokeDasharray="4 4" />
+        <path ref={areaRef} d={g.area} fill="url(#btArea)" />
+        <path ref={pathRefs.bench} d={g.bench} fill="none" stroke="var(--c-tx6)" strokeWidth="1.6" strokeDasharray="5 4" vectorEffect="non-scaling-stroke" />
+        {g.hasSpx && <path ref={pathRefs.spx} d={g.spx} fill="none" stroke={LINE.spx} strokeWidth="1.8" vectorEffect="non-scaling-stroke" />}
+        {g.hasNdx && <path ref={pathRefs.ndx} d={g.ndx} fill="none" stroke={LINE.ndx} strokeWidth="1.8" vectorEffect="non-scaling-stroke" />}
+        <path ref={pathRefs.v} d={g.line} fill="none" stroke={col} strokeWidth="2.4" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
       </svg>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, fontSize: 11, color: 'var(--c-tx6)', gap: 8 }}>
         <span style={{ whiteSpace: 'nowrap' }}>{pts[0].d}</span>
