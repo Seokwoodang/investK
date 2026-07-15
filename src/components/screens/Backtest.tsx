@@ -110,8 +110,23 @@ function EquityChart({ pts, startCapital }: { pts: EquityPoint[]; startCapital: 
   const pathRefs = { v: useRef<SVGPathElement>(null), bench: useRef<SVGPathElement>(null), spx: useRef<SVGPathElement>(null), ndx: useRef<SVGPathElement>(null) };
   const areaRef = useRef<SVGPathElement>(null);
   const seedRef = useRef<SVGLineElement>(null);
+  const tipRef = useRef<SVGCircleElement>(null);
   const raf = useRef(0);
   useEffect(() => () => cancelAnimationFrame(raf.current), []);
+  // 정지/종료 시 정적 전체 차트로 복원.
+  const restoreStatic = () => {
+    if (!g) return;
+    pathRefs.v.current?.setAttribute('d', g.line);
+    pathRefs.bench.current?.setAttribute('d', g.bench);
+    pathRefs.spx.current?.setAttribute('d', g.spx);
+    pathRefs.ndx.current?.setAttribute('d', g.ndx);
+    areaRef.current?.setAttribute('d', g.area);
+    const sy = String(g.seedY);
+    seedRef.current?.setAttribute('y1', sy); seedRef.current?.setAttribute('y2', sy);
+    if (tipRef.current) tipRef.current.style.opacity = '0';
+    if (labelRef.current) labelRef.current.textContent = '';
+  };
+  const stop = () => { cancelAnimationFrame(raf.current); setPlaying(false); restoreStatic(); };
   const play = () => {
     if (!g) return;
     cancelAnimationFrame(raf.current);
@@ -119,20 +134,26 @@ function EquityChart({ pts, startCapital }: { pts: EquityPoint[]; startCapital: 
     const { ds, n, ih } = g;
     const iw = W - padL - padR;
     const fin = (v: number | null): v is number => v != null && Number.isFinite(v) && v > 0;
-    const dur = 6500;
+    // 기간에 비례한 재생 시간(10년 ≈ 15~16초, 3년 ≈ 8초) — 그려지는 과정이 보이게 충분히 느리게.
+    const dur = Math.min(16000, Math.max(8000, n * 40));
+    // y축 카메라: 목표 도메인을 프레임마다 lerp로 따라가 '줌아웃되는 카메라' 느낌(스냅 제거).
+    let dispLo = 0, dispHi = 0, initialized = false;
     let t0 = 0;
     const frame = (t: number) => {
       if (!t0) t0 = t;
       const p = Math.min(1, (t - t0) / dur);
       const m = Math.max(2, Math.floor(p * (n - 1)) + 1); // 지금까지의 포인트 수
-      // y 도메인 = 지금까지 나온 값들(원금 포함) → 값이 커질수록 줌아웃
+      // 목표 y 도메인 = 지금까지 나온 값들(원금 포함)
       let lo = startCapital, hi = startCapital;
       for (let i = 0; i < m; i++) {
         const q = ds[i];
         for (const v of [q.v, q.bench, q.spx, q.ndx]) if (fin(v)) { if (v < lo) lo = v; if (v > hi) hi = v; }
       }
       lo = Math.max(1, lo);
-      const lLo = Math.log(lo), lSpan = Math.log(hi) - lLo || 1;
+      if (!initialized) { dispLo = lo; dispHi = hi; initialized = true; }
+      if (p >= 1) { dispLo = lo; dispHi = hi; } // 마지막 프레임은 정확히 목표 도메인(정적 차트와 동일)
+      else { const k = 0.10; dispLo += (lo - dispLo) * k; dispHi += (hi - dispHi) * k; }
+      const lLo = Math.log(Math.max(1, dispLo)), lSpan = Math.log(dispHi) - lLo || 1;
       // x = 지금까지의 구간을 전체 폭에 펼침 → 시간이 갈수록 과거가 압축
       const x = (i: number) => padL + (i / (m - 1)) * iw;
       const y = (v: number) => padT + (1 - (Math.log(Math.max(1, v)) - lLo) / lSpan) * ih;
@@ -149,6 +170,12 @@ function EquityChart({ pts, startCapital }: { pts: EquityPoint[]; startCapital: 
       const sy = y(startCapital).toFixed(1);
       seedRef.current?.setAttribute('y1', sy); seedRef.current?.setAttribute('y2', sy);
       const fp = ds[m - 1];
+      // 선 끝을 이끄는 점(tip) — '그려지고 있다'는 신호.
+      if (tipRef.current) {
+        tipRef.current.setAttribute('cx', x(m - 1).toFixed(1));
+        tipRef.current.setAttribute('cy', y(fp.v).toFixed(1));
+        tipRef.current.style.opacity = p < 1 ? '1' : '0';
+      }
       if (labelRef.current) {
         const sr = fp.v / startCapital - 1, nr = fp.ndx != null ? fp.ndx / startCapital - 1 : null;
         labelRef.current.textContent = `${fp.d}  전략 ${pct(sr)}${nr != null ? ` · 나스닥 ${pct(nr)}` : ''}`;
@@ -172,11 +199,11 @@ function EquityChart({ pts, startCapital }: { pts: EquityPoint[]; startCapital: 
     <div>
       {/* 재생 컨트롤 + 라이브 카운터(ref로 갱신) */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8, flexWrap: 'wrap' }}>
-        <button onClick={play} disabled={playing} style={{
-          cursor: playing ? 'default' : 'pointer', fontFamily: 'inherit', fontSize: 12, fontWeight: 700,
+        <button onClick={playing ? stop : play} style={{
+          cursor: 'pointer', fontFamily: 'inherit', fontSize: 12, fontWeight: 700,
           padding: '5px 12px', borderRadius: 8, border: '1px solid var(--c-cy40)',
           background: playing ? 'var(--c-w06)' : 'var(--c-cy16)', color: 'var(--c-accyanbr)',
-        }}>{playing ? '▶ 재생 중…' : '▶ 리플레이'}</button>
+        }}>{playing ? '■ 정지' : '▶ 리플레이'}</button>
         <span ref={labelRef} style={{ fontSize: 12, color: 'var(--c-tx3)', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }} />
       </div>
       <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} preserveAspectRatio="none" style={{ display: 'block', overflow: 'visible' }}>
@@ -192,6 +219,8 @@ function EquityChart({ pts, startCapital }: { pts: EquityPoint[]; startCapital: 
         {g.hasSpx && <path ref={pathRefs.spx} d={g.spx} fill="none" stroke={LINE.spx} strokeWidth="1.8" vectorEffect="non-scaling-stroke" />}
         {g.hasNdx && <path ref={pathRefs.ndx} d={g.ndx} fill="none" stroke={LINE.ndx} strokeWidth="1.8" vectorEffect="non-scaling-stroke" />}
         <path ref={pathRefs.v} d={g.line} fill="none" stroke={col} strokeWidth="2.4" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+        {/* 리플레이 중 선 끝을 이끄는 점 — '지금 그려지고 있다'는 신호 */}
+        <circle ref={tipRef} r="4.5" fill={col} style={{ opacity: 0, filter: `drop-shadow(0 0 6px ${col})`, transition: 'opacity 200ms' }} />
       </svg>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, fontSize: 11, color: 'var(--c-tx6)', gap: 8 }}>
         <span style={{ whiteSpace: 'nowrap' }}>{pts[0].d}</span>
