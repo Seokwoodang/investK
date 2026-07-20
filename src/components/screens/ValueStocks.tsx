@@ -226,13 +226,13 @@ export function ValueStocks() {
       {/* 방법론 */}
       <div style={{ ...CARD, padding: 18, marginBottom: 20 }}>
         <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.14em', color: 'var(--c-accyan)', marginBottom: 12 }}>점수 산정 (복합 점수 100점)</div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, fontSize: 12.5, color: 'var(--c-tx4)', lineHeight: 1.55 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))', gap: 12, fontSize: 12.5, color: 'var(--c-tx4)', lineHeight: 1.55 }}>
           <div><b style={{ color: 'var(--c-tx2)' }}>밸류 30%</b> · 그레이엄·그린블라트 — 이익수익률(1/PER)·순자산수익률(1/PBR)</div>
           <div><b style={{ color: 'var(--c-tx2)' }}>퀄리티 35%</b> · 버핏·노비막스 — ROE·순이익률</div>
           <div><b style={{ color: 'var(--c-tx2)' }}>안정성 20%</b> · 그레이엄·버핏 — 부채비율↓·유동성</div>
           <div><b style={{ color: 'var(--c-tx2)' }}>환원·성장 15%</b> — 배당수익률·이익성장</div>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 10, marginTop: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 260px), 1fr))', gap: 10, marginTop: 12 }}>
           <div style={{ background: 'var(--c-w04)', borderRadius: 10, padding: '11px 13px' }}>
             <div style={{ marginBottom: 6 }}><Badge text="그레이엄" color="var(--c-up)" bg="color-mix(in srgb, var(--c-up) 18%, transparent)" /></div>
             <div style={{ fontSize: 11.5, color: 'var(--c-tx4)', lineHeight: 1.55 }}>{GRAHAM_DEF}</div>

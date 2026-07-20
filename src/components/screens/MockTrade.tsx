@@ -437,7 +437,7 @@ export function MockTrade() {
 
       {/* 계좌 요약 */}
       <div style={{ ...CARD, padding: '18px 20px' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 14 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 130px), 1fr))', gap: 14 }}>
           <Stat label="총자산" value={won(acct.totalAsset)} big />
           <Stat label="수익률" value={fmtPct(acct.pnlPct)} sub={won(acct.pnl)} color={upColor(acct.pnl)} big />
           <Stat label="현금" value={won(acct.cash)} />
@@ -476,7 +476,7 @@ export function MockTrade() {
       )}
 
       {/* 자산 변화 그래프 + 자산 비중 도넛 */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 320px), 1fr))', gap: 16 }}>
         <div style={{ ...CARD, padding: '18px 20px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 12 }}>
             <h2 style={{ fontSize: 15, fontWeight: 800, color: 'var(--c-tx1c)', margin: 0 }}>자산 변화</h2>
@@ -491,7 +491,7 @@ export function MockTrade() {
       </div>
 
       {/* 보유 종목 + 랭킹 */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 320px), 1fr))', gap: 16 }}>
         <div style={{ ...CARD, padding: '18px 20px' }}>
           <h2 style={{ fontSize: 15, fontWeight: 800, color: 'var(--c-tx1c)', margin: '0 0 14px' }}>보유 종목</h2>
           {acct.holdings.length === 0 ? (

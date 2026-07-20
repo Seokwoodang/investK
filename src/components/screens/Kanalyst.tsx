@@ -342,7 +342,7 @@ export function Kanalyst({ code, market, name, ticker, cur, price }: Props) {
       {/* 2) 밸류에이션 */}
       <div style={{ ...CARD, borderRadius: 20, padding: 22 }}>
         <SectionHead tip="주가가 이익·자산 대비 싼지">밸류에이션</SectionHead>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 10 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 120px), 1fr))', gap: 10 }}>
           <Metric label="PER" term="PER" value={mult(data.per)} />
           <Metric label="선행 PER" term="추정PER" value={mult(data.fwdPer)} />
           <Metric label="PBR" term="PBR" value={mult(data.pbr)} />
@@ -368,7 +368,7 @@ export function Kanalyst({ code, market, name, ticker, cur, price }: Props) {
       {/* 4) 수익성·건전성 */}
       <div style={{ ...CARD, borderRadius: 20, padding: 22 }}>
         <SectionHead tip="얼마나 잘 벌고 튼튼한지">수익성 · 재무 건전성</SectionHead>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 10 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 120px), 1fr))', gap: 10 }}>
           <Metric label="ROE" term="ROE" value={pctv(data.roe)} accent={data.roe != null && data.roe >= 15 ? 'var(--c-upbr)' : undefined} />
           <Metric label="순이익률" term="순이익률" value={pctv(data.netMargin)} />
           <Metric label={market === 'us' ? '부채/자본' : '부채비율'} term="부채비율" value={pctv(data.debtRatio, 0)} accent={data.debtRatio != null && data.debtRatio > 200 ? 'var(--c-downbr)' : undefined} />
@@ -405,7 +405,7 @@ export function Kanalyst({ code, market, name, ticker, cur, price }: Props) {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
             <p style={{ margin: 0, fontSize: 16, lineHeight: 1.75, color: 'var(--c-tx1b)', fontWeight: 500 }}>{narrative.thesis}</p>
             {narrative.business && <p style={{ margin: 0, fontSize: 14, lineHeight: 1.7, color: 'var(--c-tx3)' }}>{narrative.business}</p>}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 14 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))', gap: 14 }}>
               {[
                 { title: '투자 포인트', color: 'var(--c-up)', items: narrative.bull },
                 { title: '리스크', color: 'var(--c-down)', items: narrative.bear },

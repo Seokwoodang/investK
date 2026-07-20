@@ -330,7 +330,7 @@ export function Portfolio() {
       ) : (
         <>
           {/* 요약 */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16, marginBottom: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 180px), 1fr))', gap: 16, marginBottom: 16 }}>
             <div style={{ ...CARD, padding: 20 }}>
               <div style={{ fontSize: 12, color: 'var(--c-tx5)', marginBottom: 6 }}>총 평가액 (원 환산)</div>
               <div style={{ fontSize: 24, fontWeight: 800 }}>{priceLoading ? <span style={{ fontSize: 15, color: 'var(--c-tx5)', fontWeight: 600 }}>시세 확인 중…</span> : krw(totalKrw)}</div>
@@ -422,7 +422,7 @@ export function Portfolio() {
             {/* 공식(전략) 선택 */}
             <div style={{ background: 'var(--c-w04)', border: '1px solid var(--c-w07)', borderRadius: 12, padding: 14, marginBottom: 14 }}>
               <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--c-tx5)', marginBottom: 10 }}>적용할 매도 공식 — 켜고 끄면 그 공식 기준으로만 판정</div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(212px, 1fr))', gap: 8 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 212px), 1fr))', gap: 8 }}>
                 {FORMULAS.map((fm) => {
                   const on = !!cfg.enabled[fm.key];
                   return (
@@ -581,7 +581,7 @@ export function Portfolio() {
             {evalData && !loading && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                 <p style={{ margin: 0, fontSize: 15, lineHeight: 1.7, color: 'var(--c-tx1)' }}>{evalData.summary}</p>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))', gap: 12 }}>
                   <div style={{ background: 'var(--c-w04)', borderRadius: 12, padding: 14 }}>
                     <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--c-accyan)', marginBottom: 6 }}>집중도</div>
                     <div style={{ fontSize: 13, lineHeight: 1.6, color: 'var(--c-tx2)' }}>{evalData.concentration}</div>

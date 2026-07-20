@@ -41,12 +41,12 @@ export function DashboardSkeleton() {
         <Bar w={320} h={14} mt={12} />
 
         <Bar w={120} h={16} mt={32} />
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16, marginTop: 16 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))', gap: 16, marginTop: 16 }}>
           {[0, 1, 2, 3].map((i) => <CardSkeleton key={i} />)}
         </div>
 
         <Bar w={160} h={16} mt={36} />
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16, marginTop: 16 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))', gap: 16, marginTop: 16 }}>
           <div style={{ ...CARD, height: 180 }}><Bar w="45%" h={13} /><Bar w="80%" h={16} mt={18} /><Bar w="70%" h={16} mt={12} /><Bar w="75%" h={16} mt={12} /></div>
           <div style={{ ...CARD, height: 180 }}><Bar w="45%" h={13} /><Bar w="80%" h={16} mt={18} /><Bar w="70%" h={16} mt={12} /><Bar w="75%" h={16} mt={12} /></div>
         </div>

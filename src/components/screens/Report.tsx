@@ -174,7 +174,7 @@ export function Report() {
       ) : (
         <>
           {/* 요약 */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 16, marginBottom: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 170px), 1fr))', gap: 16, marginBottom: 16 }}>
             <div style={{ ...CARD, padding: 20 }}>
               <div style={{ fontSize: 12, color: 'var(--c-tx5)', marginBottom: 6 }}>총 평가액</div>
               <div style={{ fontSize: 23, fontWeight: 800 }}>{krw(disp.totalKrw)}</div>
@@ -201,7 +201,7 @@ export function Report() {
           </div>
 
           {/* 성과 + (라이브일 때만) 현재 시장 */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 16, marginBottom: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 260px), 1fr))', gap: 16, marginBottom: 16 }}>
             <div style={{ ...CARD, padding: 22 }}>
               <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', color: 'var(--c-accyan)', marginBottom: 14 }}>성과</div>
               {dBest && (

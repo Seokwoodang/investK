@@ -4,7 +4,6 @@ import { useMemo, useState, useRef, useEffect, useCallback } from 'react';
 import { UpdateNote, SourceNote } from '../SourceNote';
 import { InlineSpinner } from '../Footer';
 import { Popover } from '../GlossaryTip';
-import { SubNav } from '../SubNav';
 
 // 가격 기반 백테스트 화면(1단계). 저장된 국내주식 종가(kr_prices)로 모멘텀·이평추세·로우볼 전략을
 // 유니버스 동일비중 매수후보유(벤치마크)와 비교한다. look-ahead 없음 · 종가체결 · 거래비용 반영.
@@ -116,7 +115,11 @@ function EquityChart({ pts, startCapital, showContrib = false }: { pts: EquityPo
     };
     const area = 'M' + `${x(0).toFixed(1)},${y(ds[0].v).toFixed(1)} L` + ds.map((p, i) => `${x(i).toFixed(1)},${y(p.v).toFixed(1)}`).join(' L') + ` L${x(n - 1).toFixed(1)},${(padT + ih).toFixed(1)} L${x(0).toFixed(1)},${(padT + ih).toFixed(1)} Z`;
     const has = (key: 'spx' | 'ndx') => ds.some((p) => fin(p[key]));
-    return { ds, line: path('v'), bench: path('bench'), spx: path('spx'), ndx: path('ndx'), contrib: showContrib ? path('contrib') : '', hasSpx: has('spx'), hasNdx: has('ndx'), area, seedY: y(startCapital), x, ih, n };
+    // 연도 눈금(정적 차트용) — 각 연도 첫 지점의 x. 하단이 고정 날짜만이 아니라 연도 축이 되게.
+    const yearTicks: { year: string; x: number }[] = [];
+    let ly = '';
+    ds.forEach((p, i) => { const yr = p.d.slice(0, 4); if (yr !== ly) { yearTicks.push({ year: yr, x: x(i) }); ly = yr; } });
+    return { ds, line: path('v'), bench: path('bench'), spx: path('spx'), ndx: path('ndx'), contrib: showContrib ? path('contrib') : '', hasSpx: has('spx'), hasNdx: has('ndx'), area, seedY: y(startCapital), yearTicks, x, ih, n };
   }, [pts, startCapital, showContrib]);
 
   // ── 리플레이: '라이브 차트' 방식 — 폭은 고정, "지금까지의 데이터"가 항상 전체 폭을 꽉 채운다.
@@ -125,6 +128,7 @@ function EquityChart({ pts, startCapital, showContrib = false }: { pts: EquityPo
   // 재계산·갱신(React 리렌더 0). 마지막 프레임 = 정적 전체 차트와 동일 수식이라 복원 불필요.
   const [playing, setPlaying] = useState(false);
   const labelRef = useRef<HTMLSpanElement>(null);
+  const yearRef = useRef<HTMLDivElement>(null); // 재생 중 크게 움직이는 연도
   const pathRefs = { v: useRef<SVGPathElement>(null), bench: useRef<SVGPathElement>(null), spx: useRef<SVGPathElement>(null), ndx: useRef<SVGPathElement>(null), contrib: useRef<SVGPathElement>(null) };
   const areaRef = useRef<SVGPathElement>(null);
   const seedRef = useRef<SVGLineElement>(null);
@@ -144,6 +148,7 @@ function EquityChart({ pts, startCapital, showContrib = false }: { pts: EquityPo
     seedRef.current?.setAttribute('y1', sy); seedRef.current?.setAttribute('y2', sy);
     if (tipRef.current) tipRef.current.style.opacity = '0';
     if (labelRef.current) labelRef.current.textContent = '';
+    if (yearRef.current) { yearRef.current.textContent = ''; yearRef.current.style.opacity = '0'; }
   };
   const stop = () => { cancelAnimationFrame(raf.current); setPlaying(false); restoreStatic(); };
   const play = () => {
@@ -200,6 +205,8 @@ function EquityChart({ pts, startCapital, showContrib = false }: { pts: EquityPo
         const sr = fp.v / startCapital - 1, nr = fp.ndx != null ? fp.ndx / startCapital - 1 : null;
         labelRef.current.textContent = `${fp.d}  전략 ${pct(sr)}${nr != null ? ` · 나스닥 ${pct(nr)}` : ''}`;
       }
+      // 크게 움직이는 연도 — 재생과 함께 바뀌어 '시간이 흐른다'는 게 와닿게.
+      if (yearRef.current) { yearRef.current.textContent = fp.d.slice(0, 4); yearRef.current.style.opacity = p < 1 ? '0.9' : '0'; }
       if (p < 1) raf.current = requestAnimationFrame(frame);
       else { setPlaying(false); if (labelRef.current) labelRef.current.textContent = ''; }
     };
@@ -226,13 +233,20 @@ function EquityChart({ pts, startCapital, showContrib = false }: { pts: EquityPo
         }}>{playing ? '■ 정지' : '▶ 리플레이'}</button>
         <span ref={labelRef} style={{ fontSize: 12, color: 'var(--c-tx3)', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }} />
       </div>
-      <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} preserveAspectRatio="none" style={{ display: 'block', overflow: 'visible' }}>
+      <div style={{ position: 'relative' }}>
+        {/* 재생과 함께 크게 바뀌는 연도(정지 땐 숨김) */}
+        <div ref={yearRef} style={{ position: 'absolute', top: 4, left: 10, fontSize: 40, fontWeight: 800, color: 'var(--c-tx2)', opacity: 0, pointerEvents: 'none', fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.02em', transition: 'opacity 200ms' }} />
+        <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} preserveAspectRatio="none" style={{ display: 'block', overflow: 'visible' }}>
         <defs>
           <linearGradient id="btArea" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0" stopColor={col} stopOpacity="0.20" />
             <stop offset="1" stopColor={col} stopOpacity="0" />
           </linearGradient>
         </defs>
+        {/* 연도 눈금선(정적 차트) — 하단이 고정 날짜만이 아니라 연도 축이 되게. 재생 중엔 x축이 매 프레임 바뀌므로 숨김. */}
+        {!playing && g.yearTicks.map((t) => (
+          <line key={t.year} x1={t.x} y1={padT} x2={t.x} y2={H - padB} stroke="var(--c-w05)" strokeWidth="1" vectorEffect="non-scaling-stroke" />
+        ))}
         <line ref={seedRef} x1={padL} y1={g.seedY} x2={W - padR} y2={g.seedY} stroke="var(--c-w12)" strokeWidth="1" strokeDasharray="4 4" />
         <path ref={areaRef} d={g.area} fill="url(#btArea)" />
         <path ref={pathRefs.bench} d={g.bench} fill="none" stroke="var(--c-tx6)" strokeWidth="1.6" strokeDasharray="5 4" vectorEffect="non-scaling-stroke" />
@@ -242,18 +256,21 @@ function EquityChart({ pts, startCapital, showContrib = false }: { pts: EquityPo
         <path ref={pathRefs.v} d={g.line} fill="none" stroke={col} strokeWidth="2.4" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
         {/* 리플레이 중 선 끝을 이끄는 점 — '지금 그려지고 있다'는 신호 */}
         <circle ref={tipRef} r="4.5" fill={col} style={{ opacity: 0, filter: `drop-shadow(0 0 6px ${col})`, transition: 'opacity 200ms' }} />
-      </svg>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, fontSize: 11, color: 'var(--c-tx6)', gap: 8 }}>
-        <span style={{ whiteSpace: 'nowrap' }}>{pts[0].d}</span>
-        <span style={{ display: 'flex', gap: 12, flexWrap: 'wrap', justifyContent: 'center' }}>
-          {chip(col, '전략')}
-          {showContrib && chip('var(--c-tx5)', '납입액', true)}
-          {chip('var(--c-tx6)', '국내벤치', true)}
-          {g.hasSpx && chip(LINE.spx, 'S&P500(원화)')}
-          {g.hasNdx && chip(LINE.ndx, '나스닥100(원화)')}
-          <span>로그</span>
-        </span>
-        <span style={{ whiteSpace: 'nowrap' }}>{pts[pts.length - 1].d}</span>
+        </svg>
+      </div>
+      {/* 연도 축(정적) — 각 연도 위치에 라벨. 좁으면 겹치지 않게 솎음. */}
+      <div style={{ position: 'relative', height: 14, marginTop: 4 }}>
+        {g.yearTicks.filter((_, i) => g.yearTicks.length <= 7 || i % 2 === 0).map((t) => (
+          <span key={t.year} style={{ position: 'absolute', left: `${Math.min(97, Math.max(3, (t.x / W) * 100))}%`, transform: 'translateX(-50%)', fontSize: 10, color: 'var(--c-tx6)', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{t.year}</span>
+        ))}
+      </div>
+      <div style={{ display: 'flex', gap: 10, rowGap: 4, flexWrap: 'wrap', justifyContent: 'center', marginTop: 8, fontSize: 11, color: 'var(--c-tx6)' }}>
+        {chip(col, '전략')}
+        {showContrib && chip('var(--c-tx5)', '납입액', true)}
+        {chip('var(--c-tx6)', '국내벤치', true)}
+        {g.hasSpx && chip(LINE.spx, 'S&P500(원화)')}
+        {g.hasNdx && chip(LINE.ndx, '나스닥100(원화)')}
+        <span>로그</span>
       </div>
     </div>
   );
@@ -439,7 +456,6 @@ export function Backtest() {
 
   return (
     <div>
-      <SubNav items={[{ href: '/backtest', label: '백테스트' }, { href: '/race', label: '시총 레이스' }]} />
       <div style={{ marginBottom: 24 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           <h1 style={{ margin: 0, fontSize: 28, fontWeight: 800, letterSpacing: '-0.02em' }}>백테스트</h1>
@@ -474,7 +490,7 @@ export function Backtest() {
         <p style={{ margin: '0 0 12px', fontSize: 12.5, color: 'var(--c-tx5)', lineHeight: 1.5 }}>{meta.desc}</p>
 
         {/* 어떻게 사서 어떻게 판다 — 규칙 매매임을 명확히(그냥 소유가 아님) */}
-        <div style={{ ...FLAT_CARD, padding: '12px 16px', marginBottom: 16, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '8px 20px' }}>
+        <div style={{ ...FLAT_CARD, padding: '12px 16px', marginBottom: 16, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))', gap: '8px 20px' }}>
           <div style={{ display: 'flex', gap: 8, alignItems: 'baseline', fontSize: 12.5, color: 'var(--c-tx3)', lineHeight: 1.5 }}>
             <span style={{ flexShrink: 0, fontSize: 10, fontWeight: 800, padding: '2px 7px', borderRadius: 5, background: 'var(--c-gn22)', color: 'var(--c-upbr)' }}>매수</span>
             <span>{RULES[strategy].buy}</span>
@@ -494,7 +510,7 @@ export function Backtest() {
           )}
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 130px), 1fr))', gap: 12 }}>
           {meta.uses.includes('topN') && (
             <label>{paramLabel('보유 종목 수')}
               <input type="number" min={1} max={50} value={topN} onChange={(e) => setTopN(+e.target.value)} style={inputStyle} /></label>
@@ -537,7 +553,7 @@ export function Backtest() {
               {contribMode === 'lumpsum' ? '시작에 목돈을 한 번에' : '매월/분기 일정액을 꾸준히 납입(실제 적립 투자)'}
             </span>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 140px), 1fr))', gap: 12 }}>
             <label>{paramLabel(contribMode === 'lumpsum' ? '투자금(원)' : '초기 투자금(원)')}
               <input type="number" min={0} max={1000000000} step={1000000} value={seed} onChange={(e) => setSeed(Math.max(0, +e.target.value))} style={inputStyle} /></label>
             {contribMode === 'dca' && (
@@ -619,7 +635,7 @@ export function Backtest() {
             );
             return (
               <div style={{ marginBottom: 16 }}>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 150px), 1fr))', gap: 12 }}>
                   {cell('총 납입액', won(m.contributed ?? 0), undefined, '내 주머니에서 넣은 돈')}
                   {cell('최종 평가액', won(m.finalValue ?? 0), upc(gain), `${gain >= 0 ? '+' : ''}${won(gain)} (불어난 돈)`)}
                   {cell('단순 수익률', pct(m.totalReturn), upc(m.totalReturn), '평가액 ÷ 납입액')}
@@ -673,7 +689,7 @@ export function Backtest() {
             );
           })()}
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12, marginBottom: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 140px), 1fr))', gap: 12, marginBottom: 16 }}>
             <MetricCell label={result.config.contribMode === 'dca' ? '단순수익률' : '총수익률'} s={result.metrics.totalReturn} b={result.benchMetrics.totalReturn} fmt={pct} />
             <MetricCell label={result.config.contribMode === 'dca' ? '연수익률(IRR)' : '연복리(CAGR)'} s={result.metrics.cagr} b={result.benchMetrics.cagr} fmt={pct} />
             <MetricCell label="최대낙폭(MDD)" s={result.metrics.mdd} b={result.benchMetrics.mdd} fmt={pct} better="high" />
