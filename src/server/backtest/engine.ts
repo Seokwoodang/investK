@@ -16,15 +16,21 @@ export interface BacktestConfig {
   maWindow: number;
   rebalance: Rebalance;
   costBps: number;
-  startCapital: number;
+  startCapital: number;   // lumpsum: 시작 일시불 / dca: 초기 투자금(seed, 0 가능)
   from: string;
   to: string;
+  contribMode?: 'lumpsum' | 'dca'; // 기본 lumpsum(하위호환)
+  contribAmount?: number;          // dca: 주기마다 추가 납입액
+  contribEvery?: Rebalance;        // dca: 납입 주기(M=매월/Q=분기) — 기본 M
 }
 
-export interface EquityPoint { d: string; v: number; bench: number }
+export interface EquityPoint { d: string; v: number; bench: number; contrib?: number } // contrib=그 시점까지 누적 납입액
 export interface Metrics {
   totalReturn: number; cagr: number; mdd: number; vol: number; sharpe: number;
   winRateM: number; turnover: number; days: number;
+  contributed?: number; // 총 납입액(dca) / 원금(lumpsum)
+  finalValue?: number;  // 최종 평가액
+  irr?: number;         // 머니웨이티드 연환산 수익률(납입 시점 반영)
 }
 export interface RebalanceRec { d: string; picks: string[] }
 export interface BacktestResult {
@@ -57,15 +63,32 @@ function stdev(xs: number[]): number {
   return Math.sqrt(v);
 }
 
-function metricsOf(equity: number[], dates: string[], turnover: number): Metrics {
+// 머니웨이티드 연환산 수익률(IRR). flows: {t=시작 이후 연 단위, amt=현금흐름(납입 −, 최종평가 +)}.
+//  적립식은 시작·종료 값 비율(CAGR)로는 수익률을 못 구함 → 납입 시점을 반영한 IRR이 정직한 '연 몇 %'.
+function irrOf(flows: { t: number; amt: number }[]): number {
+  if (flows.length < 2) return NaN;
+  const npv = (r: number) => flows.reduce((s, f) => s + f.amt / Math.pow(1 + r, f.t), 0);
+  let lo = -0.9499, hi = 10;
+  let flo = npv(lo), fhi = npv(hi);
+  if (!Number.isFinite(flo) || !Number.isFinite(fhi) || flo * fhi > 0) return NaN; // 부호 변화 없음 → 해 없음
+  for (let k = 0; k < 100; k++) {
+    const mid = (lo + hi) / 2, fm = npv(mid);
+    if (Math.abs(fm) < 1e-6) return mid;
+    if (flo * fm < 0) { hi = mid; fhi = fm; } else { lo = mid; flo = fm; }
+  }
+  return (lo + hi) / 2;
+}
+
+// skipRet: 그 인덱스로 끝나는 일간 수익률은 계산에서 제외(적립식 납입일 = 현금 유입으로 인한 인위적 점프 제거).
+function metricsOf(equity: number[], dates: string[], turnover: number, skipRet?: Set<number>): Metrics {
   const n = equity.length;
   if (n < 2) return { totalReturn: 0, cagr: 0, mdd: 0, vol: 0, sharpe: 0, winRateM: 0, turnover, days: n };
   const first = equity[0], last = equity[n - 1];
-  const totalReturn = last / first - 1;
+  const totalReturn = first > 0 ? last / first - 1 : 0;
   const years = (Date.parse(dates[n - 1]) - Date.parse(dates[0])) / 86400000 / 365.25;
-  const cagr = years > 0 ? Math.pow(last / first, 1 / years) - 1 : 0;
+  const cagr = years > 0 && first > 0 ? Math.pow(last / first, 1 / years) - 1 : 0;
   const rets: number[] = [];
-  for (let i = 1; i < n; i++) if (equity[i - 1] > 0) rets.push(equity[i] / equity[i - 1] - 1);
+  for (let i = 1; i < n; i++) if (equity[i - 1] > 0 && !skipRet?.has(i)) rets.push(equity[i] / equity[i - 1] - 1);
   const mean = rets.reduce((a, b) => a + b, 0) / (rets.length || 1);
   const sd = stdev(rets);
   const vol = sd * Math.sqrt(252);
@@ -161,14 +184,25 @@ export function runBacktest(cfg: BacktestConfig, priceMap: Map<string, PriceRow[
   }
   if (!rebalances.some((r) => r.picks.length)) throw new Error('선택된 종목이 없습니다(조건을 완화해 보세요).');
 
-  // ── 전략 시뮬레이션(현금 + 상폐 청산) ──
-  const cost = cfg.costBps / 10000;
+  // ── 적립식(DCA) 납입 스케줄 ── (없으면 lumpsum = 시작 일시불 1회, 하위호환)
+  const isDca = cfg.contribMode === 'dca' && (cfg.contribAmount ?? 0) > 0;
+  const contribAmt = isDca ? cfg.contribAmount! : 0;
   const startIdx = rebIdx[0];
+  const contribIdx = isDca ? new Set(rebalanceIndices(cal, startIdx, cfg.contribEvery ?? 'M')) : new Set<number>();
+  contribIdx.delete(startIdx); // 시작 seed(startCapital)와 중복 방지
+
+  // ── 전략 시뮬레이션(현금 + 상폐 청산 + 적립 납입) ──
+  const cost = cfg.costBps / 10000;
   let shares = new Map<string, number>();
   const lastPx = new Map<string, number>();
   let cash = cfg.startCapital;
+  let lastPicks: string[] = [];              // 현재 목표 종목(적립 납입 배분 기준)
   let turnoverSum = 0, turnoverCnt = 0, delistings = 0;
-  const equity: number[] = [], eqDates: string[] = [];
+  const equity: number[] = [], eqDates: string[] = [], contribCurve: number[] = [];
+  let contributed = cfg.startCapital;
+  const day0 = Date.parse(cal[startIdx]);
+  const flows: { t: number; amt: number }[] = cfg.startCapital > 0 ? [{ t: 0, amt: -cfg.startCapital }] : [];
+  const contribDays = new Set<number>();     // equity 인덱스(납입 점프 → vol 계산서 제외)
 
   for (let i = startIdx; i < cal.length; i++) {
     // 상폐 처분: 보유 중인데 오늘 가격이 NaN(상폐 후)이면 마지막가로 청산 → 현금.
@@ -176,6 +210,21 @@ export function runBacktest(cfg: BacktestConfig, priceMap: Map<string, PriceRow[
       const px = series.get(code)![i];
       if (Number.isFinite(px)) { lastPx.set(code, px); }
       else { cash += sh * (lastPx.get(code) ?? 0); shares.delete(code); delistings++; }
+    }
+    // 적립 납입: 현금 투입 → 리밸런싱일이 아니면 현재 목표 종목에 동일비중 매수(비용 차감).
+    //  목표가 없으면(방어형 ma_trend 현금 상태) 현금으로 대기 → 다음 리밸런싱에 투입.
+    if (contribIdx.has(i)) {
+      cash += contribAmt; contributed += contribAmt;
+      flows.push({ t: (Date.parse(cal[i]) - day0) / 86400000 / 365.25, amt: -contribAmt });
+      contribDays.add(equity.length);
+      if (!rebSet.has(i) && lastPicks.length && cash > 0) {
+        const valid = lastPicks.filter((c) => { const px = series.get(c)?.[i]; return px !== undefined && Number.isFinite(px) && px > 0; });
+        if (valid.length) {
+          const per = (cash * (1 - cost)) / valid.length;
+          for (const c of valid) { const px = series.get(c)![i]; shares.set(c, (shares.get(c) ?? 0) + per / px); lastPx.set(c, px); }
+          cash = 0;
+        }
+      }
     }
     let mkt = 0;
     for (const [code, sh] of shares) mkt += sh * series.get(code)![i];
@@ -197,19 +246,20 @@ export function runBacktest(cfg: BacktestConfig, priceMap: Map<string, PriceRow[
         for (const code of picks) { const px = series.get(code)![i]; if (px > 0) { shares.set(code, per / px); lastPx.set(code, px); } }
         cash = 0;
       } else { cash = curValue; }
+      lastPicks = picks;
     }
     let v = cash;
     for (const [code, sh] of shares) v += sh * series.get(code)![i];
-    equity.push(v); eqDates.push(cal[i]);
+    equity.push(v); eqDates.push(cal[i]); contribCurve.push(contributed);
   }
 
-  // ── 벤치마크: 시작 시점 유니버스 동일비중 매수 후 보유(상폐는 마지막가 청산) ──
+  // ── 벤치마크: 시작 시점 유니버스 동일비중 매수 후 보유 + 동일 적립 스케줄 ──
   const benchUniverse = universeAt(startIdx).filter((c) => { const a = series.get(c); return a && Number.isFinite(a[startIdx]) && a[startIdx] > 0; });
   const benchShares = new Map<string, number>();
   const benchLast = new Map<string, number>();
   let benchCash = 0;
   const perB = cfg.startCapital / (benchUniverse.length || 1);
-  for (const c of benchUniverse) { const px = series.get(c)![startIdx]; benchShares.set(c, perB / px); benchLast.set(c, px); }
+  for (const c of benchUniverse) { const px = series.get(c)![startIdx]; if (perB > 0) benchShares.set(c, perB / px); benchLast.set(c, px); }
   const bench: number[] = [];
   for (let i = startIdx; i < cal.length; i++) {
     for (const [code, sh] of [...benchShares]) {
@@ -217,23 +267,53 @@ export function runBacktest(cfg: BacktestConfig, priceMap: Map<string, PriceRow[
       if (Number.isFinite(px)) benchLast.set(code, px);
       else { benchCash += sh * (benchLast.get(code) ?? 0); benchShares.delete(code); }
     }
+    // 벤치도 동일 적립 → 시작 유니버스 동일비중으로 바로 매수(공정 비교).
+    if (contribIdx.has(i)) {
+      benchCash += contribAmt;
+      const valid = benchUniverse.filter((c) => { const px = series.get(c)?.[i]; return px !== undefined && Number.isFinite(px) && px > 0; });
+      if (valid.length && benchCash > 0) {
+        const per = (benchCash * (1 - cost)) / valid.length;
+        for (const c of valid) { const px = series.get(c)![i]; benchShares.set(c, (benchShares.get(c) ?? 0) + per / px); }
+        benchCash = 0;
+      }
+    }
     let v = benchCash;
     for (const [code, sh] of benchShares) v += sh * series.get(code)![i];
     bench.push(v);
   }
 
-  const equityPts: EquityPoint[] = equity.map((v, k) => ({ d: eqDates[k], v: Math.round(v), bench: Math.round(bench[k]) }));
+  // ── 지표 ── (적립식은 CAGR 대신 IRR = 납입 시점 반영한 정직한 연수익률)
+  const nEq = equity.length;
+  const lastYears = nEq ? (Date.parse(eqDates[nEq - 1]) - day0) / 86400000 / 365.25 : 0;
+  const stratFinal = nEq ? equity[nEq - 1] : 0;
+  const benchFinal = bench.length ? bench[bench.length - 1] : 0;
+  const stratIrr = irrOf([...flows, { t: lastYears, amt: stratFinal }]);
+  const benchIrr = irrOf([...flows, { t: lastYears, amt: benchFinal }]);
+
+  const equityPts: EquityPoint[] = equity.map((v, k) => ({ d: eqDates[k], v: Math.round(v), bench: Math.round(bench[k]), contrib: Math.round(contribCurve[k]) }));
+
+  const skip = isDca ? contribDays : undefined;
+  const sm = metricsOf(equity, eqDates, turnoverCnt ? turnoverSum / turnoverCnt : 0, skip);
+  const bm = metricsOf(bench, eqDates, 0, skip);
+  sm.contributed = contributed; sm.finalValue = Math.round(stratFinal); sm.irr = stratIrr;
+  bm.contributed = contributed; bm.finalValue = Math.round(benchFinal); bm.irr = benchIrr;
+  if (isDca) {
+    sm.totalReturn = contributed > 0 ? stratFinal / contributed - 1 : 0; sm.cagr = Number.isFinite(stratIrr) ? stratIrr : 0;
+    bm.totalReturn = contributed > 0 ? benchFinal / contributed - 1 : 0; bm.cagr = Number.isFinite(benchIrr) ? benchIrr : 0;
+  }
 
   notes.push('종가-종가 체결 · 편도 거래비용 ' + (cfg.costBps / 100).toFixed(2) + '% · 액면분할 보정(배당 재투자 미반영)');
   notes.push(snaps.length
     ? `시점별 유니버스(그 시점 KOSPI 시총 상위, 상폐 종목 포함) → 생존편향 제거 · 기간 중 ${delistings}건 상폐 처분`
     : '유니버스=현재 KOSPI 상위(생존편향 존재)');
-  notes.push('벤치마크=시작 시점 유니버스 동일비중 매수 후 보유');
+  notes.push(isDca
+    ? `적립식: 초기 ${Math.round(cfg.startCapital).toLocaleString('ko-KR')}원 + ${cfg.contribEvery === 'Q' ? '분기' : '매월'} ${contribAmt.toLocaleString('ko-KR')}원 · 연수익률=IRR(납입 시점 반영) · 벤치마크도 동일 적립`
+    : '벤치마크=시작 시점 유니버스 동일비중 매수 후 보유');
 
   return {
     equity: equityPts,
-    metrics: metricsOf(equity, eqDates, turnoverCnt ? turnoverSum / turnoverCnt : 0),
-    benchMetrics: metricsOf(bench, eqDates, 0),
+    metrics: sm,
+    benchMetrics: bm,
     rebalances, universeUsed: codes.length, delistings, notes,
   };
 }

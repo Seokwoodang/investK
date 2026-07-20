@@ -46,6 +46,7 @@ export async function POST(req: Request) {
     const now = new Date();
     const tenYago = new Date(now); tenYago.setFullYear(now.getFullYear() - 10);
 
+    const isDca = b.contribMode === 'dca';
     const cfg: BacktestConfig = {
       strategy,
       topN: clamp(Number(b.topN), 1, 50, 20),
@@ -53,9 +54,15 @@ export async function POST(req: Request) {
       maWindow: clamp(Number(b.maWindow), 20, 300, 120),
       rebalance: (b.rebalance === 'M' ? 'M' : 'Q') as Rebalance,
       costBps: clamp(Number(b.costBps), 0, 100, 20),
-      startCapital: clamp(Number(b.startCapital), 1_000_000, 1_000_000_000, 10_000_000),
+      // 적립식은 초기 seed 0 허용(매월 납입만도 가능), 일시불은 최소 100만원.
+      startCapital: clamp(Number(b.startCapital), isDca ? 0 : 1_000_000, 1_000_000_000, 10_000_000),
       from: typeof b.from === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(b.from) ? b.from : ymd(tenYago),
       to: typeof b.to === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(b.to) ? b.to : ymd(now),
+      ...(isDca ? {
+        contribMode: 'dca' as const,
+        contribAmount: clamp(Number(b.contribAmount), 10_000, 100_000_000, 500_000),
+        contribEvery: (b.contribEvery === 'Q' ? 'Q' : 'M') as Rebalance,
+      } : {}),
     };
 
     // 미리 만든 캐시 블롭 1개 로드(분할보정 매트릭스 + 시점별 유니버스 + 미국지수). 콜드도 빠름.
@@ -68,11 +75,11 @@ export async function POST(req: Request) {
     const result = runBacktest(cfg, priceMap, snapshots);
     const rebalances = result.rebalances.map((r) => ({ d: r.d, picks: r.picks.map((c) => ({ code: c, name: names[c] ?? c })) }));
 
-    // 미국 지수(원화 환산) 비교선 — 자산곡선에 겹침.
+    // 미국 지수(원화 환산) 비교선 — 자산곡선에 겹침. (일시불 기준이라 적립식에선 비교 무의미 → 생략)
     const eqDates = result.equity.map((e) => e.d);
     const ext = sliceExt(extAll, cfg.from, cfg.to);
-    const spx = krwLine(eqDates, ext.SPX ?? [], ext.USDKRW ?? [], cfg.startCapital);
-    const ndx = krwLine(eqDates, ext.NDX ?? [], ext.USDKRW ?? [], cfg.startCapital);
+    const spx = isDca ? null : krwLine(eqDates, ext.SPX ?? [], ext.USDKRW ?? [], cfg.startCapital);
+    const ndx = isDca ? null : krwLine(eqDates, ext.NDX ?? [], ext.USDKRW ?? [], cfg.startCapital);
     const equity = result.equity.map((e, i) => ({ ...e, spx: spx ? spx[i] : null, ndx: ndx ? ndx[i] : null }));
     const benchExt = {
       spxCagr: spx ? cagrOf(spx, eqDates) : null,

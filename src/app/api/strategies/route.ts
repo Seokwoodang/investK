@@ -29,10 +29,15 @@ export interface StoredConfig {
   rebalance: Rebalance;
   costBps: number;
   years: number;
+  contribMode?: 'lumpsum' | 'dca';
+  seed?: number;
+  contribAmount?: number;
+  contribEvery?: Rebalance;
 }
 
 // 사용자 입력 config를 백테스트와 동일 범위로 정제(경계값 클램프).
 function sanitize(raw: Record<string, unknown>): StoredConfig {
+  const dca = raw.contribMode === 'dca';
   return {
     strategy: STRATS.includes(raw.strategy as StrategyId) ? (raw.strategy as StrategyId) : 'momentum',
     topN: clamp(Number(raw.topN), 1, 50, 20),
@@ -41,6 +46,10 @@ function sanitize(raw: Record<string, unknown>): StoredConfig {
     rebalance: raw.rebalance === 'M' ? 'M' : 'Q',
     costBps: clamp(Number(raw.costBps), 0, 100, 20),
     years: clamp(Number(raw.years), 1, 15, 10),
+    contribMode: dca ? 'dca' : 'lumpsum',
+    seed: clamp(Number(raw.seed), 0, 1_000_000_000, dca ? 0 : 10_000_000),
+    contribAmount: clamp(Number(raw.contribAmount), 10_000, 100_000_000, 500_000),
+    contribEvery: raw.contribEvery === 'Q' ? 'Q' : 'M',
   };
 }
 
@@ -75,7 +84,8 @@ export async function GET() {
       for (const r of rows) {
         const from = String(r.saved_at).slice(0, 10);
         if (from >= today) { forwards[r.id] = { days: 0, ret: null, benchRet: null }; continue; }
-        const cfg: BacktestConfig = { ...sanitize(r.config as unknown as Record<string, unknown>), startCapital: START_CAPITAL, from, to: today };
+        const sc = sanitize(r.config as unknown as Record<string, unknown>);
+        const cfg: BacktestConfig = { ...sc, startCapital: sc.seed ?? START_CAPITAL, from, to: today };
         try {
           const res = runBacktest(cfg, cache.priceMap, cache.snapshots);
           forwards[r.id] = { days: res.metrics.days, ret: res.metrics.totalReturn, benchRet: res.benchMetrics.totalReturn };
