@@ -115,10 +115,10 @@ function EquityChart({ pts, startCapital, showContrib = false }: { pts: EquityPo
     };
     const area = 'M' + `${x(0).toFixed(1)},${y(ds[0].v).toFixed(1)} L` + ds.map((p, i) => `${x(i).toFixed(1)},${y(p.v).toFixed(1)}`).join(' L') + ` L${x(n - 1).toFixed(1)},${(padT + ih).toFixed(1)} L${x(0).toFixed(1)},${(padT + ih).toFixed(1)} Z`;
     const has = (key: 'spx' | 'ndx') => ds.some((p) => fin(p[key]));
-    // 연도 눈금(정적 차트용) — 각 연도 첫 지점의 x. 하단이 고정 날짜만이 아니라 연도 축이 되게.
-    const yearTicks: { year: string; x: number }[] = [];
+    // 연도 눈금 — 각 연도 첫 지점의 x + 데이터 인덱스 i(리플레이 때 프레임별 x 재계산에 필요).
+    const yearTicks: { year: string; x: number; i: number }[] = [];
     let ly = '';
-    ds.forEach((p, i) => { const yr = p.d.slice(0, 4); if (yr !== ly) { yearTicks.push({ year: yr, x: x(i) }); ly = yr; } });
+    ds.forEach((p, i) => { const yr = p.d.slice(0, 4); if (yr !== ly) { yearTicks.push({ year: yr, x: x(i), i }); ly = yr; } });
     return { ds, line: path('v'), bench: path('bench'), spx: path('spx'), ndx: path('ndx'), contrib: showContrib ? path('contrib') : '', hasSpx: has('spx'), hasNdx: has('ndx'), area, seedY: y(startCapital), yearTicks, x, ih, n };
   }, [pts, startCapital, showContrib]);
 
@@ -133,11 +133,28 @@ function EquityChart({ pts, startCapital, showContrib = false }: { pts: EquityPo
   const areaRef = useRef<SVGPathElement>(null);
   const seedRef = useRef<SVGLineElement>(null);
   const tipRef = useRef<SVGCircleElement>(null);
+  const yearAxisRefs = useRef<Map<string, HTMLSpanElement>>(new Map()); // 하단 연도축 라벨(리플레이 때 함께 압축·등장)
   const raf = useRef(0);
   useEffect(() => () => cancelAnimationFrame(raf.current), []);
+
+  // 하단 연도축을 정적(전체 범위) 위치로 배치 + 촘촘하면 솎음. 정지 상태/복원 시.
+  const paintYearsStatic = () => {
+    if (!g) return;
+    const total = g.yearTicks.length;
+    g.yearTicks.forEach((t, idx) => {
+      const el = yearAxisRefs.current.get(t.year);
+      if (!el) return;
+      el.style.left = `${Math.min(97, Math.max(3, (t.x / W) * 100))}%`;
+      el.style.opacity = total <= 7 || idx % 2 === 0 ? '1' : '0';
+    });
+  };
+  // 새 결과(g 변경) 시 정적 축 다시 그림(재생 중이 아니면).
+  useEffect(() => { if (!playing) paintYearsStatic(); }, [g]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // 정지/종료 시 정적 전체 차트로 복원.
   const restoreStatic = () => {
     if (!g) return;
+    paintYearsStatic();
     pathRefs.v.current?.setAttribute('d', g.line);
     pathRefs.bench.current?.setAttribute('d', g.bench);
     pathRefs.spx.current?.setAttribute('d', g.spx);
@@ -156,7 +173,7 @@ function EquityChart({ pts, startCapital, showContrib = false }: { pts: EquityPo
     cancelAnimationFrame(raf.current);
     setPlaying(true);
     if (pathRefs.contrib.current) pathRefs.contrib.current.style.opacity = '0'; // 리플레이 중엔 납입선 숨김(y축 재조정 미적용)
-    const { ds, n, ih } = g;
+    const { ds, n, ih, yearTicks } = g;
     const iw = W - padL - padR;
     const fin = (v: number | null): v is number => v != null && Number.isFinite(v) && v > 0;
     // 기간에 비례한 재생 시간(10년 ≈ 15~16초, 3년 ≈ 8초) — 그려지는 과정이 보이게 충분히 느리게.
@@ -207,6 +224,18 @@ function EquityChart({ pts, startCapital, showContrib = false }: { pts: EquityPo
       }
       // 크게 움직이는 연도 — 재생과 함께 바뀌어 '시간이 흐른다'는 게 와닿게.
       if (yearRef.current) { yearRef.current.textContent = fp.d.slice(0, 4); yearRef.current.style.opacity = p < 1 ? '0.9' : '0'; }
+      // 하단 연도축도 같은 x-스케일로 압축·이동 → 과거 연도는 왼쪽으로 밀리고, 아직 안 온 미래 연도는 숨겼다가 재생과 함께 오른쪽에서 등장.
+      {
+        const total = yearTicks.length;
+        for (let k = 0; k < yearTicks.length; k++) {
+          const t = yearTicks[k];
+          const el = yearAxisRefs.current.get(t.year);
+          if (!el) continue;
+          const show = t.i <= m - 1 && (total <= 7 || k % 2 === 0);
+          if (show) { el.style.left = `${Math.min(98, Math.max(2, (x(t.i) / W) * 100))}%`; el.style.opacity = '1'; }
+          else el.style.opacity = '0';
+        }
+      }
       if (p < 1) raf.current = requestAnimationFrame(frame);
       else { setPlaying(false); if (labelRef.current) labelRef.current.textContent = ''; }
     };
@@ -258,10 +287,18 @@ function EquityChart({ pts, startCapital, showContrib = false }: { pts: EquityPo
         <circle ref={tipRef} r="4.5" fill={col} style={{ opacity: 0, filter: `drop-shadow(0 0 6px ${col})`, transition: 'opacity 200ms' }} />
         </svg>
       </div>
-      {/* 연도 축(정적) — 각 연도 위치에 라벨. 좁으면 겹치지 않게 솎음. */}
+      {/* 연도 축 — 재생 중엔 차트와 같은 x-스케일로 압축·이동(ref 직접 갱신), 정지 땐 전체 범위 정적 배치. 좁으면 솎음. */}
       <div style={{ position: 'relative', height: 14, marginTop: 4 }}>
-        {g.yearTicks.filter((_, i) => g.yearTicks.length <= 7 || i % 2 === 0).map((t) => (
-          <span key={t.year} style={{ position: 'absolute', left: `${Math.min(97, Math.max(3, (t.x / W) * 100))}%`, transform: 'translateX(-50%)', fontSize: 10, color: 'var(--c-tx6)', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{t.year}</span>
+        {g.yearTicks.map((t, i) => (
+          <span
+            key={t.year}
+            ref={(el) => { if (el) yearAxisRefs.current.set(t.year, el); else yearAxisRefs.current.delete(t.year); }}
+            style={{
+              position: 'absolute', left: `${Math.min(97, Math.max(3, (t.x / W) * 100))}%`, transform: 'translateX(-50%)',
+              fontSize: 10, color: 'var(--c-tx6)', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap',
+              opacity: g.yearTicks.length <= 7 || i % 2 === 0 ? 1 : 0, transition: 'opacity 200ms',
+            }}
+          >{t.year}</span>
         ))}
       </div>
       <div style={{ display: 'flex', gap: 10, rowGap: 4, flexWrap: 'wrap', justifyContent: 'center', marginTop: 8, fontSize: 11, color: 'var(--c-tx6)' }}>
