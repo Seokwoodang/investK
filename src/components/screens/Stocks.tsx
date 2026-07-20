@@ -174,7 +174,7 @@ export function Stocks() {
             style={{
               cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px',
               borderRadius: 11, fontSize: 13, fontWeight: 700, fontFamily: 'inherit', whiteSpace: 'nowrap',
-              transition: 'all 180ms',
+              transition: 'all 180ms', flexShrink: 0,
               ...(watchOnly
                 ? { background: 'var(--c-cy18)', border: '1px solid var(--c-cy40)', color: 'var(--c-accyanbr)' }
                 : { background: 'var(--c-w04)', border: '1px solid var(--c-w10)', color: 'var(--c-tx4)' }),
@@ -182,13 +182,16 @@ export function Stocks() {
           >
             ★ 관심종목
           </button>
-          <span style={{ fontSize: 12, color: 'var(--c-tx6)' }}>정렬</span>
-          <div style={{ display: 'flex', gap: 4, padding: 4, background: 'var(--c-w04)', border: '1px solid var(--c-w07)', borderRadius: 11 }}>
-            {SORTS.map((s) => (
-              <button key={s.key} onClick={() => actions.setSort(s.key)} style={sortBtnStyle(sortKey === s.key)}>
-                {s.label}
-              </button>
-            ))}
+          {/* 정렬 그룹 — 전체 폭을 채우고(좁으면 다음 줄로 내려와 가로 꽉 참), 버튼은 균등 분배해 5개 모두 보이게(잘림 방지). */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: '1 1 260px', minWidth: 0 }}>
+            <span style={{ fontSize: 12, color: 'var(--c-tx6)', flexShrink: 0 }}>정렬</span>
+            <div style={{ display: 'flex', gap: 4, padding: 4, background: 'var(--c-w04)', border: '1px solid var(--c-w07)', borderRadius: 11, flex: 1, minWidth: 0 }}>
+              {SORTS.map((s) => (
+                <button key={s.key} onClick={() => actions.setSort(s.key)} style={{ ...sortBtnStyle(sortKey === s.key), flex: 1, minWidth: 0, padding: '7px 4px', fontSize: 12.5, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {s.label}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       </div>
