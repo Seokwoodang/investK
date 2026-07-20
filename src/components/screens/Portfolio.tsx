@@ -359,15 +359,16 @@ export function Portfolio() {
           <div style={{ ...CARD, padding: '6px 18px', marginBottom: 16 }}>
             {[...rows].sort((a, b) => b.valueKrw - a.valueKrw).map((r) => (
               <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '13px 0', borderBottom: '1px solid var(--c-w05)', flexWrap: 'wrap' }}>
-                {/* 종목명 클릭 → 상세 이동(매도 점검 행과 동일 경로). ×삭제 버튼과 분리해 이름 영역만 클릭 대상. */}
+                {/* 종목명 클릭 → 상세 이동. 단, 상세가 실제로 열리는(유니버스에 id가 있는) 종목만 클릭 대상.
+                    가격만 즉석조회로 잡힌 해외 ETF 등은 상세가 없어 '종목 정보 없음' 막다른 길이 되므로 링크하지 않음. */}
                 <div
-                  className="event-row"
-                  onClick={() => actions.openStock(r.id, r.tab)}
-                  title={`${r.name} 상세 보기`}
-                  style={{ flex: '2 1 160px', minWidth: 140, cursor: 'pointer', borderRadius: 8, padding: '4px 8px', margin: '-4px -8px' }}
+                  className={r.detailable ? 'event-row' : undefined}
+                  onClick={r.detailable ? () => actions.openStock(r.id, r.tab) : undefined}
+                  title={r.detailable ? `${r.name} 상세 보기` : undefined}
+                  style={{ flex: '2 1 160px', minWidth: 140, cursor: r.detailable ? 'pointer' : 'default', borderRadius: 8, padding: '4px 8px', margin: '-4px -8px' }}
                 >
                   <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--c-tx1)' }}>
-                    {r.name} <span style={{ fontSize: 11, color: 'var(--c-tx6)' }}>›</span>
+                    {r.name}{r.detailable && <> <span style={{ fontSize: 11, color: 'var(--c-tx6)' }}>›</span></>}
                     {!r.matched && <span style={{ fontSize: 10, color: 'var(--c-warn)' }}> · 수동</span>}
                   </div>
                   <div style={{ fontSize: 11, color: 'var(--c-tx6)' }}>{r.group} · {r.qty}주 · 평단 {fmtPrice(r.avg, r.cur)}</div>
@@ -473,8 +474,8 @@ export function Portfolio() {
                   return (
                     <div key={r.id} style={{ background: 'var(--c-w04)', border: '1px solid var(--c-w07)', borderRadius: 12, padding: 14, borderLeft: `3px solid ${v.color}` }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                        {/* 종목명 클릭 → 상세(K-리서치). 수동 입력(universe 미매칭)은 상세가 없어 일반 텍스트로. */}
-                        {r.id.startsWith('manual:') ? (
+                        {/* 종목명 클릭 → 상세(K-리서치). 상세가 없는 종목(수동 입력·즉석조회만 된 해외 ETF 등)은 일반 텍스트로. */}
+                        {!r.detailable ? (
                           <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--c-tx1)' }}>{r.name}</span>
                         ) : (
                           <button

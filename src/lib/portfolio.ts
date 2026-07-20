@@ -137,6 +137,7 @@ export interface ValuedRow extends Holding {
   plPct: number;
   matched: boolean; // 유니버스 매칭(현재가 반영) 여부
   priced: boolean; // 실시세(유니버스/즉석조회) 또는 사용자 입력가 확보 여부. false면 아직 로딩 중(평단 폴백).
+  detailable: boolean; // id가 유니버스에 있어 상세페이지가 열리는지(false면 상세 링크 걸지 않음)
   risk?: RiskLevel;
 }
 
@@ -187,9 +188,12 @@ export function valuePortfolio(holdings: Holding[], stocks: Stocks, usdkrw: numb
     // 라이브 시세 확보 여부: 즉석조회(ex, 항상 라이브) · 사용자 입력가(manualPrice) · 유니버스 매칭(단, 라이브 유니버스 도착 후).
     // 유니버스 매칭이라도 universeReady 전이면 큐레이션 목가격이라 신뢰 불가 → 미확보로 본다.
     const priced = !!ex || h.manualPrice != null || (!!u && universeReady);
+    // 상세페이지는 findStock이 'id로만' 유니버스에서 찾음 → id가 byId에 있어야 상세가 열림.
+    // (티커매칭/즉석조회로 가격만 잡힌 종목은 상세가 없어 클릭 시 '종목 정보 없음' 막다른 길이 됨)
+    const detailable = byId.has(h.id);
     return {
       ...h, cur, price, tab, value, cost, valueKrw: toKrw(value), costKrw: toKrw(cost),
-      pl: value - cost, plPct, group, matched: !!u || !!ex, priced, risk: u?.s.risk,
+      pl: value - cost, plPct, group, matched: !!u || !!ex, priced, detailable, risk: u?.s.risk,
     };
   });
   const totalKrw = rows.reduce((s, r) => s + r.valueKrw, 0);
