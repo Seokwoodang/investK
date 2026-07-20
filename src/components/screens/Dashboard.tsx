@@ -58,6 +58,50 @@ function SectionHead({ title, href, linkLabel }: { title: string; href?: string;
   );
 }
 
+function Chevron({ open }: { open: boolean }) {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"
+      style={{ transform: open ? 'rotate(0deg)' : 'rotate(-90deg)', transition: 'transform 200ms', color: 'var(--c-tx5)', flexShrink: 0 }}>
+      <path d="M6 9l6 6 6-6" />
+    </svg>
+  );
+}
+
+// 대시보드 다이어트(v0.20.x) — 보조·참고 섹션을 접이식으로. 기본은 펼침, 접은 상태만 localStorage에 기억.
+// 제목을 눌러 토글. headerRight(예: 국내/해외 토글·일정 필터)는 펼쳐졌을 때만 노출.
+function CollapsibleSection({
+  title, subtitle, storageKey, headerRight, children,
+}: {
+  title: string; subtitle?: string; storageKey: string; headerRight?: React.ReactNode; children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(true);
+  useEffect(() => {
+    try { if (localStorage.getItem('dash_sec_' + storageKey) === '0') setOpen(false); } catch { /* noop */ }
+  }, [storageKey]);
+  const toggle = () => setOpen((o) => {
+    const n = !o;
+    try { localStorage.setItem('dash_sec_' + storageKey, n ? '1' : '0'); } catch { /* noop */ }
+    return n;
+  });
+  return (
+    <div style={{ marginBottom: 36 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'space-between', marginBottom: open ? 16 : 0, flexWrap: 'wrap' }}>
+        <button
+          onClick={toggle}
+          aria-expanded={open}
+          style={{ display: 'flex', alignItems: 'center', gap: 9, background: 'none', border: 'none', padding: 0, margin: 0, cursor: 'pointer', fontFamily: 'inherit', color: 'inherit', minWidth: 0 }}
+        >
+          <Chevron open={open} />
+          <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700, whiteSpace: 'nowrap' }}>{title}</h2>
+          {subtitle && open && <span style={{ fontSize: 12, color: 'var(--c-tx6)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{subtitle}</span>}
+        </button>
+        {open && headerRight}
+      </div>
+      {open && children}
+    </div>
+  );
+}
+
 function MacroCard({ title, rows, source, onRow }: { title: string; rows: { label: string; val: string; chg: number }[]; source: string; onRow?: (label: string) => void }) {
   return (
     <div style={{ ...CARD, padding: 24 }}>
@@ -448,17 +492,17 @@ function SectorFlowCard() {
   );
 
   return (
-    <div style={{ marginBottom: 36 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap' }}>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
-          <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>업종 흐름</h2>
-          <span style={{ fontSize: 12, color: 'var(--c-tx6)' }}>1개월 추세순 · 오늘·1주·1개월 등락</span>
-        </div>
+    <CollapsibleSection
+      title="업종 흐름"
+      subtitle="1개월 추세순 · 오늘·1주·1개월 등락"
+      storageKey="sector"
+      headerRight={
         <div style={{ display: 'flex', gap: 2, padding: 2, background: 'var(--c-w04)', borderRadius: 9 }}>
           {toggle('kr', '국내')}
           {toggle('us', '해외')}
         </div>
-      </div>
+      }
+    >
       <div style={{ ...CARD, padding: 22 }}>
         {rows === null && <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '14px 2px', fontSize: 13, color: 'var(--c-tx6)' }}><InlineSpinner size={13} />불러오는 중…</div>}
         {rows !== null && rows.length === 0 && <div style={{ padding: '14px 2px', fontSize: 13, color: 'var(--c-tx6)' }}>데이터 준비 중입니다.</div>}
@@ -504,7 +548,7 @@ function SectorFlowCard() {
         <SourceNote text="상태 = 1개월 추세 × 단기 방향 · 반등중=하락추세인데 단기 상승 · 꺾이는중=상승추세인데 단기 하락 · 대표 ETF 종가(Yahoo) · 1개월순" style={{ marginTop: 14 }} />
       </div>
       {sel && <SectorModal market={market} name={sel} onClose={() => setSel(null)} />}
-    </div>
+    </CollapsibleSection>
   );
 }
 
@@ -693,9 +737,8 @@ export function Dashboard() {
       {/* ⑤-2 업종 흐름 — 어떤 섹터가 며칠째 움직이는지(대표 ETF 종가 기준) */}
       <SectorFlowCard />
 
-      {/* ⑥ 환율·지수(+넓은 화면에선 광고 카드 3열) — 광고를 별도 줄이 아닌 카드 문법 안에 */}
-      <div style={{ marginBottom: 36 }}>
-        <h2 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 700 }}>오늘의 매크로 브리핑</h2>
+      {/* ⑥ 환율·지수(+넓은 화면에선 광고 카드 3열) — 접이식(참고 섹션) */}
+      <CollapsibleSection title="오늘의 매크로 브리핑" storageKey="macro">
         <div style={{ display: 'grid', gridTemplateColumns: vw >= 1024 ? '1fr 1fr 1fr' : layout.macroCols2, gap: 16 }}>
           <MacroCard title="환율 · FX" rows={macro.fx.map((r) => ({ label: r.pair, val: r.val, chg: r.chg }))} source={SRC.fx} />
           <MacroCard
@@ -706,7 +749,7 @@ export function Dashboard() {
           />
           {vw >= 1024 && <AdSlot variant="card" />}
         </div>
-      </div>
+      </CollapsibleSection>
 
       {/* ⑦ 자산군별 한 줄 (데일리 흡수 — 기존 '자산군 현황' 등락폭 카드 대체) */}
       {brief && brief.byAsset.length > 0 && (
@@ -727,10 +770,9 @@ export function Dashboard() {
         </div>
       )}
 
-      {/* ⑦-b 체크포인트 (데일리 흡수) */}
+      {/* ⑦-b 체크포인트 (데일리 흡수) — 접이식 */}
       {brief && brief.checkpoints.length > 0 && (
-        <div style={{ marginBottom: 36 }}>
-          <h2 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 700 }}>체크포인트</h2>
+        <CollapsibleSection title="체크포인트" storageKey="checkpoint">
           <div style={{ ...CARD, padding: '6px 24px' }}>
             {brief.checkpoints.map((c, i) => {
               const g = glossDef(c.name);
@@ -747,13 +789,14 @@ export function Dashboard() {
             })}
           </div>
           <SourceNote text={SRC.calendar} style={{ marginTop: 12 }} />
-        </div>
+        </CollapsibleSection>
       )}
 
-      {/* ⑧ 주요 일정 */}
-      <div style={{ marginBottom: 36 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
-          <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700, whiteSpace: 'nowrap' }}>주요 일정</h2>
+      {/* ⑧ 주요 일정 — 접이식(참고·무거움) */}
+      <CollapsibleSection
+        title="주요 일정"
+        storageKey="calendar"
+        headerRight={
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
             {/* 분류 필터(복수 선택) — 색 점이 있어 범례 역할도 겸한다 */}
             <div style={{ display: 'flex', gap: 6 }}>
@@ -812,8 +855,8 @@ export function Dashboard() {
               <button onClick={() => actions.setEventView('calendar')} style={segBtn(state.eventView === 'calendar')}>달력</button>
             </div>
           </div>
-        </div>
-
+        }
+      >
         {state.eventView === 'list' ? (
           <div style={{ ...CARD, padding: '6px 24px' }}>
             {listEvents.length === 0 && (
@@ -922,7 +965,7 @@ export function Dashboard() {
           </div>
         )}
         <SourceNote text={SRC.calendar} style={{ marginTop: 12 }} />
-      </div>
+      </CollapsibleSection>
 
       {/* 지수 상세 모달(차트 + 코스피·코스닥 투자자별 매매동향) */}
       {selIndex && <IndexModal name={selIndex} onClose={() => setSelIndex(null)} />}
