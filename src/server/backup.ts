@@ -12,6 +12,7 @@ const TABLES = [
   'app_users', 'portfolios',
   'mock_accounts', 'mock_holdings', 'mock_orders', 'mock_trades', 'mock_season_records', 'mock_snapshots',
   'report_history', 'user_alerts', 'push_subs',
+  'saved_strategies',
   'factor_snapshots',
 ];
 const KEEP_DAYS = 30;

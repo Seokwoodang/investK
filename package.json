@@ -1,7 +1,7 @@
 {
   "name": "parameta-invest-dashboard",
   "private": true,
-  "version": "0.19.5",
+  "version": "0.20.0",
   "scripts": {
     "dev": "next dev",
     "build": "next build",

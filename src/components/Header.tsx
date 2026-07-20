@@ -20,7 +20,7 @@ const NAV: { href: string; label: string }[] = [
 const NAV_GROUPS: { title: string; items: { href: string; label: string }[] }[] = [
   { title: '시장', items: [{ href: '/', label: '대시보드' }, { href: '/news', label: '뉴스' }] },
   { title: '종목 찾기', items: [{ href: '/stocks', label: '종목' }, { href: '/value', label: '저평가 우량주' }] },
-  { title: '실험실', items: [{ href: '/mock', label: '모의투자' }, { href: '/backtest', label: '백테스트' }] },
+  { title: '실험실', items: [{ href: '/mock', label: '모의투자' }, { href: '/backtest', label: '백테스트' }, { href: '/race', label: '시총 레이스' }] },
   { title: '내 투자', items: [{ href: '/portfolio', label: '내 자산' }, { href: '/report', label: 'AI 보고서' }] },
 ];
 
@@ -161,6 +161,7 @@ export function Header({ authed = true, isAdmin = false, user = null }: { authed
     pathname === '/' ? '/'
       : pathname.startsWith('/instrument') || pathname.startsWith('/value') ? '/stocks'
       : pathname.startsWith('/report') ? '/portfolio'
+      : pathname.startsWith('/race') ? '/backtest'
       : '/' + (pathname.split('/')[1] || '');
   const gq = state.gQuery.trim().toLowerCase();
 

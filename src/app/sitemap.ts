@@ -10,6 +10,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { path: '/stocks', priority: 0.7, freq: 'daily' },
     { path: '/value', priority: 0.7, freq: 'daily' },
     { path: '/backtest', priority: 0.6, freq: 'weekly' },
+    { path: '/race', priority: 0.6, freq: 'monthly' },
   ];
   return routes.map((r) => ({
     url: `${SITE_URL}${r.path}`,

@@ -1,9 +1,10 @@
 'use client';
 
-import { useMemo, useState, useRef, useEffect } from 'react';
+import { useMemo, useState, useRef, useEffect, useCallback } from 'react';
 import { UpdateNote, SourceNote } from '../SourceNote';
 import { InlineSpinner } from '../Footer';
 import { Popover } from '../GlossaryTip';
+import { SubNav } from '../SubNav';
 
 // 가격 기반 백테스트 화면(1단계). 저장된 국내주식 종가(kr_prices)로 모멘텀·이평추세·로우볼 전략을
 // 유니버스 동일비중 매수후보유(벤치마크)와 비교한다. look-ahead 없음 · 종가체결 · 거래비용 반영.
@@ -11,6 +12,13 @@ import { Popover } from '../GlossaryTip';
 const CARD: React.CSSProperties = {
   background: 'var(--c-w04)', border: '1px solid var(--c-w08)',
   borderRadius: 20, backdropFilter: 'blur(18px)', WebkitBackdropFilter: 'blur(18px)',
+};
+
+// 보조 버튼(저장/공유/불러오기 등) 공통 스타일.
+const subBtn: React.CSSProperties = {
+  cursor: 'pointer', fontFamily: 'inherit', fontWeight: 700, fontSize: 13, whiteSpace: 'nowrap',
+  padding: '10px 14px', borderRadius: 10, border: '1px solid var(--c-w10)', background: 'var(--c-w05)',
+  color: 'var(--c-tx3)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, flex: 1,
 };
 
 type StrategyId = 'momentum' | 'ma_trend' | 'low_vol' | 'buy_hold';
@@ -263,6 +271,15 @@ const paramLabel = (text: string) => (
   <span style={labelStyle}><HintLabel text={text} hint={PARAM_HINTS[text]} style={{ fontSize: 11, color: 'var(--c-tx5)', fontWeight: 600 }} /></span>
 );
 
+// 저장/공유용 config 스냅샷 — /api/strategies 와 동일 형태.
+interface StoredConfig { strategy: StrategyId; topN: number; lookbackDays: number; maWindow: number; rebalance: 'M' | 'Q'; costBps: number; years: number }
+interface Forward { days: number; ret: number | null; benchRet: number | null }
+interface SavedStrategy { id: string; name: string; config: StoredConfig; savedAt: string; forward: Forward | null }
+
+const clampNum = (v: string | null, lo: number, hi: number, dflt: number) => {
+  const n = Number(v); return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : dflt;
+};
+
 export function Backtest() {
   const [strategy, setStrategy] = useState<StrategyId>('momentum');
   const [topN, setTopN] = useState(20);
@@ -277,14 +294,38 @@ export function Backtest() {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
+  // 저장·공유
+  const [saved, setSaved] = useState<SavedStrategy[] | null>(null); // null=로딩중
+  const [savedAuthed, setSavedAuthed] = useState(true);             // false=비로그인
+  const [saving, setSaving] = useState(false);
+  const [saveMsg, setSaveMsg] = useState<string | null>(null);
+  const [copied, setCopied] = useState<string | null>(null);        // 방금 복사한 항목 키
+
   const meta = STRATS.find((s) => s.id === strategy)!;
 
-  const run = async () => {
+  const currentConfig = useCallback((): StoredConfig => ({ strategy, topN, lookbackDays, maWindow, rebalance, costBps, years }), [strategy, topN, lookbackDays, maWindow, rebalance, costBps, years]);
+  const applyConfig = useCallback((c: StoredConfig) => {
+    setStrategy(c.strategy); setTopN(c.topN); setLookbackDays(c.lookbackDays);
+    setMaWindow(c.maWindow); setRebalance(c.rebalance); setCostBps(c.costBps); setYears(c.years);
+  }, []);
+
+  // 공유 URL — config를 쿼리 파라미터로 인라인 인코딩(DB 의존 없이 링크가 영구히 동작).
+  const shareUrl = useCallback((c: StoredConfig) => {
+    const p = new URLSearchParams({
+      strategy: c.strategy, topN: String(c.topN), lookback: String(c.lookbackDays),
+      ma: String(c.maWindow), reb: c.rebalance, cost: String(c.costBps), years: String(c.years),
+    });
+    return `${window.location.origin}/backtest?${p.toString()}`;
+  }, []);
+
+  const run = useCallback(async (override?: StoredConfig) => {
+    const c = override ?? { strategy, topN, lookbackDays, maWindow, rebalance, costBps, years };
     setLoading(true); setErr(null);
     const now = new Date();
-    const from = new Date(now); from.setFullYear(now.getFullYear() - years);
+    const from = new Date(now); from.setFullYear(now.getFullYear() - c.years);
     const body = {
-      strategy, topN, lookbackDays, maWindow, rebalance, costBps, startCapital, universeN: 200,
+      strategy: c.strategy, topN: c.topN, lookbackDays: c.lookbackDays, maWindow: c.maWindow,
+      rebalance: c.rebalance, costBps: c.costBps, startCapital, universeN: 200,
       from: from.toISOString().slice(0, 10), to: now.toISOString().slice(0, 10),
     };
     try {
@@ -296,12 +337,71 @@ export function Backtest() {
       else setResult(j as Result);
     } catch { setErr('네트워크 오류가 발생했어요. 연결 확인 후 다시 시도해 주세요.'); }
     finally { setLoading(false); }
-  };
+  }, [strategy, topN, lookbackDays, maWindow, rebalance, costBps, years, startCapital]);
+
+  const loadSaved = useCallback(async () => {
+    try {
+      const r = await fetch('/api/strategies');
+      if (r.status === 401) { setSavedAuthed(false); setSaved([]); return; }
+      const j = await r.json().catch(() => ({ strategies: [] }));
+      setSavedAuthed(true); setSaved(Array.isArray(j.strategies) ? j.strategies : []);
+    } catch { setSaved([]); }
+  }, []);
+
+  const saveCurrent = useCallback(async () => {
+    const dflt = `${meta.label} · ${topN}종목 · ${rebalance === 'Q' ? '분기' : '월'}리밸 · ${years}년`;
+    const name = window.prompt('전략 이름', dflt);
+    if (name == null) return;
+    setSaving(true); setSaveMsg(null);
+    try {
+      const r = await fetch('/api/strategies', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name, config: currentConfig() }) });
+      if (r.status === 401) { window.location.href = `/login?next=${encodeURIComponent('/backtest')}`; return; }
+      const j = await r.json().catch(() => null);
+      if (!r.ok) setSaveMsg(j?.error ?? '저장에 실패했어요.');
+      else { setSaveMsg('저장했어요.'); loadSaved(); }
+    } catch { setSaveMsg('네트워크 오류가 발생했어요.'); }
+    finally { setSaving(false); }
+  }, [meta.label, topN, rebalance, years, currentConfig, loadSaved]);
+
+  const deleteSaved = useCallback(async (id: string) => {
+    if (!window.confirm('이 전략을 삭제할까요?')) return;
+    try { await fetch(`/api/strategies?id=${id}`, { method: 'DELETE' }); loadSaved(); } catch { /* noop */ }
+  }, [loadSaved]);
+
+  const copyShare = useCallback(async (c: StoredConfig, key: string) => {
+    try {
+      await navigator.clipboard.writeText(shareUrl(c));
+      setCopied(key); setTimeout(() => setCopied((k) => (k === key ? null : k)), 1800);
+    } catch { setSaveMsg('링크 복사에 실패했어요(브라우저 권한 확인).'); }
+  }, [shareUrl]);
+
+  // 최초: 공유 링크(?strategy=...)면 설정 반영 후 자동 실행 + 내 저장 목록 로드.
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    if (q.has('strategy') || q.has('topN')) {
+      const ids: StrategyId[] = ['momentum', 'ma_trend', 'low_vol', 'buy_hold'];
+      const s = q.get('strategy') as StrategyId;
+      const c: StoredConfig = {
+        strategy: ids.includes(s) ? s : 'momentum',
+        topN: clampNum(q.get('topN'), 1, 50, 20),
+        lookbackDays: clampNum(q.get('lookback'), 20, 500, 120),
+        maWindow: clampNum(q.get('ma'), 20, 300, 120),
+        rebalance: q.get('reb') === 'M' ? 'M' : 'Q',
+        costBps: clampNum(q.get('cost'), 0, 100, 20),
+        years: clampNum(q.get('years'), 1, 15, 10),
+      };
+      applyConfig(c);
+      run(c);
+    }
+    loadSaved();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const lastReb = result?.rebalances?.[result.rebalances.length - 1];
 
   return (
     <div>
+      <SubNav items={[{ href: '/backtest', label: '백테스트' }, { href: '/race', label: '시총 레이스' }]} />
       <div style={{ marginBottom: 24 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           <h1 style={{ margin: 0, fontSize: 28, fontWeight: 800, letterSpacing: '-0.02em' }}>백테스트</h1>
@@ -362,7 +462,7 @@ export function Backtest() {
             </select></label>
         </div>
 
-        <button onClick={run} disabled={loading} style={{
+        <button onClick={() => run()} disabled={loading} style={{
           marginTop: 18, width: '100%', cursor: loading ? 'default' : 'pointer', fontFamily: 'inherit',
           background: loading ? 'var(--c-w08)' : 'var(--c-accyan)', color: loading ? 'var(--c-tx5)' : '#04121a',
           border: 'none', borderRadius: 12, padding: '13px 0', fontSize: 15, fontWeight: 800,
@@ -370,8 +470,28 @@ export function Backtest() {
         }}>
           {loading ? <><InlineSpinner size={14} />백테스트 실행 중…</> : '백테스트 실행'}
         </button>
+
+        {/* 현재 설정 저장 / 공유 */}
+        <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+          <button onClick={saveCurrent} disabled={saving} style={subBtn}>
+            {saving ? <><InlineSpinner size={12} />저장 중…</> : '★ 현재 설정 저장'}
+          </button>
+          <button onClick={() => copyShare(currentConfig(), 'current')} style={subBtn}>
+            {copied === 'current' ? '✓ 링크 복사됨' : '🔗 공유 링크 복사'}
+          </button>
+        </div>
+        {saveMsg && <div style={{ marginTop: 8, fontSize: 12.5, color: 'var(--c-tx4)' }}>{saveMsg}</div>}
         {err && <div style={{ marginTop: 12, fontSize: 13, color: 'var(--c-down)', lineHeight: 1.5 }}>⚠ {err}</div>}
       </div>
+
+      <SavedStrategies
+        saved={saved}
+        authed={savedAuthed}
+        copied={copied}
+        onLoad={(c) => { applyConfig(c); run(c); if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+        onShare={(c, key) => copyShare(c, key)}
+        onDelete={deleteSaved}
+      />
 
       {/* 결과 */}
       {result && (
@@ -466,6 +586,97 @@ export function Backtest() {
       )}
 
       <SourceNote text="국내주식 일별 종가·시가총액·상장주식수 — 한국거래소(KRX) 공식 OpenAPI · 저장소(kr_prices·pit_universe)에서 조회 · 매일 장마감 후 갱신" style={{ marginTop: 20 }} />
+    </div>
+  );
+}
+
+// 저장한 전략 목록 + "저장 후 포워드 성과". 공개 랭킹 없이 내 계정 안에서만.
+// 포워드 성과 = 저장 시점 이후 성과(과최적화 방지) — 저장 후 잘 굴러갔는지가 진짜 검증.
+function cfgChips(c: StoredConfig): string[] {
+  const s = STRATS.find((x) => x.id === c.strategy);
+  const chips = [s?.label ?? c.strategy];
+  if (s?.uses.includes('topN')) chips.push(`${c.topN}종목`);
+  chips.push(c.rebalance === 'Q' ? '분기리밸' : '월리밸');
+  if (s?.uses.includes('lookback')) chips.push(`룩백 ${c.lookbackDays}d`);
+  if (s?.uses.includes('ma')) chips.push(`이평 ${c.maWindow}d`);
+  chips.push(`비용 ${c.costBps}bps`, `${c.years}년`);
+  return chips;
+}
+
+function SavedStrategies({
+  saved, authed, copied, onLoad, onShare, onDelete,
+}: {
+  saved: SavedStrategy[] | null; authed: boolean; copied: string | null;
+  onLoad: (c: StoredConfig) => void; onShare: (c: StoredConfig, key: string) => void; onDelete: (id: string) => void;
+}) {
+  const heading = (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+      <h2 style={{ margin: 0, fontSize: 17, fontWeight: 800 }}>내 저장 전략</h2>
+      {saved && saved.length > 0 && <span style={{ fontSize: 12, color: 'var(--c-tx6)' }}>{saved.length}개</span>}
+    </div>
+  );
+
+  let body: React.ReactNode;
+  if (!authed) {
+    body = (
+      <div style={{ fontSize: 13, color: 'var(--c-tx4)', lineHeight: 1.6 }}>
+        로그인하면 백테스트 설정을 저장하고, 링크로 공유하고, <b>저장 후 성과</b>를 추적할 수 있어요.{' '}
+        <a href="/login?next=/backtest" style={{ color: 'var(--c-accyanbr)', fontWeight: 700 }}>로그인 →</a>
+      </div>
+    );
+  } else if (saved === null) {
+    body = <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--c-tx5)', fontSize: 13 }}><InlineSpinner size={13} /> 불러오는 중…</div>;
+  } else if (saved.length === 0) {
+    body = <div style={{ fontSize: 13, color: 'var(--c-tx5)' }}>아직 저장한 전략이 없어요. 위에서 설정을 고른 뒤 <b>★ 현재 설정 저장</b>을 눌러보세요.</div>;
+  } else {
+    body = (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {saved.map((s) => {
+          const f = s.forward;
+          const hasFwd = f && f.ret != null && f.benchRet != null;
+          const alpha = hasFwd ? (f!.ret! - f!.benchRet!) : 0;
+          return (
+            <div key={s.id} style={{ ...FLAT_CARD, padding: 14 }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
+                <div style={{ fontSize: 14.5, fontWeight: 800, color: 'var(--c-tx1b)' }}>{s.name}</div>
+                <div style={{ fontSize: 11, color: 'var(--c-tx6)' }}>{s.savedAt} 저장</div>
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: 8 }}>
+                {cfgChips(s.config).map((c, i) => (
+                  <span key={i} style={{ fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 6, background: 'var(--c-w05)', color: 'var(--c-tx4)' }}>{c}</span>
+                ))}
+              </div>
+              {/* 저장 후 포워드 성과 */}
+              <div style={{ marginTop: 10, fontSize: 12.5, color: 'var(--c-tx4)' }}>
+                {hasFwd ? (
+                  <>
+                    저장 후 <b style={{ color: 'var(--c-tx2)' }}>{f!.days}거래일</b> · 전략{' '}
+                    <b style={{ color: upc(f!.ret!) }}>{pct(f!.ret!)}</b> vs 시장 <b style={{ color: upc(f!.benchRet!) }}>{pct(f!.benchRet!)}</b>{' '}
+                    <span style={{ fontWeight: 700, color: upc(alpha) }}>({alpha >= 0 ? '+' : ''}{(alpha * 100).toFixed(1)}%p)</span>
+                  </>
+                ) : (
+                  <span style={{ color: 'var(--c-tx6)' }}>저장 후 성과 — 집계 전(경과 기간이 짧습니다)</span>
+                )}
+              </div>
+              <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                <button onClick={() => onLoad(s.config)} style={{ ...subBtn, flex: '0 0 auto' }}>불러오기 ↑</button>
+                <button onClick={() => onShare(s.config, s.id)} style={{ ...subBtn, flex: '0 0 auto' }}>{copied === s.id ? '✓ 복사됨' : '🔗 공유'}</button>
+                <button onClick={() => onDelete(s.id)} style={{ ...subBtn, flex: '0 0 auto', color: 'var(--c-tx6)' }}>삭제</button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ ...CARD, padding: 22, marginBottom: 16 }}>
+      {heading}
+      <p style={{ margin: '2px 0 14px', fontSize: 12.5, color: 'var(--c-tx6)', lineHeight: 1.5 }}>
+        저장 시점 이후의 성과를 함께 보여줍니다 — 백테스트를 잘 맞추는 것보다 <b>저장 후에도 통하는지</b>가 진짜 검증(과최적화 방지).
+      </p>
+      {body}
     </div>
   );
 }

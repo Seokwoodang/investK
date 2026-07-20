@@ -43,4 +43,16 @@ export function getSupabase(): SupabaseClient | null {
     updated_at  timestamptz not null default now()
   );
   alter table portfolios enable row level security;
+
+  -- 백테스트 전략 저장(계정별). 공유는 클라이언트에서 config를 URL 쿼리로 인라인 인코딩(DB 무관).
+  -- saved_at = 저장 시점(포워드 성과 기준일). 서버(service-role)만 접근.
+  create table if not exists saved_strategies (
+    id          uuid primary key default gen_random_uuid(),
+    username    text not null references app_users(username) on delete cascade,
+    name        text not null,
+    config      jsonb not null,
+    saved_at    date not null,
+    created_at  timestamptz not null default now()
+  );
+  alter table saved_strategies enable row level security;
 */
