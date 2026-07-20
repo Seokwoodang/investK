@@ -215,7 +215,7 @@ export function Stocks() {
       )}
 
       {/* Header row — 리스트 박스의 상단부(테두리·상단 라운드 포함). 아래 리스트와 한 박스를 이룬다. */}
-      <div style={{ display: 'grid', gridTemplateColumns: layout.rowCols, alignItems: 'center', gap: 12, padding: '14px 18px 12px', background: 'var(--c-w025)', border: '1px solid var(--c-w06)', borderBottom: '1px solid var(--c-w08)', borderRadius: '18px 18px 0 0' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: layout.rowCols, alignItems: 'center', gap: layout.rowGap, padding: layout.rowGap === 8 ? '13px 13px 11px' : '14px 18px 12px', background: 'var(--c-w025)', border: '1px solid var(--c-w06)', borderBottom: '1px solid var(--c-w08)', borderRadius: '18px 18px 0 0' }}>
         <span />
         <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--c-tx6)' }}>종목</span>
         {layout.showVol && (
@@ -243,7 +243,7 @@ export function Stocks() {
             key={s.id}
             className="stock-row"
             onClick={() => actions.openStock(s.id, activeTab)}
-            style={{ display: 'grid', gridTemplateColumns: layout.rowCols, alignItems: 'center', gap: 12, padding: '16px 18px', borderBottom: '1px solid var(--c-w05)', cursor: 'pointer' }}
+            style={{ display: 'grid', gridTemplateColumns: layout.rowCols, alignItems: 'center', gap: layout.rowGap, padding: layout.rowGap === 8 ? '13px 13px' : '16px 18px', borderBottom: '1px solid var(--c-w05)', cursor: 'pointer' }}
           >
             <Tip
               title={s.starred ? '관심 종목 (등록됨)' : '관심 종목'}
@@ -253,15 +253,15 @@ export function Stocks() {
               <button
                 onClick={(e) => { e.stopPropagation(); actions.toggleWatch(s.id); }}
                 aria-label={s.starred ? '관심 종목 해제' : '관심 종목 등록'}
-                style={{ cursor: 'pointer', background: 'none', border: 'none', padding: 0, fontSize: 18, lineHeight: 1, color: s.starred ? 'var(--c-accyan)' : 'var(--c-txph)', fontFamily: 'inherit' }}
+                style={{ cursor: 'pointer', background: 'none', border: 'none', padding: 0, fontSize: layout.rowFont.star, lineHeight: 1, color: s.starred ? 'var(--c-accyan)' : 'var(--c-txph)', fontFamily: 'inherit' }}
               >
                 {s.starred ? '★' : '☆'}
               </button>
             </Tip>
             <div style={{ minWidth: 0, display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
               {/* 긴 종목명(레버리지 ETF 등)이 셀을 뚫고 가격 위로 겹치지 않게 말줄임 처리 */}
-              <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--c-tx1b)', whiteSpace: 'nowrap', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.name}</span>
-              <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--c-tx6)', whiteSpace: 'nowrap' }}>{s.ticker}</span>
+              <span style={{ fontSize: layout.rowFont.name, fontWeight: 700, color: 'var(--c-tx1b)', whiteSpace: 'nowrap', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.name}</span>
+              <span style={{ fontSize: layout.rowFont.ticker, fontWeight: 600, color: 'var(--c-tx6)', whiteSpace: 'nowrap' }}>{s.ticker}</span>
             </div>
             {layout.showVol && (
               <span style={{ textAlign: 'right' }}>
@@ -269,8 +269,8 @@ export function Stocks() {
                 {s.sharesText && <span style={{ display: 'block', fontSize: 11, color: 'var(--c-tx6)', marginTop: 2 }}>{s.sharesText}</span>}
               </span>
             )}
-            <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--c-tx1)', textAlign: 'right' }}>{s.priceText}</span>
-            <span style={{ fontSize: 14, fontWeight: 700, textAlign: 'right', color: s.pctColor }}>{s.pctText}</span>
+            <span style={{ fontSize: layout.rowFont.price, fontWeight: 700, color: 'var(--c-tx1)', textAlign: 'right' }}>{s.priceText}</span>
+            <span style={{ fontSize: layout.rowFont.pct, fontWeight: 700, textAlign: 'right', color: s.pctColor }}>{s.pctText}</span>
             {layout.showRisk && (
               <div className="risk-cell" style={{ justifySelf: 'end', position: 'relative', textAlign: 'right', whiteSpace: 'nowrap' }}>
                 <div style={{ fontSize: 16, fontWeight: 800, lineHeight: 1, color: s.riskColor }}>{s.riskScore}</div>
