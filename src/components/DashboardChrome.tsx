@@ -56,7 +56,8 @@ export function DashboardChrome({ data, children, authed = true, isAdmin = false
         <AuthedCtx.Provider value={authed}>
         <AdminCtx.Provider value={isAdmin}>
         <LayoutCtx.Provider value={{ vw, layout }}>
-          <div style={{ position: 'relative', minHeight: '100vh', overflowX: 'hidden' }}>
+          {/* overflow-x: clip = 가로 넘침은 자르되 스크롤 컨테이너를 만들지 않음(hidden과 달리) → 헤더 position:sticky가 정상 작동. */}
+          <div style={{ position: 'relative', minHeight: '100vh', overflowX: 'clip' }}>
             <div style={{ position: 'fixed', top: -220, left: -160, width: 560, height: 560, borderRadius: '50%', background: 'radial-gradient(circle, var(--c-cy14), transparent 62%)', filter: 'blur(40px)', pointerEvents: 'none', zIndex: 0 }} />
             <div style={{ position: 'fixed', top: 140, right: -220, width: 620, height: 620, borderRadius: '50%', background: 'radial-gradient(circle, var(--c-bl12), transparent 62%)', filter: 'blur(40px)', pointerEvents: 'none', zIndex: 0 }} />
 
