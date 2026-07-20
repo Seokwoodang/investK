@@ -34,18 +34,20 @@ export function EventModal() {
       style={{
         position: 'fixed', inset: 0, zIndex: 50, background: 'var(--c-overlay)',
         backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)',
-        display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '80px 24px',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 'clamp(12px, 4vw, 24px)',
+        overflow: 'hidden',
       }}
     >
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
-          width: '100%', maxWidth: 560, background: 'var(--c-panel97)',
+          width: '100%', maxWidth: 560, maxHeight: 'min(88dvh, 760px)', background: 'var(--c-panel97)',
           border: '1px solid var(--c-w10)', borderRadius: 24,
           boxShadow: '0 24px 80px var(--c-shadow)', overflow: 'hidden',
+          display: 'flex', flexDirection: 'column',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '22px 26px', borderBottom: '1px solid var(--c-w08)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px clamp(16px, 4vw, 26px)', borderBottom: '1px solid var(--c-w08)', flexShrink: 0 }}>
           <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: 'var(--c-tx1)', whiteSpace: 'nowrap' }}>{title} 일정</h3>
           <button
             onClick={actions.closeEventModal}
@@ -54,7 +56,7 @@ export function EventModal() {
             ×
           </button>
         </div>
-        <div style={{ maxHeight: '62vh', overflowY: 'auto', padding: '6px 26px 18px' }}>
+        <div style={{ flex: 1, overflowY: 'auto', minHeight: 0, padding: '6px clamp(16px, 4vw, 26px) 18px' }}>
           {events.map((e, i) => {
             const g = glossDef(e.name);
             return (

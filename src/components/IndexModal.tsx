@@ -70,19 +70,20 @@ export function IndexModal({ name, onClose }: { name: string; onClose: () => voi
       style={{
         position: 'fixed', inset: 0, zIndex: 50, background: 'var(--c-overlay)',
         backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)',
-        display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '64px 24px',
-        overflowY: 'auto',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 'clamp(12px, 4vw, 24px)',
+        overflow: 'hidden', // 모달이 화면 높이에 갇히므로 바깥(오버레이) 스크롤 없음
       }}
     >
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
-          width: '100%', maxWidth: 720, background: 'var(--c-panel97)',
+          width: '100%', maxWidth: 720, maxHeight: 'min(92dvh, 860px)', background: 'var(--c-panel97)',
           border: '1px solid var(--c-w10)', borderRadius: 24,
           boxShadow: '0 24px 80px var(--c-shadow)', overflow: 'hidden',
+          display: 'flex', flexDirection: 'column', // 헤더 고정 + 본문 내부 스크롤
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '22px 26px', borderBottom: '1px solid var(--c-w08)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '20px clamp(16px, 4vw, 26px)', borderBottom: '1px solid var(--c-w08)', flexShrink: 0 }}>
           <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: 'var(--c-tx1)', whiteSpace: 'nowrap' }}>{name}</h3>
           {last && (
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
@@ -100,7 +101,7 @@ export function IndexModal({ name, onClose }: { name: string; onClose: () => voi
           </button>
         </div>
 
-        <div style={{ padding: '18px 26px 22px' }}>
+        <div style={{ padding: '18px clamp(16px, 4vw, 26px) 22px', flex: 1, overflowY: 'auto', minHeight: 0 }}>
           {/* 기간 토글 */}
           <div style={{ display: 'flex', gap: 4, padding: 4, background: 'var(--c-w04)', border: '1px solid var(--c-w07)', borderRadius: 11, width: 'fit-content', marginBottom: 14 }}>
             {RANGE_LABEL.map(({ r, label }) => (
