@@ -359,8 +359,17 @@ export function Portfolio() {
           <div style={{ ...CARD, padding: '6px 18px', marginBottom: 16 }}>
             {[...rows].sort((a, b) => b.valueKrw - a.valueKrw).map((r) => (
               <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '13px 0', borderBottom: '1px solid var(--c-w05)', flexWrap: 'wrap' }}>
-                <div style={{ flex: '2 1 160px', minWidth: 140 }}>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--c-tx1)' }}>{r.name} {!r.matched && <span style={{ fontSize: 10, color: 'var(--c-warn)' }}>· 수동</span>}</div>
+                {/* 종목명 클릭 → 상세 이동(매도 점검 행과 동일 경로). ×삭제 버튼과 분리해 이름 영역만 클릭 대상. */}
+                <div
+                  className="event-row"
+                  onClick={() => actions.openStock(r.id, r.tab)}
+                  title={`${r.name} 상세 보기`}
+                  style={{ flex: '2 1 160px', minWidth: 140, cursor: 'pointer', borderRadius: 8, padding: '4px 8px', margin: '-4px -8px' }}
+                >
+                  <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--c-tx1)' }}>
+                    {r.name} <span style={{ fontSize: 11, color: 'var(--c-tx6)' }}>›</span>
+                    {!r.matched && <span style={{ fontSize: 10, color: 'var(--c-warn)' }}> · 수동</span>}
+                  </div>
                   <div style={{ fontSize: 11, color: 'var(--c-tx6)' }}>{r.group} · {r.qty}주 · 평단 {fmtPrice(r.avg, r.cur)}</div>
                 </div>
                 {/* 라벨 없이 숫자만 있으면 현재가·비중을 구분 못 함(특히 비중 %는 수익률로 오해) → 각 값에 라벨 */}
