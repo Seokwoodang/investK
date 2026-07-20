@@ -10,6 +10,7 @@ import { CandleChart } from '../CandleChart';
 import { fetchOlderCandles } from '../../lib/candleHistory';
 import { InlineSpinner } from '../Footer';
 import { AssetLineChart, AllocationDonut } from '../MockCharts';
+import { useViewportLayout } from '../DashboardChrome';
 
 // 모의투자 (HTS 스타일) — 가운데 큰 차트 + 종목 전환 + 오른쪽 주문창.
 // 씨드 1,000만원(원화). 국내주식·국내코인 실시간 매매 + 총자산 랭킹.
@@ -57,6 +58,8 @@ const PERIOD_LABEL: Record<Period, string> = { '1분': '1분', '5분': '5분', '
 
 export function MockTrade() {
   const { data, state, universeReady } = useDashboard();
+  const { vw } = useViewportLayout();
+  const narrow = vw < 840; // 이 폭 미만에선 차트+주문창이 나란히 안 들어가 wrap되며 주문창이 폭을 안 채움 → 세로로 쌓고 각각 100%
   const rt = useRealtime(); // 실시간 시세(틱) — 접속 중 지정가 즉시 체결·현재가 표시
   const subStocks = useSubscribeStocks();
   const subCoins = useSubscribeCoins();
@@ -305,7 +308,7 @@ export function MockTrade() {
       {/* ── 트레이딩 터미널: 차트 + 주문창 ── */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, alignItems: 'stretch' }}>
         {/* 차트 */}
-        <div style={{ ...CARD, padding: '16px 18px', flex: '1 1 460px', minWidth: 300, position: 'relative' }}>
+        <div style={{ ...CARD, padding: '16px 18px', flex: narrow ? '1 1 100%' : '1 1 460px', minWidth: 0, position: 'relative' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>
             <div>
               <button onClick={() => { setPickerOpen((v) => !v); setPickerTab(sel?.tab ?? 'kr_stock'); }}
@@ -378,7 +381,7 @@ export function MockTrade() {
         </div>
 
         {/* 주문창 */}
-        <div style={{ ...CARD, padding: '16px 18px', flex: '0 1 300px', minWidth: 260, display: 'flex', flexDirection: 'column' }}>
+        <div style={{ ...CARD, padding: '16px 18px', flex: narrow ? '1 1 100%' : '0 1 300px', minWidth: 0, display: 'flex', flexDirection: 'column' }}>
           <h2 style={{ fontSize: 15, fontWeight: 800, color: 'var(--c-tx1c)', margin: '0 0 12px' }}>주문</h2>
           <div style={{ fontSize: 12, color: 'var(--c-tx6)', marginBottom: 2 }}>{sel?.name ?? '—'} · 현재가</div>
           <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--c-tx1c)', marginBottom: 12 }}>{curPrice > 0 ? fmtPrice(curPrice, '₩') : '—'}</div>
