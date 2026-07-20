@@ -16,6 +16,8 @@ const ROW_H = 42;       // 한 종목 행 높이(px)
 const BAR_H = 30;       // 막대 높이
 const LABEL_W = 116;    // 왼쪽 순위+종목명 칸
 const MONTHS_PER_SEC = 6; // 1배속에서 초당 진행 개월 수(≈10.5년 → 21초)
+const MAX_BAR_PCT = 0.94;  // 1위 막대의 최대 폭(트랙 대비) — 값 라벨이 카드 밖으로 나가지 않게 여백 확보
+const INSIDE_LABEL_PCT = 62; // 막대 폭이 이보다 크면 값 라벨을 막대 '안'에 넣어 오른쪽 넘침 방지
 
 // 종목별 안정 색상 팔레트(사명 무관, 코드에 고정 매핑).
 const PALETTE = [
@@ -92,19 +94,27 @@ function RaceChart({ data }: { data: RaceData }) {
   const N = frames.length;
   const TOP_N = data.topN;
 
-  // 프레임별 code→값 맵 + 전체 등장 종목(union) + 색상 매핑 — 한 번만 계산.
-  const { valueMaps, union, colorOf } = useMemo(() => {
+  // 프레임별 code→값 맵 · code→순위 맵 · 월별 1위 값 + 전체 등장 종목(union) + 색상 매핑 — 한 번만 계산.
+  //  순위(rankMaps)는 API가 시총 내림차순으로 준 rows의 인덱스 = 그 달의 확정 순위. 이걸 프레임 사이에서
+  //  보간해 세로 위치를 정하면(값 재정렬이 아니라), 값이 비슷한 두 종목이 프레임마다 순위가 뒤집혀 겹치는 현상이 사라진다.
+  const { valueMaps, rankMaps, maxOf, union, colorOf } = useMemo(() => {
     const vm = frames.map((f) => {
       const m = new Map<string, number>();
       for (const r of f.rows) m.set(r.c, r.v);
       return m;
     });
+    const rm = frames.map((f) => {
+      const m = new Map<string, number>();
+      f.rows.forEach((r, i) => m.set(r.c, i));
+      return m;
+    });
+    const mo = frames.map((f) => f.rows[0]?.v ?? 1); // 매월 1위(삼성전자) 시총 = 막대 폭 스케일 기준
     const seen: string[] = [];
     const set = new Set<string>();
     for (const f of frames) for (const r of f.rows) if (!set.has(r.c)) { set.add(r.c); seen.push(r.c); }
     const col: Record<string, string> = {};
     seen.forEach((c, i) => { col[c] = PALETTE[i % PALETTE.length]; });
-    return { valueMaps: vm, union: seen, colorOf: col };
+    return { valueMaps: vm, rankMaps: rm, maxOf: mo, union: seen, colorOf: col };
   }, [frames]);
 
   // DOM 참조(리렌더 없이 직접 갱신). code별 {row, fill, val}.
@@ -121,31 +131,50 @@ function RaceChart({ data }: { data: RaceData }) {
   const [speed, setSpeed] = useState(1);
   useEffect(() => { speedRef.current = speed; }, [speed]);
 
-  // 특정 시각 t의 프레임을 화면에 그린다(보간 포함). React 상태를 건드리지 않음.
+  // 특정 시각 t의 프레임을 화면에 그린다. React 상태를 건드리지 않고 ref로 직접 갱신.
+  //  세로 위치 = 두 달의 '확정 순위'를 보간(매 프레임 값 재정렬 X → 겹침/떨림 없음).
+  //  가로 폭 = 시총 값 보간. 진입/이탈 종목은 화면 아래(TOP_N)에서 미끄러져 들어오고/나감(opacity 페이드).
   const draw = useCallback((t: number) => {
     const a = Math.max(0, Math.min(Math.floor(t), N - 1));
     const b = Math.min(a + 1, N - 1);
     const frac = t - a;
-    const vals = union.map((code) => {
-      const va = valueMaps[a].get(code) ?? 0;
-      const vb = valueMaps[b].get(code) ?? 0;
-      return { code, v: va + (vb - va) * frac };
-    });
-    vals.sort((x, y) => y.v - x.v);
-    const maxV = vals[0]?.v || 1;
-    vals.forEach(({ code, v }, i) => {
+    const rA = rankMaps[a], rB = rankMaps[b];
+    const vA = valueMaps[a], vB = valueMaps[b];
+    const maxV = (maxOf[a] + (maxOf[b] - maxOf[a]) * frac) || 1;
+    for (const code of union) {
       const el = elsRef.current.get(code);
-      if (!el) return;
-      const inTop = i < TOP_N && v > 0.5;
-      el.row.style.opacity = inTop ? '1' : '0';
-      el.row.style.transform = `translateY(${i * ROW_H}px)`;
-      el.row.style.pointerEvents = inTop ? 'auto' : 'none';
-      el.fill.style.width = `${Math.max(0, (v / maxV)) * 100}%`;
+      if (!el) continue;
+      const raIdx = rA.get(code);
+      const rbIdx = rB.get(code);
+      const inA = raIdx !== undefined;
+      const inB = rbIdx !== undefined;
+      if (!inA && !inB) { // 두 달 모두 top 밖 → 숨김
+        if (el.row.style.opacity !== '0') { el.row.style.opacity = '0'; el.row.style.pointerEvents = 'none'; }
+        continue;
+      }
+      const ra = inA ? raIdx! : TOP_N; // 이탈/진입은 화면 밖(맨 아래) 순위에서 슬라이드
+      const rb = inB ? rbIdx! : TOP_N;
+      const y = (ra + (rb - ra) * frac) * ROW_H;
+      const va = inA ? vA.get(code)! : vB.get(code)!;
+      const vb = inB ? vB.get(code)! : vA.get(code)!;
+      const v = va + (vb - va) * frac;
+      const op = (inA ? 1 : 0) + ((inB ? 1 : 0) - (inA ? 1 : 0)) * frac;
+      el.row.style.opacity = String(op);
+      el.row.style.transform = `translateY(${y}px)`;
+      el.row.style.pointerEvents = op > 0.5 ? 'auto' : 'none';
+      const wpct = Math.max(0, v / maxV) * MAX_BAR_PCT * 100;
+      el.fill.style.width = `${wpct}%`;
       el.val.textContent = fmtCap(v);
-    });
+      // 막대가 넓으면 값 라벨을 막대 '안'(오른쪽 끝, 어두운 글씨)으로 → 오른쪽 카드 밖 넘침 방지.
+      if (wpct > INSIDE_LABEL_PCT) {
+        el.val.style.left = 'auto'; el.val.style.right = '10px'; el.val.style.paddingLeft = '0'; el.val.style.color = '#06131c';
+      } else {
+        el.val.style.left = '100%'; el.val.style.right = 'auto'; el.val.style.paddingLeft = '8px'; el.val.style.color = 'var(--c-tx1b)';
+      }
+    }
     if (ymRef.current) ymRef.current.textContent = fmtYm(frames[Math.round(t)].ym);
     if (scrubRef.current && document.activeElement !== scrubRef.current) scrubRef.current.value = String(t);
-  }, [N, TOP_N, union, valueMaps, frames]);
+  }, [N, TOP_N, union, valueMaps, rankMaps, maxOf, frames]);
 
   const stop = useCallback(() => {
     if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
@@ -232,8 +261,8 @@ function RaceChart({ data }: { data: RaceData }) {
         </div>
       </div>
 
-      {/* 레이스 트랙 */}
-      <div style={{ position: 'relative', height: chartH, marginBottom: 6 }}>
+      {/* 레이스 트랙 — overflow hidden으로 진입/이탈 행이 아래로 삐져나오는 것 클립(값 라벨은 항상 트랙 안) */}
+      <div style={{ position: 'relative', height: chartH, marginBottom: 6, overflow: 'hidden' }}>
         {union.map((code) => (
           <div
             key={code}
@@ -244,9 +273,10 @@ function RaceChart({ data }: { data: RaceData }) {
               elsRef.current.set(code, { row: el, fill, val });
             }}
             style={{
+              // 위치·불투명도·폭 모두 rAF가 매 프레임 보간 갱신 → CSS 트랜지션 없음(정렬 흔들림/겹침 방지).
               position: 'absolute', left: 0, right: 0, top: 0, height: ROW_H,
               display: 'flex', alignItems: 'center', gap: 8, opacity: 0,
-              transform: 'translateY(0px)', transition: 'transform 260ms cubic-bezier(.4,0,.2,1), opacity 260ms', willChange: 'transform, opacity',
+              transform: 'translateY(0px)', willChange: 'transform, opacity',
             }}
           >
             <div style={{ width: LABEL_W, flexShrink: 0, textAlign: 'right', paddingRight: 10, fontSize: 13.5, fontWeight: 700, color: 'var(--c-tx2)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
