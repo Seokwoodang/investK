@@ -1,13 +1,16 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { upColor } from '../../lib/format';
+import { useDashboard } from '../../store/DashboardContext';
+import { CandleChart } from '../CandleChart';
 import { SourceNote } from '../SourceNote';
 import { InlineSpinner } from '../Footer';
+import type { Candle } from '../../types';
 
 // 해외 ETF 소개 페이지 — 국내 유니버스에 없어 K-리서치 상세가 없는 ETF를 ETF답게 보여준다.
-//  운용사·추종 분류·보수·순자산·배당 + 실제 구성종목·섹터 비중·개요. 전부 Yahoo 실데이터(추측 없음).
+//  가격 차트·기간 수익률·52주 범위 + 운용사·보수·순자산·배당 + 실제 구성종목·섹터 비중·개요. 전부 Yahoo 실데이터.
 interface EtfProfile {
   symbol: string; name: string | null; currency: string | null;
   price: number | null; changePct: number | null;
@@ -16,7 +19,14 @@ interface EtfProfile {
   summary: string | null;
   holdings: { symbol: string | null; name: string | null; weight: number }[];
   sectors: { key: string; weight: number }[];
+  returns: { m1: number | null; m3: number | null; ytd: number | null; y1: number | null; y3: number | null; y5: number | null };
+  week52High: number | null; week52Low: number | null; volume: number | null; website: string | null;
+  candles: Candle[];
 }
+
+const RANGES: { key: '1mo' | '3mo' | '1y'; label: string; n: number }[] = [
+  { key: '1mo', label: '1개월', n: 22 }, { key: '3mo', label: '3개월', n: 65 }, { key: '1y', label: '1년', n: 9999 },
+];
 
 const SECTOR_KO: Record<string, string> = {
   realestate: '부동산', consumer_cyclical: '경기소비재', basic_materials: '소재',
@@ -47,8 +57,16 @@ export function EtfDetail({ symbol }: { symbol: string }) {
   const router = useRouter();
   const sp = useSearchParams();
   const name = sp.get('name') ?? '';
+  const { state: dash } = useDashboard();
   const [profile, setProfile] = useState<EtfProfile | null>(null);
   const [state, setState] = useState<'loading' | 'ok' | 'none'>('loading');
+  const [range, setRange] = useState<'1mo' | '3mo' | '1y'>('3mo');
+  // 1년 일봉을 뒤에서 잘라 기간 토글(서버 재요청 없이).
+  const rangeCandles = useMemo(() => {
+    const cs = profile?.candles ?? [];
+    const rn = RANGES.find((r) => r.key === range)?.n ?? 9999;
+    return cs.length > rn ? cs.slice(-rn) : cs;
+  }, [profile, range]);
 
   useEffect(() => {
     let cancelled = false;
@@ -118,6 +136,67 @@ export function EtfDetail({ symbol }: { symbol: string }) {
         </div>
       </div>
 
+      {/* 가격 차트 */}
+      {profile.candles.length > 1 && (
+        <div style={{ ...CARD, padding: '16px 18px', marginBottom: 20 }}>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 4, padding: 3, marginBottom: 10 }}>
+            <div style={{ display: 'inline-flex', gap: 4, padding: 3, background: 'var(--c-w04)', border: '1px solid var(--c-w07)', borderRadius: 11 }}>
+              {RANGES.map((rr) => (
+                <button key={rr.key} onClick={() => setRange(rr.key)} style={{
+                  cursor: 'pointer', fontFamily: 'inherit', border: 'none', padding: '6px 14px', borderRadius: 8, fontSize: 12.5, fontWeight: 700,
+                  ...(range === rr.key ? { background: 'var(--c-w08)', color: 'var(--c-tx1c)' } : { background: 'transparent', color: 'var(--c-tx5)' }),
+                }}>{rr.label}</button>
+              ))}
+            </div>
+          </div>
+          <CandleChart candles={rangeCandles} period="일봉" theme={dash.theme} fit />
+        </div>
+      )}
+
+      {/* 기간 수익률 */}
+      {(() => {
+        const rs: { k: string; v: number | null }[] = [
+          { k: '1개월', v: profile.returns.m1 }, { k: '3개월', v: profile.returns.m3 }, { k: 'YTD', v: profile.returns.ytd },
+          { k: '1년', v: profile.returns.y1 }, { k: '3년', v: profile.returns.y3 }, { k: '5년', v: profile.returns.y5 },
+        ].filter((x) => x.v != null);
+        if (!rs.length) return null;
+        return (
+          <div style={{ marginBottom: 20 }}>
+            <h2 style={{ margin: '0 0 12px', fontSize: 16, fontWeight: 800 }}>기간 수익률</h2>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(92px, 1fr))', gap: 10 }}>
+              {rs.map(({ k, v }) => (
+                <div key={k} style={{ ...FLAT, padding: '11px 12px', textAlign: 'center' }}>
+                  <div style={{ fontSize: 11, color: 'var(--c-tx6)', marginBottom: 5 }}>{k}{(k === '3년' || k === '5년') && <span style={{ fontSize: 9 }}> 연</span>}</div>
+                  <div style={{ fontSize: 15, fontWeight: 800, color: upColor(v!) }}>{v! > 0 ? '+' : ''}{(v! * 100).toFixed(1)}%</div>
+                </div>
+              ))}
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--c-tx6)', marginTop: 6 }}>3년·5년은 연환산(CAGR). 배당 재투자 포함 기준(Yahoo).</div>
+          </div>
+        );
+      })()}
+
+      {/* 52주 범위 */}
+      {profile.week52High != null && profile.week52Low != null && profile.price != null && profile.week52High > profile.week52Low && (() => {
+        const lo = profile.week52Low!, hi = profile.week52High!, cur = profile.price!;
+        const posPct = Math.min(100, Math.max(0, ((cur - lo) / (hi - lo)) * 100));
+        const cs = CUR[profile.currency ?? ''] ?? '';
+        const f = (v: number) => `${cs}${v.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+        return (
+          <div style={{ ...FLAT, padding: '14px 16px', marginBottom: 20 }}>
+            <div style={{ fontSize: 11, color: 'var(--c-tx6)', marginBottom: 10 }}>52주 범위</div>
+            <div style={{ position: 'relative', height: 6, borderRadius: 3, background: 'var(--c-w06)', marginBottom: 8 }}>
+              <div style={{ position: 'absolute', top: -3, left: `${posPct}%`, transform: 'translateX(-50%)', width: 12, height: 12, borderRadius: '50%', background: 'var(--c-accyan)', boxShadow: '0 0 8px var(--c-cy45)' }} />
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--c-tx5)' }}>
+              <span>최저 {f(lo)}</span>
+              <span style={{ fontWeight: 800, color: 'var(--c-tx1b)' }}>현재 {f(cur)}</span>
+              <span>최고 {f(hi)}</span>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* 요약 스탯 */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12, marginBottom: 20 }}>
         {stat('운용사', profile.family)}
@@ -125,6 +204,7 @@ export function EtfDetail({ symbol }: { symbol: string }) {
         {stat('연 보수', pct2(profile.expenseRatio))}
         {stat('순자산(AUM)', fmtAum(profile.totalAssets, profile.currency))}
         {stat('배당수익률', profile.yield != null ? pct2(profile.yield) : null)}
+        {stat('거래량', profile.volume != null ? profile.volume.toLocaleString('ko-KR') : null)}
       </div>
 
       {/* 구성종목 */}
@@ -173,7 +253,14 @@ export function EtfDetail({ symbol }: { symbol: string }) {
         </div>
       )}
 
-      <SourceNote text="ETF 프로필·구성종목 — Yahoo Finance · 종목명으로 매칭한 해외 상장분 기준(보유하신 상장·통화와 다를 수 있음). 참고용." style={{ marginTop: 16 }} />
+      {profile.website && (
+        <a href={profile.website.startsWith('http') ? profile.website : `https://${profile.website}`} target="_blank" rel="noopener noreferrer"
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 4, fontSize: 13, fontWeight: 700, color: 'var(--c-accyanbr)', textDecoration: 'none' }}>
+          운용사 공식 페이지 →
+        </a>
+      )}
+
+      <SourceNote text="가격·수익률·구성종목 — Yahoo Finance · 종목명으로 매칭한 해외 상장분 기준(보유하신 상장·통화와 다를 수 있음). 참고용." style={{ marginTop: 16 }} />
     </div>
   );
 }

@@ -1,5 +1,30 @@
 import 'server-only';
 import { REVALIDATE } from '../env';
+import type { Candle } from '../../types';
+
+// Yahoo 일봉 캔들(키 불필요) — ETF 가격 차트용. 1년치 일봉.
+async function fetchDailyCandles(symbol: string, range = '1y'): Promise<Candle[]> {
+  try {
+    const r = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=${range}`, {
+      headers: { 'User-Agent': 'Mozilla/5.0' }, next: { revalidate: 3600 },
+    });
+    if (!r.ok) return [];
+    const j = (await r.json()) as { chart?: { result?: Array<{ timestamp?: number[]; indicators?: { quote?: Array<{ open?: (number | null)[]; high?: (number | null)[]; low?: (number | null)[]; close?: (number | null)[] }> } }> } };
+    const res = j?.chart?.result?.[0];
+    const ts = res?.timestamp ?? [];
+    const q = res?.indicators?.quote?.[0];
+    if (!q) return [];
+    const out: Candle[] = [];
+    for (let k = 0; k < ts.length; k++) {
+      const o = q.open?.[k], h = q.high?.[k], l = q.low?.[k], c = q.close?.[k];
+      if (o == null || h == null || l == null || c == null) continue;
+      out.push({ o, h, l, c, t: ts[k] * 1000 });
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
 
 // Yahoo Finance 차트 API(키 불필요) — 심볼 하나의 현재가/전일대비. DXY(`DX-Y.NYB`)·VIX(`^VIX`)·美10년물(`^TNX`) 등.
 export async function getYahooQuote(symbol: string): Promise<{ price: number; chg: number } | null> {
@@ -146,6 +171,13 @@ export interface EtfProfile {
   summary: string | null;      // 개요(영문)
   holdings: { symbol: string | null; name: string | null; weight: number }[]; // 구성종목(비중 내림차순)
   sectors: { key: string; weight: number }[]; // 섹터 비중
+  // 확장(v0.23.2): 기간 수익률·52주 범위·거래량·공식 링크·가격 캔들(1년 일봉)
+  returns: { m1: number | null; m3: number | null; ytd: number | null; y1: number | null; y3: number | null; y5: number | null };
+  week52High: number | null;
+  week52Low: number | null;
+  volume: number | null;
+  website: string | null;
+  candles: Candle[]; // 1년 일봉(차트용) — UI에서 뒤에서 잘라 1M/3M/1Y 토글
 }
 
 // 이름/티커로 Yahoo ETF 심볼 해석(공개 search, crumb 불필요). ETF 결과 중 첫 번째 심볼.
@@ -168,16 +200,25 @@ export async function getEtfProfile(symbol: string, retry = true): Promise<EtfPr
   const cc = await getCrumb();
   if (!cc) return null;
   try {
-    const mods = 'topHoldings,fundProfile,assetProfile,summaryDetail,price';
+    const mods = 'topHoldings,fundProfile,assetProfile,summaryDetail,fundPerformance,price';
     const url = `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(symbol)}?modules=${mods}&crumb=${encodeURIComponent(cc.crumb)}`;
-    let r = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0', Cookie: cc.cookie }, next: { revalidate: 3600 } });
-    if (r.status === 429 && retry) { await sleep(1200 + Math.random() * 1200); r = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0', Cookie: cc.cookie } }); }
+    // 프로필(quoteSummary)과 1년 일봉(차트)을 병렬로.
+    const [sumRes, candles] = await Promise.all([
+      (async () => {
+        let r = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0', Cookie: cc.cookie }, next: { revalidate: 3600 } });
+        if (r.status === 429 && retry) { await sleep(1200 + Math.random() * 1200); r = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0', Cookie: cc.cookie } }); }
+        return r;
+      })(),
+      fetchDailyCandles(symbol, '1y'),
+    ]);
+    let r = sumRes;
     if (r.status === 401 && retry) { crumbCache = null; await getCrumb(true); return getEtfProfile(symbol, false); }
     if (!r.ok) return null;
     const j = (await r.json()) as { quoteSummary?: { result?: Array<Record<string, any>> } };
     const res = j?.quoteSummary?.result?.[0];
     if (!res) return null;
     const pr = res.price ?? {}, fp = res.fundProfile ?? {}, th = res.topHoldings ?? {}, ap = res.assetProfile ?? {}, sd = res.summaryDetail ?? {};
+    const tr = res.fundPerformance?.trailingReturns ?? {};
     // ETF/펀드가 아니면(개별주 등) 프로필 대상 아님 → null(정직하게 폴백).
     const qt = String(pr.quoteType ?? '').toUpperCase();
     if (qt !== 'ETF' && qt !== 'MUTUALFUND') return null;
@@ -206,6 +247,15 @@ export async function getEtfProfile(symbol: string, retry = true): Promise<EtfPr
       summary: ap.longBusinessSummary ?? null,
       holdings,
       sectors,
+      returns: {
+        m1: n(tr.oneMonth), m3: n(tr.threeMonth), ytd: n(tr.ytd),
+        y1: n(tr.oneYear), y3: n(tr.threeYear), y5: n(tr.fiveYear),
+      },
+      week52High: n(sd.fiftyTwoWeekHigh),
+      week52Low: n(sd.fiftyTwoWeekLow),
+      volume: n(sd.volume) ?? n(pr.regularMarketVolume),
+      website: ap.website ?? null,
+      candles,
     };
   } catch {
     return null;
