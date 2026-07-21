@@ -10,7 +10,7 @@ import { SourceNote, UpdateNote } from '../SourceNote';
 import { GlossaryTip, TermTip } from '../GlossaryTip';
 import { InlineSpinner } from '../Footer';
 import { SubNav } from '../SubNav';
-import { EtfModal } from '../EtfModal';
+import { useRouter } from 'next/navigation';
 
 const CARD: React.CSSProperties = {
   background: 'var(--c-w04)', border: '1px solid var(--c-w08)', borderRadius: 20,
@@ -85,11 +85,11 @@ function clientSignals(plPct: number, price: number, weight: number, cfg: SellCo
 export function Portfolio() {
   const { data, actions, universeReady } = useDashboard();
   const { holdings, upsert, remove, clear, setAll } = usePortfolio();
-  // 상세 없는 해외 ETF 등을 소개하는 모달(운용사·구성종목). 상세페이지가 되는 종목은 기존 경로.
-  const [etfSel, setEtfSel] = useState<{ symbol: string; name: string } | null>(null);
+  // 종목명 클릭: 유니버스 종목은 K-리서치 상세페이지, 상세 없는 해외 ETF는 ETF 정보 페이지(/etf/[심볼]).
+  const router = useRouter();
   const openHolding = (r: { detailable: boolean; id: string; tab?: TabId; ticker: string; name: string }) => {
     if (r.detailable) actions.openStock(r.id, r.tab);
-    else setEtfSel({ symbol: r.ticker || '', name: r.name });
+    else router.push(`/etf/${encodeURIComponent(r.ticker || r.id)}${r.name ? `?name=${encodeURIComponent(r.name)}` : ''}`);
   };
 
   // 유니버스(전 자산군) 평탄화 + id 인덱스 — 보유종목 현재가/통화/자산군 매칭용.
@@ -624,8 +624,6 @@ export function Portfolio() {
       )}
 
       <SourceNote text="보유종목 — 직접 입력/CSV · 내 계정(Supabase)에 저장 · 시세 — 네이버 금융 · 업비트 · 바이낸스 · 환율 frankfurter" style={{ marginTop: 4 }} />
-
-      {etfSel && <EtfModal symbol={etfSel.symbol} name={etfSel.name} onClose={() => setEtfSel(null)} />}
     </div>
   );
 }
