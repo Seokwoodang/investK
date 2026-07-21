@@ -153,25 +153,32 @@ export function EtfDetail({ symbol }: { symbol: string }) {
         </div>
       )}
 
-      {/* 기간 수익률 */}
+      {/* 기간 수익률 — 1개월~1년은 누적, 3·5년은 '연평균(CAGR)'이라 누적 총수익률을 함께 표기(오해 방지) */}
       {(() => {
-        const rs: { k: string; v: number | null }[] = [
+        const fmtPctSign = (v: number) => `${v > 0 ? '+' : ''}${(v * 100).toFixed(1)}%`;
+        const rs: { k: string; v: number | null; yrs?: number }[] = [
           { k: '1개월', v: profile.returns.m1 }, { k: '3개월', v: profile.returns.m3 }, { k: 'YTD', v: profile.returns.ytd },
-          { k: '1년', v: profile.returns.y1 }, { k: '3년', v: profile.returns.y3 }, { k: '5년', v: profile.returns.y5 },
+          { k: '1년', v: profile.returns.y1 }, { k: '3년', v: profile.returns.y3, yrs: 3 }, { k: '5년', v: profile.returns.y5, yrs: 5 },
         ].filter((x) => x.v != null);
         if (!rs.length) return null;
         return (
           <div style={{ marginBottom: 20 }}>
             <h2 style={{ margin: '0 0 12px', fontSize: 16, fontWeight: 800 }}>기간 수익률</h2>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(92px, 1fr))', gap: 10 }}>
-              {rs.map(({ k, v }) => (
-                <div key={k} style={{ ...FLAT, padding: '11px 12px', textAlign: 'center' }}>
-                  <div style={{ fontSize: 11, color: 'var(--c-tx6)', marginBottom: 5 }}>{k}{(k === '3년' || k === '5년') && <span style={{ fontSize: 9 }}> 연</span>}</div>
-                  <div style={{ fontSize: 15, fontWeight: 800, color: upColor(v!) }}>{v! > 0 ? '+' : ''}{(v! * 100).toFixed(1)}%</div>
-                </div>
-              ))}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(96px, 1fr))', gap: 10 }}>
+              {rs.map(({ k, v, yrs }) => {
+                const cumulative = yrs ? Math.pow(1 + v!, yrs) - 1 : null; // 연평균 → 그 기간 누적
+                return (
+                  <div key={k} style={{ ...FLAT, padding: '11px 12px', textAlign: 'center' }}>
+                    <div style={{ fontSize: 11, color: 'var(--c-tx6)', marginBottom: 5 }}>{yrs ? `${k} 연평균` : k}</div>
+                    <div style={{ fontSize: 15, fontWeight: 800, color: upColor(v!) }}>{fmtPctSign(v!)}{yrs && <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--c-tx6)' }}>/년</span>}</div>
+                    {cumulative != null && <div style={{ fontSize: 10.5, color: 'var(--c-tx6)', marginTop: 3 }}>누적 {fmtPctSign(cumulative)}</div>}
+                  </div>
+                );
+              })}
             </div>
-            <div style={{ fontSize: 11, color: 'var(--c-tx6)', marginTop: 6 }}>3년·5년은 연환산(CAGR). 배당 재투자 포함 기준(Yahoo).</div>
+            <div style={{ fontSize: 11, color: 'var(--c-tx6)', marginTop: 7, lineHeight: 1.5 }}>
+              1개월~1년은 해당 기간 누적 수익률. <b>3·5년은 연평균(CAGR)</b>이라 그 기간 누적을 아래 함께 표기 — 예: 연 13% × 5년이면 누적 약 +85%. 배당 재투자 포함(Yahoo).
+            </div>
           </div>
         );
       })()}
