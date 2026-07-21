@@ -14,11 +14,16 @@ export async function GET(req: Request) {
   const validSym = /^[A-Za-z0-9.^-]{1,15}$/.test(rawSymbol) ? rawSymbol.toUpperCase() : '';
   if (!validSym && !name) return NextResponse.json({ error: 'bad request' }, { status: 400 });
 
-  // 1) 티커 그대로 → 2) 한국 6자리 코드면 .KS/.KQ 붙여 → 3) 이름(또는 티커)으로 Yahoo 심볼 검색 후 재조회.
-  let profile = validSym ? await getEtfProfile(validSym) : null;
-  if (!profile && /^\d{6}$/.test(validSym)) {
+  // 한국 6자리 코드는 Yahoo에서 .KS(코스피)/.KQ(코스닥) 접미가 필요 → 바 코드는 건너뛰고 바로 접미로 조회
+  //  (바 코드 선조회는 실패하면서 crumb를 꼬이게 해 뒤 호출까지 연쇄 실패시킴).
+  const isKrCode = /^\d{6}$/.test(validSym);
+  let profile: Awaited<ReturnType<typeof getEtfProfile>> = null;
+  if (isKrCode) {
     profile = (await getEtfProfile(`${validSym}.KS`)) ?? (await getEtfProfile(`${validSym}.KQ`));
+  } else if (validSym) {
+    profile = await getEtfProfile(validSym);
   }
+  // 그래도 없으면 이름(또는 티커)으로 Yahoo 심볼 검색 후 재조회.
   if (!profile) {
     const resolved = await resolveEtfSymbol(name || validSym);
     if (resolved && resolved.toUpperCase() !== validSym) profile = await getEtfProfile(resolved.toUpperCase());
