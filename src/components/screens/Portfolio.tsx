@@ -85,11 +85,15 @@ function clientSignals(plPct: number, price: number, weight: number, cfg: SellCo
 export function Portfolio() {
   const { data, actions, universeReady } = useDashboard();
   const { holdings, upsert, remove, clear, setAll } = usePortfolio();
-  // 종목명 클릭: 유니버스 종목은 K-리서치 상세페이지, 상세 없는 해외 ETF는 ETF 정보 페이지(/etf/[심볼]).
+  // 종목명 클릭: ETF는 개별주 상세(재무·PER 등)가 안 맞으므로 ETF 정보 페이지(/etf)로 통일(유니버스 유무 무관).
+  //  일반 종목만 K-리서치 상세로. 상세 없는(유니버스 밖) 종목도 /etf로(폴백).
   const router = useRouter();
+  const isEtf = (name: string) =>
+    /\bETF\b|\bETN\b/i.test(name) ||
+    /^(TIGER|KODEX|ACE|SOL|KBSTAR|ARIRANG|KOSEF|HANARO|PLUS|RISE|TIMEFOLIO|WON|히어로즈|마이다스)\b/i.test(name.trim());
   const openHolding = (r: { detailable: boolean; id: string; tab?: TabId; ticker: string; name: string }) => {
-    if (r.detailable) actions.openStock(r.id, r.tab);
-    else router.push(`/etf/${encodeURIComponent(r.ticker || r.id)}${r.name ? `?name=${encodeURIComponent(r.name)}` : ''}`);
+    if (r.detailable && !isEtf(r.name)) { actions.openStock(r.id, r.tab); return; }
+    router.push(`/etf/${encodeURIComponent(r.ticker || r.id)}${r.name ? `?name=${encodeURIComponent(r.name)}` : ''}`);
   };
 
   // 유니버스(전 자산군) 평탄화 + id 인덱스 — 보유종목 현재가/통화/자산군 매칭용.

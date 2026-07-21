@@ -230,8 +230,8 @@ export async function getEtfProfile(symbol: string, retry = true): Promise<EtfPr
       .map((o: Record<string, { raw?: number }>) => { const k = Object.keys(o)[0]; return { key: k, weight: typeof o[k]?.raw === 'number' ? o[k].raw! : 0 }; })
       .filter((s: { weight: number }) => s.weight > 0)
       .sort((a: { weight: number }, b: { weight: number }) => b.weight - a.weight);
-    // 구성종목·운용사 어느 것도 없으면 보여줄 게 없음 → null.
-    if (!holdings.length && !fp.family && !ap.longBusinessSummary) return null;
+    // quoteType이 ETF/펀드로 확인됐으면 구성종목이 없어도(한국 상장 ETF 등 Yahoo가 보유내역 미제공) 프로필 반환
+    // → 이름·가격·차트·52주·수익률만이라도 일관되게 보여줌.
     return {
       symbol: pr.symbol ?? symbol,
       name: pr.longName ?? pr.shortName ?? null,

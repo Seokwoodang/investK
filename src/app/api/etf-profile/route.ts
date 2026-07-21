@@ -14,8 +14,11 @@ export async function GET(req: Request) {
   const validSym = /^[A-Za-z0-9.^-]{1,15}$/.test(rawSymbol) ? rawSymbol.toUpperCase() : '';
   if (!validSym && !name) return NextResponse.json({ error: 'bad request' }, { status: 400 });
 
-  // 1) 티커 그대로 조회 → 2) 실패 시 이름(또는 티커)으로 Yahoo 심볼 검색 후 재조회.
+  // 1) 티커 그대로 → 2) 한국 6자리 코드면 .KS/.KQ 붙여 → 3) 이름(또는 티커)으로 Yahoo 심볼 검색 후 재조회.
   let profile = validSym ? await getEtfProfile(validSym) : null;
+  if (!profile && /^\d{6}$/.test(validSym)) {
+    profile = (await getEtfProfile(`${validSym}.KS`)) ?? (await getEtfProfile(`${validSym}.KQ`));
+  }
   if (!profile) {
     const resolved = await resolveEtfSymbol(name || validSym);
     if (resolved && resolved.toUpperCase() !== validSym) profile = await getEtfProfile(resolved.toUpperCase());
