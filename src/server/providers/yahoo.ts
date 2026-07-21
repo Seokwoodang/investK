@@ -129,6 +129,89 @@ export async function getUsFundamentals(symbol: string, retry = true): Promise<U
   }
 }
 
+// ── ETF 프로필: 국내 유니버스에 없는 해외 ETF 보유 종목을 '상세 없음' 대신 ETF답게 소개. ──
+//  운용사·추종 카테고리·보수·순자산·배당 + 실제 구성종목(top holdings)·섹터 비중·개요. 전부 Yahoo 실데이터.
+export interface EtfProfile {
+  symbol: string;
+  name: string | null;      // 정식 명칭(Invesco QQQ Trust 등)
+  currency: string | null;
+  price: number | null;
+  changePct: number | null;
+  family: string | null;    // 운용사(Invesco·State Street 등)
+  category: string | null;  // 분류(Large Growth 등)
+  legalType: string | null; // Exchange Traded Fund 등
+  expenseRatio: number | null; // 연 보수(비율, 0.0018=0.18%)
+  totalAssets: number | null;  // 순자산(AUM)
+  yield: number | null;        // 배당수익률(비율)
+  summary: string | null;      // 개요(영문)
+  holdings: { symbol: string | null; name: string | null; weight: number }[]; // 구성종목(비중 내림차순)
+  sectors: { key: string; weight: number }[]; // 섹터 비중
+}
+
+// 이름/티커로 Yahoo ETF 심볼 해석(공개 search, crumb 불필요). ETF 결과 중 첫 번째 심볼.
+//  예: 'Invesco NASDAQ 100 ETF' → 'QQQM'. 티커가 애매한 해외 ETF를 이름으로 찾을 때 사용.
+export async function resolveEtfSymbol(query: string): Promise<string | null> {
+  try {
+    const r = await fetch(`https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(query)}&quotesCount=6&newsCount=0`, {
+      headers: { 'User-Agent': 'Mozilla/5.0' }, next: { revalidate: 86400 },
+    });
+    if (!r.ok) return null;
+    const j = (await r.json()) as { quotes?: Array<{ symbol?: string; quoteType?: string }> };
+    const etf = (j.quotes ?? []).find((q) => String(q.quoteType).toUpperCase() === 'ETF' && q.symbol);
+    return etf?.symbol ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export async function getEtfProfile(symbol: string, retry = true): Promise<EtfProfile | null> {
+  const cc = await getCrumb();
+  if (!cc) return null;
+  try {
+    const mods = 'topHoldings,fundProfile,assetProfile,summaryDetail,price';
+    const url = `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(symbol)}?modules=${mods}&crumb=${encodeURIComponent(cc.crumb)}`;
+    let r = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0', Cookie: cc.cookie }, next: { revalidate: 3600 } });
+    if (r.status === 429 && retry) { await sleep(1200 + Math.random() * 1200); r = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0', Cookie: cc.cookie } }); }
+    if (r.status === 401 && retry) { crumbCache = null; await getCrumb(true); return getEtfProfile(symbol, false); }
+    if (!r.ok) return null;
+    const j = (await r.json()) as { quoteSummary?: { result?: Array<Record<string, any>> } };
+    const res = j?.quoteSummary?.result?.[0];
+    if (!res) return null;
+    const pr = res.price ?? {}, fp = res.fundProfile ?? {}, th = res.topHoldings ?? {}, ap = res.assetProfile ?? {}, sd = res.summaryDetail ?? {};
+    // ETF/펀드가 아니면(개별주 등) 프로필 대상 아님 → null(정직하게 폴백).
+    const qt = String(pr.quoteType ?? '').toUpperCase();
+    if (qt !== 'ETF' && qt !== 'MUTUALFUND') return null;
+    const holdings = (th.holdings ?? [])
+      .map((h: any) => ({ symbol: h.symbol ?? null, name: h.holdingName ?? null, weight: typeof h.holdingPercent?.raw === 'number' ? h.holdingPercent.raw : 0 }))
+      .filter((h: { weight: number }) => h.weight > 0)
+      .sort((a: { weight: number }, b: { weight: number }) => b.weight - a.weight);
+    const sectors = (th.sectorWeightings ?? [])
+      .map((o: Record<string, { raw?: number }>) => { const k = Object.keys(o)[0]; return { key: k, weight: typeof o[k]?.raw === 'number' ? o[k].raw! : 0 }; })
+      .filter((s: { weight: number }) => s.weight > 0)
+      .sort((a: { weight: number }, b: { weight: number }) => b.weight - a.weight);
+    // 구성종목·운용사 어느 것도 없으면 보여줄 게 없음 → null.
+    if (!holdings.length && !fp.family && !ap.longBusinessSummary) return null;
+    return {
+      symbol: pr.symbol ?? symbol,
+      name: pr.longName ?? pr.shortName ?? null,
+      currency: pr.currency ?? null,
+      price: n(pr.regularMarketPrice),
+      changePct: n(pr.regularMarketChangePercent) != null ? +(n(pr.regularMarketChangePercent)! * 100).toFixed(2) : null,
+      family: fp.family ?? null,
+      category: fp.categoryName ?? null,
+      legalType: fp.legalType ?? null,
+      expenseRatio: n(fp.feesExpensesInvestment?.annualReportExpenseRatio) ?? n(fp.feesExpensesInvestment?.netExpRatio) ?? null,
+      totalAssets: n(sd.totalAssets),
+      yield: n(sd.yield),
+      summary: ap.longBusinessSummary ?? null,
+      holdings,
+      sectors,
+    };
+  } catch {
+    return null;
+  }
+}
+
 // ── K-리서치용 확장 지표(밸류에이션·컨센서스·추천분포·성장률·프로필). 재무 시계열은 EDGAR가 담당. ──
 export interface UsResearch {
   sector: string | null;

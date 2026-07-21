@@ -10,6 +10,7 @@ import { SourceNote, UpdateNote } from '../SourceNote';
 import { GlossaryTip, TermTip } from '../GlossaryTip';
 import { InlineSpinner } from '../Footer';
 import { SubNav } from '../SubNav';
+import { EtfModal } from '../EtfModal';
 
 const CARD: React.CSSProperties = {
   background: 'var(--c-w04)', border: '1px solid var(--c-w08)', borderRadius: 20,
@@ -84,6 +85,12 @@ function clientSignals(plPct: number, price: number, weight: number, cfg: SellCo
 export function Portfolio() {
   const { data, actions, universeReady } = useDashboard();
   const { holdings, upsert, remove, clear, setAll } = usePortfolio();
+  // 상세 없는 해외 ETF 등을 소개하는 모달(운용사·구성종목). 상세페이지가 되는 종목은 기존 경로.
+  const [etfSel, setEtfSel] = useState<{ symbol: string; name: string } | null>(null);
+  const openHolding = (r: { detailable: boolean; id: string; tab?: TabId; ticker: string; name: string }) => {
+    if (r.detailable) actions.openStock(r.id, r.tab);
+    else setEtfSel({ symbol: r.ticker || '', name: r.name });
+  };
 
   // 유니버스(전 자산군) 평탄화 + id 인덱스 — 보유종목 현재가/통화/자산군 매칭용.
   const flat = useMemo(
@@ -359,16 +366,15 @@ export function Portfolio() {
           <div style={{ ...CARD, padding: '6px 18px', marginBottom: 16 }}>
             {[...rows].sort((a, b) => b.valueKrw - a.valueKrw).map((r) => (
               <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '13px 0', borderBottom: '1px solid var(--c-w05)', flexWrap: 'wrap' }}>
-                {/* 종목명 클릭 → 상세 이동. 단, 상세가 실제로 열리는(유니버스에 id가 있는) 종목만 클릭 대상.
-                    가격만 즉석조회로 잡힌 해외 ETF 등은 상세가 없어 '종목 정보 없음' 막다른 길이 되므로 링크하지 않음. */}
+                {/* 종목명 클릭 → 상세(유니버스 종목) 또는 ETF 소개 모달(상세 없는 해외 ETF). ×삭제와 분리. */}
                 <div
-                  className={r.detailable ? 'event-row' : undefined}
-                  onClick={r.detailable ? () => actions.openStock(r.id, r.tab) : undefined}
-                  title={r.detailable ? `${r.name} 상세 보기` : undefined}
-                  style={{ flex: '2 1 160px', minWidth: 140, cursor: r.detailable ? 'pointer' : 'default', borderRadius: 8, padding: '4px 8px', margin: '-4px -8px' }}
+                  className="event-row"
+                  onClick={() => openHolding(r)}
+                  title={r.detailable ? `${r.name} 상세 보기` : `${r.name} ETF 정보 보기`}
+                  style={{ flex: '2 1 160px', minWidth: 140, cursor: 'pointer', borderRadius: 8, padding: '4px 8px', margin: '-4px -8px' }}
                 >
                   <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--c-tx1)' }}>
-                    {r.name}{r.detailable && <> <span style={{ fontSize: 11, color: 'var(--c-tx6)' }}>›</span></>}
+                    {r.name} <span style={{ fontSize: 11, color: 'var(--c-tx6)' }}>›</span>
                     {!r.matched && <span style={{ fontSize: 10, color: 'var(--c-warn)' }}> · 수동</span>}
                   </div>
                   <div style={{ fontSize: 11, color: 'var(--c-tx6)' }}>{r.group} · {r.qty}주 · 평단 {fmtPrice(r.avg, r.cur)}</div>
@@ -474,19 +480,16 @@ export function Portfolio() {
                   return (
                     <div key={r.id} style={{ background: 'var(--c-w04)', border: '1px solid var(--c-w07)', borderRadius: 12, padding: 14, borderLeft: `3px solid ${v.color}` }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                        {/* 종목명 클릭 → 상세(K-리서치). 상세가 없는 종목(수동 입력·즉석조회만 된 해외 ETF 등)은 일반 텍스트로. */}
-                        {!r.detailable ? (
-                          <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--c-tx1)' }}>{r.name}</span>
-                        ) : (
-                          <button
-                            onClick={() => actions.openStock(r.id, r.tab)}
-                            className="row-link"
-                            style={{ display: 'inline-flex', alignItems: 'center', gap: 3, cursor: 'pointer', background: 'transparent', border: 'none', padding: 0, fontFamily: 'inherit', fontSize: 14, fontWeight: 700, color: 'var(--c-tx1)' }}
-                          >
-                            {r.name}
-                            <span style={{ fontSize: 12, color: 'var(--c-tx6)' }}>›</span>
-                          </button>
-                        )}
+                        {/* 종목명 클릭 → 상세(유니버스 종목) 또는 ETF 소개 모달(상세 없는 해외 ETF). */}
+                        <button
+                          onClick={() => openHolding(r)}
+                          className="row-link"
+                          title={r.detailable ? `${r.name} 상세 보기` : `${r.name} ETF 정보 보기`}
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: 3, cursor: 'pointer', background: 'transparent', border: 'none', padding: 0, fontFamily: 'inherit', fontSize: 14, fontWeight: 700, color: 'var(--c-tx1)' }}
+                        >
+                          {r.name}
+                          <span style={{ fontSize: 12, color: 'var(--c-tx6)' }}>›</span>
+                        </button>
                         <span style={{ fontSize: 11, fontWeight: 800, padding: '2px 8px', borderRadius: 6, color: v.color, background: 'color-mix(in srgb, ' + v.color + ' 16%, transparent)' }}>{v.label}</span>
                         <span style={{ fontSize: 11, fontWeight: 600, color: upColor(r.plPct) }}>{fmtPct(r.plPct)}</span>
                         <span style={{ marginLeft: 'auto', display: 'flex', gap: 12, fontSize: 11, color: 'var(--c-tx6)', flexWrap: 'wrap' }}>
@@ -621,6 +624,8 @@ export function Portfolio() {
       )}
 
       <SourceNote text="보유종목 — 직접 입력/CSV · 내 계정(Supabase)에 저장 · 시세 — 네이버 금융 · 업비트 · 바이낸스 · 환율 frankfurter" style={{ marginTop: 4 }} />
+
+      {etfSel && <EtfModal symbol={etfSel.symbol} name={etfSel.name} onClose={() => setEtfSel(null)} />}
     </div>
   );
 }
