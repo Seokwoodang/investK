@@ -5,9 +5,34 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { upColor } from '../../lib/format';
 import { useDashboard } from '../../store/DashboardContext';
 import { CandleChart } from '../CandleChart';
+import { Tip } from '../GlossaryTip';
 import { SourceNote } from '../SourceNote';
 import { InlineSpinner } from '../Footer';
 import type { Candle } from '../../types';
+
+// 용어 설명 — 초심자용. 라벨 옆 ⓘ 탭/호버 시 설명.
+const HINTS: Record<string, string> = {
+  YTD: 'Year To Date — 올해 1월 1일부터 지금까지의 수익률. 최근 며칠이 아니라 "올 한 해 여기까지" 얼마 올랐나.',
+  연평균: '연평균(CAGR) — 여러 해 수익을 "매년 평균 몇 %씩 복리로 불었나"로 환산한 값. 예: 연 13%면 5년에 약 +85%(복리). 옆의 "누적"이 그 기간 실제 총수익률.',
+  '연 보수': 'ETF 운용에 매년 자동으로 떼는 수수료(운용보수). 0.1%면 100만원당 연 1,000원. 낮을수록 유리.',
+  '순자산(AUM)': '이 ETF에 모인 전체 자금(Assets Under Management). 클수록 대체로 안정적이고 거래가 잘 됩니다.',
+  배당수익률: '현재가 대비 최근 1년 배당의 비율. 2%면 100만원어치에 연 2만원 배당(세금·변동 있음).',
+  '52주 범위': '최근 1년간의 최고가·최저가와 그 사이 현재가의 위치. 지금이 비싼 편인지 싼 편인지 감 잡는 용도.',
+};
+
+// 라벨 + ⓘ(설명 있으면).
+function HintLabel({ label }: { label: string }) {
+  const body = HINTS[label];
+  if (!body) return <>{label}</>;
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+      {label}
+      <Tip title={label} body={body} width={250}>
+        <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 13, height: 13, marginLeft: 5, borderRadius: '50%', border: '1px solid var(--c-w22)', color: 'var(--c-tx5)', fontSize: 8, fontWeight: 700, flexShrink: 0, cursor: 'help' }}>i</span>
+      </Tip>
+    </span>
+  );
+}
 
 // 해외 ETF 소개 페이지 — 국내 유니버스에 없어 K-리서치 상세가 없는 ETF를 ETF답게 보여준다.
 //  가격 차트·기간 수익률·52주 범위 + 운용사·보수·순자산·배당 + 실제 구성종목·섹터 비중·개요. 전부 Yahoo 실데이터.
@@ -111,7 +136,7 @@ export function EtfDetail({ symbol }: { symbol: string }) {
   const stat = (label: string, val: string | null) =>
     val == null ? null : (
       <div style={{ ...FLAT, padding: '14px 16px' }}>
-        <div style={{ fontSize: 11, color: 'var(--c-tx6)', marginBottom: 6 }}>{label}</div>
+        <div style={{ fontSize: 11, color: 'var(--c-tx6)', marginBottom: 6 }}><HintLabel label={label} /></div>
         <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--c-tx1b)' }}>{val}</div>
       </div>
     );
@@ -169,7 +194,7 @@ export function EtfDetail({ symbol }: { symbol: string }) {
                 const cumulative = yrs ? Math.pow(1 + v!, yrs) - 1 : null; // 연평균 → 그 기간 누적
                 return (
                   <div key={k} style={{ ...FLAT, padding: '11px 12px', textAlign: 'center' }}>
-                    <div style={{ fontSize: 11, color: 'var(--c-tx6)', marginBottom: 5 }}>{yrs ? `${k} 연평균` : k}</div>
+                    <div style={{ fontSize: 11, color: 'var(--c-tx6)', marginBottom: 5 }}>{yrs ? <>{k} <HintLabel label="연평균" /></> : <HintLabel label={k} />}</div>
                     <div style={{ fontSize: 15, fontWeight: 800, color: upColor(v!) }}>{fmtPctSign(v!)}{yrs && <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--c-tx6)' }}>/년</span>}</div>
                     {cumulative != null && <div style={{ fontSize: 10.5, color: 'var(--c-tx6)', marginTop: 3 }}>누적 {fmtPctSign(cumulative)}</div>}
                   </div>
@@ -191,7 +216,7 @@ export function EtfDetail({ symbol }: { symbol: string }) {
         const f = (v: number) => `${cs}${v.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
         return (
           <div style={{ ...FLAT, padding: '14px 16px', marginBottom: 20 }}>
-            <div style={{ fontSize: 11, color: 'var(--c-tx6)', marginBottom: 10 }}>52주 범위</div>
+            <div style={{ fontSize: 11, color: 'var(--c-tx6)', marginBottom: 10 }}><HintLabel label="52주 범위" /></div>
             <div style={{ position: 'relative', height: 6, borderRadius: 3, background: 'var(--c-w06)', marginBottom: 8 }}>
               <div style={{ position: 'absolute', top: -3, left: `${posPct}%`, transform: 'translateX(-50%)', width: 12, height: 12, borderRadius: '50%', background: 'var(--c-accyan)', boxShadow: '0 0 8px var(--c-cy45)' }} />
             </div>
