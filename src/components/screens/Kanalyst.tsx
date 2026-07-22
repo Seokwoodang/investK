@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { fmtPct, upColor } from '../../lib/format';
 import { useAdmin } from '../DashboardChrome';
 import { track } from '../../lib/ga';
@@ -108,30 +108,57 @@ function TrendBars({ data, market }: { data: KanalystData['trend']; market: KMar
   );
 }
 
-// ── 목표가 게이지(현재가·컨센서스 목표가, 있으면 최저~최고 범위) ──
+// ── 목표가 게이지(현재가·컨센서스 목표가·애널리스트 목표 최저~최고 범위) ──
 function TargetGauge({ price, target, low, high, cur }: { price: number | null; target: number | null; low: number | null; high: number | null; cur: string }) {
   if (price == null || target == null) return null;
-  const lo = Math.min(low ?? target, price) * 0.97;
-  const hi = Math.max(high ?? target, price) * 1.03;
+  const hasRange = low != null && high != null && high > low;
+  const lo = Math.min(low ?? target, price, target) * 0.96;
+  const hi = Math.max(high ?? target, price, target) * 1.04;
   const span = hi - lo || 1;
-  const pos = (v: number) => `${Math.max(0, Math.min(100, ((v - lo) / span) * 100))}%`;
+  const pct = (v: number) => Math.max(0, Math.min(100, ((v - lo) / span) * 100));
+  const pos = (v: number) => `${pct(v)}%`;
+  const up = target >= price;
+  // 현재가→목표가 진행 구간(상승여력을 색으로 시각화).
+  const fillL = Math.min(pct(price), pct(target));
+  const fillW = Math.abs(pct(target) - pct(price));
+  // 라벨이 좌우 끝에서 잘리지 않도록 위치에 따라 정렬 앵커를 바꾼다(모바일 대응).
+  const anchor = (p: number): CSSProperties =>
+    p < 16 ? { left: 0, transform: 'none', textAlign: 'left' }
+    : p > 84 ? { right: 0, left: 'auto', transform: 'none', textAlign: 'right' }
+    : { left: `${p}%`, transform: 'translateX(-50%)', textAlign: 'center' };
+  const dot = (color: string): CSSProperties => ({ position: 'absolute', top: '50%', width: 11, height: 11, borderRadius: 999, background: color, border: '2px solid var(--c-panel)', transform: 'translate(-50%,-50%)', boxShadow: '0 0 0 1px rgba(0,0,0,0.25)' });
   return (
-    <div style={{ marginTop: 4 }}>
-      <div style={{ position: 'relative', height: 8, borderRadius: 999, background: 'linear-gradient(90deg, var(--c-rd22), var(--c-w10), var(--c-gn22))', marginBottom: 34, marginTop: 26 }}>
-        {low != null && high != null && (
-          <div style={{ position: 'absolute', left: pos(low), right: `calc(100% - ${pos(high)})`, top: -3, height: 14, background: 'var(--c-cy10)', borderRadius: 4 }} />
-        )}
-        {/* 현재가 */}
-        <div style={{ position: 'absolute', left: pos(price), top: -26, transform: 'translateX(-50%)', textAlign: 'center', whiteSpace: 'nowrap' }}>
-          <div style={{ fontSize: 10, color: 'var(--c-tx5)' }}>현재가</div>
-          <div style={{ width: 2, height: 16, background: 'var(--c-tx3)', margin: '2px auto 0' }} />
+    <div style={{ marginTop: 6 }}>
+      <div style={{ position: 'relative', paddingTop: 22, paddingBottom: 22 }}>
+        {/* 현재가 라벨(위) */}
+        <div style={{ position: 'absolute', top: 0, whiteSpace: 'nowrap', ...anchor(pct(price)) }}>
+          <div style={{ fontSize: 10.5, color: 'var(--c-tx4)', fontWeight: 600 }}>현재가 {fmtPx(price, cur)}</div>
         </div>
-        {/* 목표가 */}
-        <div style={{ position: 'absolute', left: pos(target), top: 10, transform: 'translateX(-50%)', textAlign: 'center', whiteSpace: 'nowrap' }}>
-          <div style={{ width: 2, height: 16, background: 'var(--c-accyan)', margin: '0 auto 2px' }} />
-          <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--c-accyanbr)' }}>목표 {fmtPx(target, cur)}</div>
+        {/* 트랙 */}
+        <div style={{ position: 'relative', height: 6, borderRadius: 999, background: 'var(--c-w06)' }}>
+          {/* 애널리스트 목표 최저~최고 범위 밴드(테두리로 '구간'임을 분명히) */}
+          {hasRange && (
+            <div style={{ position: 'absolute', left: pos(low!), right: `calc(100% - ${pos(high!)})`, top: -4, height: 14, background: 'var(--c-cy18)', border: '1px solid var(--c-accyan)', borderRadius: 4 }} />
+          )}
+          {/* 현재가→목표 진행(상승/하락 방향 색) */}
+          <div style={{ position: 'absolute', left: `${fillL}%`, width: `${fillW}%`, top: 0, height: 6, borderRadius: 999, background: up ? 'var(--c-up)' : 'var(--c-down)' }} />
+          {/* 현재가 점 */}
+          <div style={{ ...dot('var(--c-tx1)'), left: pos(price) }} />
+          {/* 목표가 점 */}
+          <div style={{ ...dot('var(--c-accyan)'), left: pos(target) }} />
+        </div>
+        {/* 목표 라벨(아래) */}
+        <div style={{ position: 'absolute', bottom: 0, whiteSpace: 'nowrap', ...anchor(pct(target)) }}>
+          <div style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--c-accyanbr)' }}>목표 {fmtPx(target, cur)}</div>
         </div>
       </div>
+      {/* 범위 밴드가 무엇인지 명시하는 캡션 — 라벨 없이 두면 뭔지 알 수 없어서 추가 */}
+      {hasRange && (
+        <div style={{ fontSize: 10.5, color: 'var(--c-tx6)', marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          <span style={{ display: 'inline-block', width: 11, height: 8, background: 'var(--c-cy18)', border: '1px solid var(--c-accyan)', borderRadius: 2, verticalAlign: 'middle', marginRight: 5 }} />
+          애널리스트 목표 범위 {fmtPx(low, cur)} ~ {fmtPx(high, cur)}
+        </div>
+      )}
     </div>
   );
 }
