@@ -127,3 +127,73 @@ export async function getUsStockUniverse(): Promise<import('@/types').UniverseRo
   const [nasdaq, nyse] = await Promise.all([fetchExchange('NASDAQ'), fetchExchange('NYSE')]);
   return [...nasdaq, ...nyse];
 }
+
+// ── 국내 ETF 프로필(네이버 etfAnalysis) — Yahoo가 한국 ETF엔 구성종목·운용사를 안 줘서 네이버로 보강. ──
+//  운용사·추종지수·보수·순자산·배당 + 구성종목 top10·섹터 비중·기간 수익률(누적). 차트는 Yahoo(.KS/.KQ) 재사용.
+import type { EtfProfile } from './yahoo';
+import { fetchDailyCandles } from './yahoo';
+
+const NAVER_ETF_UA = { 'User-Agent': 'Mozilla/5.0', Referer: 'https://m.stock.naver.com/' };
+// "32.76%" → 0.3276 · "-"/빈값 → 0(비중 미제공 = 이름만 표시)
+function parseWeightPct(w: unknown): number {
+  if (w == null) return 0;
+  const f = parseFloat(String(w).replace('%', '').replace(/,/g, ''));
+  return Number.isFinite(f) ? f / 100 : 0;
+}
+const pctRatio = (v: unknown): number | null => (typeof v === 'number' ? v / 100 : null); // 네이버 %숫자 → 비율
+
+export async function getNaverEtfProfile(code: string): Promise<EtfProfile | null> {
+  if (!/^\d{6}$/.test(code)) return null;
+  try {
+    const [aRes, ksCandles] = await Promise.all([
+      fetch(`https://m.stock.naver.com/api/stock/${code}/etfAnalysis`, { headers: NAVER_ETF_UA, next: { revalidate: 3600 } }),
+      fetchDailyCandles(`${code}.KS`, '1y'),
+    ]);
+    if (!aRes.ok) return null;
+    const a = (await aRes.json()) as Record<string, any>;
+    if (!a || !a.itemName) return null; // ETF 아님/데이터 없음
+    const candles = ksCandles.length ? ksCandles : await fetchDailyCandles(`${code}.KQ`, '1y'); // 코스닥 ETF 폴백
+    const holdings = (a.etfTop10MajorConstituentAssets ?? [])
+      .map((h: any) => ({ symbol: h.itemCode || null, name: h.itemName ?? null, weight: parseWeightPct(h.etfWeight) }))
+      .filter((h: { name: string | null }) => h.name);
+    const sectors = (a.sectorPortfolioList ?? [])
+      .map((s: any) => ({ key: String(s.detailTypeCode ?? ''), weight: typeof s.weight === 'number' ? s.weight / 100 : 0 }))
+      .filter((s: { key: string; weight: number }) => s.key && s.weight > 0);
+    const tr = a.themeReturns ?? {};
+    const lastC = candles.length ? candles[candles.length - 1].c : null;
+    const week52High = candles.length ? Math.max(...candles.map((c) => c.h)) : null;
+    const week52Low = candles.length ? Math.min(...candles.map((c) => c.l)) : null;
+    // 구성종목·운용사 어느 것도 없으면 ETF 프로필로 볼 수 없음 → null(Yahoo 폴백에 맡김).
+    if (!holdings.length && !a.issuerName) return null;
+    return {
+      symbol: code,
+      name: a.itemName,
+      currency: 'KRW',
+      price: lastC,
+      changePct: typeof tr.returnRate1d === 'number' ? +tr.returnRate1d.toFixed(2) : null,
+      family: a.issuerName ?? null,
+      category: null,
+      trackingIndex: a.etfBaseIndex ?? null,
+      legalType: 'ETF',
+      expenseRatio: typeof a.totalFee === 'number' ? a.totalFee / 100 : null,
+      totalAssets: null,
+      totalAssetsText: a.totalNav ?? a.marketValue ?? null,
+      yield: a.dividend && typeof a.dividend.dividendYieldTtm === 'number' ? a.dividend.dividendYieldTtm / 100 : null,
+      summary: a.etfSummary ?? null,
+      holdings,
+      sectors,
+      // 네이버 기간 수익률은 '누적(총)' 기준 → Yahoo(누적으로 변환함)와 통일.
+      returns: {
+        m1: pctRatio(tr.returnRate1m), m3: pctRatio(tr.returnRate3m), ytd: pctRatio(tr.returnRateYtd),
+        y1: pctRatio(tr.returnRate1y), y3: pctRatio(tr.returnRate3y), y5: pctRatio(tr.returnRate5y),
+      },
+      week52High,
+      week52Low,
+      volume: null,
+      website: null,
+      candles,
+    };
+  } catch {
+    return null;
+  }
+}

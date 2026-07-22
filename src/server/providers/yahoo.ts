@@ -2,8 +2,8 @@ import 'server-only';
 import { REVALIDATE } from '../env';
 import type { Candle } from '../../types';
 
-// Yahoo 일봉 캔들(키 불필요) — ETF 가격 차트용. 1년치 일봉.
-async function fetchDailyCandles(symbol: string, range = '1y'): Promise<Candle[]> {
+// Yahoo 일봉 캔들(키 불필요) — ETF 가격 차트용. 1년치 일봉. (국내 ETF는 <코드>.KS/.KQ)
+export async function fetchDailyCandles(symbol: string, range = '1y'): Promise<Candle[]> {
   try {
     const r = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=${range}`, {
       headers: { 'User-Agent': 'Mozilla/5.0' }, next: { revalidate: 3600 },
@@ -164,9 +164,11 @@ export interface EtfProfile {
   changePct: number | null;
   family: string | null;    // 운용사(Invesco·State Street 등)
   category: string | null;  // 분류(Large Growth 등)
+  trackingIndex: string | null; // 추종 지수(코스피200·NASDAQ 100 등, 주로 국내 ETF)
   legalType: string | null; // Exchange Traded Fund 등
   expenseRatio: number | null; // 연 보수(비율, 0.0018=0.18%)
-  totalAssets: number | null;  // 순자산(AUM)
+  totalAssets: number | null;  // 순자산(AUM, 숫자)
+  totalAssetsText: string | null; // 순자산(이미 포맷된 문자열, 국내 소스용 "24조 3,297억")
   yield: number | null;        // 배당수익률(비율)
   summary: string | null;      // 개요(영문)
   holdings: { symbol: string | null; name: string | null; weight: number }[]; // 구성종목(비중 내림차순)
@@ -240,16 +242,20 @@ export async function getEtfProfile(symbol: string, retry = true): Promise<EtfPr
       changePct: n(pr.regularMarketChangePercent) != null ? +(n(pr.regularMarketChangePercent)! * 100).toFixed(2) : null,
       family: fp.family ?? null,
       category: fp.categoryName ?? null,
+      trackingIndex: null,
       legalType: fp.legalType ?? null,
       expenseRatio: n(fp.feesExpensesInvestment?.annualReportExpenseRatio) ?? n(fp.feesExpensesInvestment?.netExpRatio) ?? null,
       totalAssets: n(sd.totalAssets),
+      totalAssetsText: null,
       yield: n(sd.yield),
       summary: ap.longBusinessSummary ?? null,
       holdings,
       sectors,
+      // 수익률은 '누적(총)'으로 통일. Yahoo 3·5년은 연환산(CAGR)이라 누적으로 변환((1+연)^년-1).
       returns: {
-        m1: n(tr.oneMonth), m3: n(tr.threeMonth), ytd: n(tr.ytd),
-        y1: n(tr.oneYear), y3: n(tr.threeYear), y5: n(tr.fiveYear),
+        m1: n(tr.oneMonth), m3: n(tr.threeMonth), ytd: n(tr.ytd), y1: n(tr.oneYear),
+        y3: n(tr.threeYear) != null ? Math.pow(1 + n(tr.threeYear)!, 3) - 1 : null,
+        y5: n(tr.fiveYear) != null ? Math.pow(1 + n(tr.fiveYear)!, 5) - 1 : null,
       },
       week52High: n(sd.fiftyTwoWeekHigh),
       week52Low: n(sd.fiftyTwoWeekLow),

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getEtfProfile, resolveEtfSymbol } from '@/server/providers/yahoo';
+import { getNaverEtfProfile } from '@/server/providers/naver';
 
 // 해외 ETF 프로필(운용사·추종·보수·구성종목 등) — 국내 유니버스에 없는 보유 종목을 ETF답게 소개.
 // 데이터: Yahoo Finance. 티커로 먼저 조회하고, 실패하면 종목명으로 심볼 검색 후 재조회.
@@ -19,7 +20,8 @@ export async function GET(req: Request) {
   const isKrCode = /^\d{6}$/.test(validSym);
   let profile: Awaited<ReturnType<typeof getEtfProfile>> = null;
   if (isKrCode) {
-    profile = (await getEtfProfile(`${validSym}.KS`)) ?? (await getEtfProfile(`${validSym}.KQ`));
+    // 국내 ETF: 네이버가 구성종목·운용사·지수까지 줘서 우선. 실패 시 Yahoo .KS/.KQ(이름·가격·차트만).
+    profile = (await getNaverEtfProfile(validSym)) ?? (await getEtfProfile(`${validSym}.KS`)) ?? (await getEtfProfile(`${validSym}.KQ`));
   } else if (validSym) {
     profile = await getEtfProfile(validSym);
   }

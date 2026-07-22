@@ -13,7 +13,7 @@ import type { Candle } from '../../types';
 // 용어 설명 — 초심자용. 라벨 옆 ⓘ 탭/호버 시 설명.
 const HINTS: Record<string, string> = {
   YTD: 'Year To Date — 올해 1월 1일부터 지금까지의 수익률. 최근 며칠이 아니라 "올 한 해 여기까지" 얼마 올랐나.',
-  연평균: '연평균(CAGR) — 여러 해 수익을 "매년 평균 몇 %씩 복리로 불었나"로 환산한 값. 예: 연 13%면 5년에 약 +85%(복리). 옆의 "누적"이 그 기간 실제 총수익률.',
+  연평균: '연평균(CAGR) — 매년 평균 몇 %씩 복리로 불었나. 위 큰 숫자는 그 기간 "누적(총)" 수익률이고, 이건 그걸 연평균으로 환산한 값. 예: 누적 +85% ≈ 연평균 13%(5년).',
   '연 보수': 'ETF 운용에 매년 자동으로 떼는 수수료(운용보수). 0.1%면 100만원당 연 1,000원. 낮을수록 유리.',
   '순자산(AUM)': '이 ETF에 모인 전체 자금(Assets Under Management). 클수록 대체로 안정적이고 거래가 잘 됩니다.',
   배당수익률: '현재가 대비 최근 1년 배당의 비율. 2%면 100만원어치에 연 2만원 배당(세금·변동 있음).',
@@ -39,8 +39,8 @@ function HintLabel({ label }: { label: string }) {
 interface EtfProfile {
   symbol: string; name: string | null; currency: string | null;
   price: number | null; changePct: number | null;
-  family: string | null; category: string | null; legalType: string | null;
-  expenseRatio: number | null; totalAssets: number | null; yield: number | null;
+  family: string | null; category: string | null; trackingIndex: string | null; legalType: string | null;
+  expenseRatio: number | null; totalAssets: number | null; totalAssetsText: string | null; yield: number | null;
   summary: string | null;
   holdings: { symbol: string | null; name: string | null; weight: number }[];
   sectors: { key: string; weight: number }[];
@@ -54,10 +54,15 @@ const RANGES: { key: '1mo' | '3mo' | '1y'; label: string; n: number }[] = [
 ];
 
 const SECTOR_KO: Record<string, string> = {
+  // Yahoo(소문자)
   realestate: '부동산', consumer_cyclical: '경기소비재', basic_materials: '소재',
   consumer_defensive: '필수소비재', technology: '기술', communication_services: '커뮤니케이션',
   financial_services: '금융', healthcare: '헬스케어', industrials: '산업재',
   energy: '에너지', utilities: '유틸리티',
+  // 네이버(대문자)
+  IT: '기술', INDUSTRIALS: '산업재', FINANCIALS: '금융', CONSUMER_DISCRETIONARY: '경기소비재',
+  COMMUNICATION: '커뮤니케이션', CONSUMER_STAPLES: '필수소비재', HEALTH_CARE: '헬스케어',
+  ENERGY: '에너지', MATERIALS: '소재', UTILITIES: '유틸리티', REAL_ESTATE: '부동산',
 };
 const CUR: Record<string, string> = { USD: '$', GBP: '£', EUR: '€', JPY: '¥', HKD: 'HK$', KRW: '₩' };
 
@@ -191,18 +196,18 @@ export function EtfDetail({ symbol }: { symbol: string }) {
             <h2 style={{ margin: '0 0 12px', fontSize: 16, fontWeight: 800 }}>기간 수익률</h2>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(96px, 1fr))', gap: 10 }}>
               {rs.map(({ k, v, yrs }) => {
-                const cumulative = yrs ? Math.pow(1 + v!, yrs) - 1 : null; // 연평균 → 그 기간 누적
+                const annualized = yrs ? Math.pow(1 + v!, 1 / yrs) - 1 : null; // 누적 → 연평균(CAGR)
                 return (
                   <div key={k} style={{ ...FLAT, padding: '11px 12px', textAlign: 'center' }}>
-                    <div style={{ fontSize: 11, color: 'var(--c-tx6)', marginBottom: 5 }}>{yrs ? <>{k} <HintLabel label="연평균" /></> : <HintLabel label={k} />}</div>
-                    <div style={{ fontSize: 15, fontWeight: 800, color: upColor(v!) }}>{fmtPctSign(v!)}{yrs && <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--c-tx6)' }}>/년</span>}</div>
-                    {cumulative != null && <div style={{ fontSize: 10.5, color: 'var(--c-tx6)', marginTop: 3 }}>누적 {fmtPctSign(cumulative)}</div>}
+                    <div style={{ fontSize: 11, color: 'var(--c-tx6)', marginBottom: 5 }}><HintLabel label={k} /></div>
+                    <div style={{ fontSize: 15, fontWeight: 800, color: upColor(v!) }}>{fmtPctSign(v!)}</div>
+                    {annualized != null && <div style={{ fontSize: 10.5, color: 'var(--c-tx6)', marginTop: 3 }}><HintLabel label="연평균" /> {fmtPctSign(annualized)}</div>}
                   </div>
                 );
               })}
             </div>
             <div style={{ fontSize: 11, color: 'var(--c-tx6)', marginTop: 7, lineHeight: 1.5 }}>
-              1개월~1년은 해당 기간 누적 수익률. <b>3·5년은 연평균(CAGR)</b>이라 그 기간 누적을 아래 함께 표기 — 예: 연 13% × 5년이면 누적 약 +85%. 배당 재투자 포함(Yahoo).
+              전부 <b>해당 기간 누적(총) 수익률</b>. 3·5년은 아래에 <b>연평균(CAGR)</b>을 함께 표기. 배당 포함 기준.
             </div>
           </div>
         );
@@ -232,9 +237,10 @@ export function EtfDetail({ symbol }: { symbol: string }) {
       {/* 요약 스탯 */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12, marginBottom: 20 }}>
         {stat('운용사', profile.family)}
+        {stat('추종 지수', profile.trackingIndex)}
         {stat('분류', profile.category)}
-        {stat('연 보수', pct2(profile.expenseRatio))}
-        {stat('순자산(AUM)', fmtAum(profile.totalAssets, profile.currency))}
+        {stat('연 보수', profile.expenseRatio != null ? pct2(profile.expenseRatio) : null)}
+        {stat('순자산(AUM)', profile.totalAssetsText ?? fmtAum(profile.totalAssets, profile.currency))}
         {stat('배당수익률', profile.yield != null ? pct2(profile.yield) : null)}
         {stat('거래량', profile.volume != null ? profile.volume.toLocaleString('ko-KR') : null)}
       </div>
@@ -252,10 +258,13 @@ export function EtfDetail({ symbol }: { symbol: string }) {
                   <span style={{ fontSize: 12.5, color: 'var(--c-tx5)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{h.name}</span>
                 </span>
                 <span style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <span style={{ width: 72, height: 6, borderRadius: 3, background: 'var(--c-w06)', overflow: 'hidden' }}>
-                    <span style={{ display: 'block', height: '100%', width: `${Math.min(100, h.weight * 100 * 4)}%`, background: 'var(--c-accyan)' }} />
-                  </span>
-                  <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--c-tx2)', width: 46, textAlign: 'right' }}>{pct1(h.weight)}</span>
+                  {/* 비중 미제공(국내 상장 해외물 ETF 등, 네이버가 비중 "-")이면 막대 생략하고 '—' */}
+                  {h.weight > 0 && (
+                    <span style={{ width: 72, height: 6, borderRadius: 3, background: 'var(--c-w06)', overflow: 'hidden' }}>
+                      <span style={{ display: 'block', height: '100%', width: `${Math.min(100, h.weight * 100 * 4)}%`, background: 'var(--c-accyan)' }} />
+                    </span>
+                  )}
+                  <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--c-tx2)', width: 46, textAlign: 'right' }}>{h.weight > 0 ? pct1(h.weight) : '—'}</span>
                 </span>
               </div>
             ))}
