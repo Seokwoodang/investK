@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { upColor } from '../lib/format';
 import { useDashboard } from '../store/DashboardContext';
 import { CandleChart } from './CandleChart';
@@ -21,7 +22,14 @@ const RANGE_LABEL: { r: Range; label: string }[] = [
   { r: '1y', label: '1년' },
 ];
 
-const fmtEok = (v: number) => `${v > 0 ? '+' : ''}${v.toLocaleString('ko-KR')}억`;
+// 순매수 표기(억원). 1조(10,000억) 이상은 '조'로 축약해 좁은 3열 카드에서도 한 줄에 들어가게.
+const fmtEokShort = (v: number) => {
+  const sign = v > 0 ? '+' : v < 0 ? '-' : '';
+  const a = Math.abs(v);
+  return a >= 10000
+    ? `${sign}${(a / 10000).toLocaleString('ko-KR', { maximumFractionDigits: 2 })}조`
+    : `${sign}${a.toLocaleString('ko-KR')}억`;
+};
 
 export function IndexModal({ name, onClose }: { name: string; onClose: () => void }) {
   const { state } = useDashboard();
@@ -64,11 +72,14 @@ export function IndexModal({ name, onClose }: { name: string; onClose: () => voi
     { key: 'personal', label: '개인' },
   ];
 
-  return (
+  // body로 포털 렌더 — 대시보드 콘텐츠 래퍼(zIndex:1)에 갇히면 헤더(z40)가 모달 상단을 덮어 제목이 잘림.
+  //  래퍼 밖(body)으로 빼야 zIndex가 헤더 위(여기선 100)로 실제 적용된다.
+  if (typeof document === 'undefined') return null;
+  return createPortal(
     <div
       onClick={onClose}
       style={{
-        position: 'fixed', inset: 0, zIndex: 50, background: 'var(--c-overlay)',
+        position: 'fixed', inset: 0, zIndex: 100, background: 'var(--c-overlay)',
         backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)',
         display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 'clamp(12px, 4vw, 24px)',
         overflow: 'hidden', // 모달이 화면 높이에 갇히므로 바깥(오버레이) 스크롤 없음
@@ -136,16 +147,16 @@ export function IndexModal({ name, onClose }: { name: string; onClose: () => voi
             <div style={{ marginTop: 22 }}>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 12 }}>
                 <h4 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: 'var(--c-tx2)' }}>투자자별 매매동향</h4>
-                <span style={{ fontSize: 11, color: 'var(--c-tx6)' }}>순매수 · 억원</span>
+                <span style={{ fontSize: 11, color: 'var(--c-tx6)' }}>순매수 · 억원{today ? ` · ${today.date.slice(5)}` : ''}</span>
               </div>
 
               {/* 오늘(최근 거래일) 요약 */}
               {today && (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 14 }}>
                   {INVESTORS.map(({ key, label }) => (
-                    <div key={key} style={{ background: 'var(--c-w04)', border: '1px solid var(--c-w08)', borderRadius: 14, padding: '12px 14px' }}>
-                      <div style={{ fontSize: 11, color: 'var(--c-tx5)', marginBottom: 5 }}>{label} <span style={{ color: 'var(--c-tx6)' }}>{today.date.slice(5)}</span></div>
-                      <div style={{ fontSize: 16, fontWeight: 800, color: upColor(today[key]) }}>{fmtEok(today[key])}</div>
+                    <div key={key} style={{ background: 'var(--c-w04)', border: '1px solid var(--c-w08)', borderRadius: 14, padding: '12px 12px', minWidth: 0 }}>
+                      <div style={{ fontSize: 11, color: 'var(--c-tx5)', marginBottom: 5, whiteSpace: 'nowrap' }}>{label}</div>
+                      <div style={{ fontSize: 15, fontWeight: 800, letterSpacing: '-0.02em', color: upColor(today[key]), whiteSpace: 'nowrap' }}>{fmtEokShort(today[key])}</div>
                     </div>
                   ))}
                 </div>
@@ -164,7 +175,7 @@ export function IndexModal({ name, onClose }: { name: string; onClose: () => voi
                           <div style={{ flex: 1, height: 6, borderRadius: 3, background: 'var(--c-w05)', overflow: 'hidden' }}>
                             <div style={{ width: `${w}%`, height: '100%', borderRadius: 3, background: upColor(v), opacity: 0.85 }} />
                           </div>
-                          <span style={{ fontSize: 11, fontWeight: 700, color: upColor(v), whiteSpace: 'nowrap', minWidth: 52, textAlign: 'right' }}>{fmtEok(v)}</span>
+                          <span style={{ fontSize: 11, fontWeight: 700, color: upColor(v), whiteSpace: 'nowrap', minWidth: 48, textAlign: 'right' }}>{fmtEokShort(v)}</span>
                         </div>
                       );
                     })}
@@ -187,6 +198,7 @@ export function IndexModal({ name, onClose }: { name: string; onClose: () => voi
           />
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { WEEKDAYS } from '../lib/constants';
 import { glossDef } from '../lib/glossary';
 import { useDashboard } from '../store/DashboardContext';
@@ -28,11 +29,13 @@ export function EventModal() {
   const iso = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
   const events = modal.events.filter((e) => e.date === iso);
 
-  return (
+  if (typeof document === 'undefined') return null;
+  // body로 포털 렌더 — 콘텐츠 래퍼(zIndex:1)에 갇히면 헤더(z40)가 모달 상단을 덮음. 래퍼 밖(body)으로 빼야 z100이 실제 적용.
+  return createPortal(
     <div
       onClick={actions.closeEventModal}
       style={{
-        position: 'fixed', inset: 0, zIndex: 50, background: 'var(--c-overlay)',
+        position: 'fixed', inset: 0, zIndex: 100, background: 'var(--c-overlay)',
         backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)',
         display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 'clamp(12px, 4vw, 24px)',
         overflow: 'hidden',
@@ -93,6 +96,7 @@ export function EventModal() {
           <div style={{ fontSize: 11, color: 'var(--c-tx6)', paddingTop: 14 }}>출처 · Nasdaq 경제지표 캘린더 · 예상(컨센서스)·직전치·실제 결과 포함</div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

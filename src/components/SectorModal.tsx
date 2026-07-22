@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { upColor } from '../lib/format';
 import { useDashboard } from '../store/DashboardContext';
 import { CandleChart } from './CandleChart';
@@ -59,11 +60,13 @@ export function SectorModal({ market, name, onClose }: { market: 'kr' | 'us'; na
   const prev = candles?.[candles.length - 2];
   const chg = last && prev && prev.c !== 0 ? ((last.c - prev.c) / prev.c) * 100 : null;
 
-  return (
+  if (typeof document === 'undefined') return null;
+  // body로 포털 렌더 — 콘텐츠 래퍼(zIndex:1)에 갇히면 헤더(z40)가 모달 상단을 덮음. 래퍼 밖(body)으로 빼야 z100이 실제 적용.
+  return createPortal(
     <div
       onClick={onClose}
       style={{
-        position: 'fixed', inset: 0, zIndex: 50, background: 'var(--c-overlay)',
+        position: 'fixed', inset: 0, zIndex: 100, background: 'var(--c-overlay)',
         backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)',
         display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 'clamp(12px, 4vw, 24px)',
         overflow: 'hidden', // 모달이 화면 높이에 갇히므로 바깥(오버레이) 스크롤 없음
@@ -157,6 +160,7 @@ export function SectorModal({ market, name, onClose }: { market: 'kr' | 'us'; na
           />
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
