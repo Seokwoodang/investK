@@ -121,7 +121,8 @@ const DISC_CHIP = (k: DiscItem['kind']) =>
   : { bg: 'var(--c-w06)', c: 'var(--c-tx4)' };
 
 export function Detail({ id }: { id: string }) {
-  const { layout } = useViewportLayout();
+  const { vw, layout } = useViewportLayout();
+  const narrow = vw < 480; // 모바일: 봉 단위 토글 등 가로로 긴 컨트롤이 360폭을 넘지 않게 처리
   const { state, actions, data } = useDashboard();
   const rt = useRealtime();
   const subscribeStocks = useSubscribeStocks();
@@ -677,9 +678,9 @@ export function Detail({ id }: { id: string }) {
                 </div>
                 <span style={{ fontSize: 11, color: 'var(--c-tx6)' }}>↑ 위 수익률을 계산할 기간 (아래 차트와는 별개)</span>
               </div>
-              {/* 오른쪽: 차트 봉 단위 */}
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
-                <div style={{ display: 'flex', gap: 4, padding: 4, background: 'var(--c-w04)', borderRadius: 12 }}>
+              {/* 오른쪽: 차트 봉 단위 — 봉이 7~8개라 좁은 화면에선 줄바꿈해 잘림/튀어나옴 방지 */}
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: narrow ? 'flex-start' : 'flex-end', gap: 6, minWidth: 0, maxWidth: '100%', flex: narrow ? '1 1 100%' : '0 1 auto' }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: narrow ? 'flex-start' : 'flex-end', gap: 4, padding: 4, background: 'var(--c-w04)', borderRadius: 12, maxWidth: '100%' }}>
                   {(isCoinTab ? PERIODS_COIN : PERIODS_STOCK).map((p) => (
                     <button key={p} onClick={() => actions.setPeriod(p)} style={segStyle(state.period === p)}>{PERIOD_LABEL[p]}</button>
                   ))}
