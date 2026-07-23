@@ -9,7 +9,6 @@ import { TAB_MAP, type Currency, type TabId } from '../../types';
 import { SourceNote, UpdateNote } from '../SourceNote';
 import { GlossaryTip, TermTip } from '../GlossaryTip';
 import { InlineSpinner } from '../Footer';
-import { SubNav } from '../SubNav';
 import { useRouter } from 'next/navigation';
 
 const CARD: React.CSSProperties = {
@@ -272,8 +271,7 @@ export function Portfolio() {
 
   return (
     <div>
-      {/* 내 투자 섹션 탭 — 보유 관리 ↔ AI 보고서(메뉴 다이어트로 최상위에서 내려옴) */}
-      <SubNav items={[{ href: '/portfolio', label: '내 자산' }, { href: '/report', label: 'AI 보고서' }]} />
+      {/* AI 보고서(/report) 진입 버튼은 일단 숨김 — 라우트는 유지. */}
       <div style={{ marginBottom: 24 }}>
         <h1 style={{ margin: 0, fontSize: 28, fontWeight: 800, letterSpacing: '-0.02em' }}>내 자산</h1>
         <p style={{ margin: '8px 0 0', fontSize: 14, color: 'var(--c-tx5)' }}>보유 종목을 직접 입력하거나 CSV로 붙여넣으면 평가손익·비중과 AI 포트폴리오 평가를 보여줍니다. (증권사 무관)</p>
