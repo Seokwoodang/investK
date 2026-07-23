@@ -751,6 +751,9 @@ export function Dashboard() {
         </div>
       </CollapsibleSection>
 
+      {/* 모바일: 데스크톱은 매크로 3열의 3번째 칸에 광고가 들어가지만 모바일엔 그 칸이 없어 광고가 빠짐 → 배너로 보충. */}
+      {vw < 1024 && <AdSlot variant="banner" style={{ marginBottom: 36 }} />}
+
       {/* ⑦ 자산군별 한 줄 (데일리 흡수 — 기존 '자산군 현황' 등락폭 카드 대체) */}
       {brief && brief.byAsset.length > 0 && (
         <div style={{ marginBottom: 36 }}>
