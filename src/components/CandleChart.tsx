@@ -46,6 +46,7 @@ export function CandleChart({
   candles,
   period,
   theme,
+  cur,
   fit = false,
   loadOlder,
   height,
@@ -95,6 +96,15 @@ export function CandleChart({
   useEffect(() => {
     const el = elRef.current;
     if (!el) return;
+    // 분·시간봉 시각은 '시장 로컬 타임존'으로 표시 — 달러($)=미국(ET), 그 외=한국(KST).
+    //  (캔들 t는 정확한 UTC instant라, UTC로 그대로 찍으면 미국주식이 ET가 아닌 UTC로 나와 헷갈림.)
+    const tz = cur === '$' ? 'America/New_York' : 'Asia/Seoul';
+    const tzParts = (d: Date): Record<string, string> => {
+      const o: Record<string, string> = {};
+      new Intl.DateTimeFormat('en-US', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false })
+        .formatToParts(d).forEach((p) => { o[p.type] = p.value; });
+      return o;
+    };
     const chart = createChart(el, {
       height: H,
       width: el.clientWidth,
@@ -117,12 +127,11 @@ export function CandleChart({
             if (tickMarkType === TickMarkType.Month) return `${bd.month}월`;
             return `${bd.day}일`; // DayOfMonth
           }
-          const d = new Date((time as number) * 1000);
-          const p2 = (n: number) => String(n).padStart(2, '0');
+          const p = tzParts(new Date((time as number) * 1000));
           if (tickMarkType === TickMarkType.Time || tickMarkType === TickMarkType.TimeWithSeconds) {
-            return `${p2(d.getUTCHours())}:${p2(d.getUTCMinutes())}`;
+            return `${p.hour}:${p.minute}`;
           }
-          return `${d.getUTCMonth() + 1}/${d.getUTCDate()}`;
+          return `${+p.month}/${+p.day}`; // 날짜 경계(장 넘어감)는 월/일
         },
       },
       crosshair: { mode: CrosshairMode.Normal },
@@ -133,9 +142,8 @@ export function CandleChart({
             const bd = time as BusinessDay;
             return `${bd.year}년 ${bd.month}월 ${bd.day}일`;
           }
-          const d = new Date((time as number) * 1000);
-          const p2 = (n: number) => String(n).padStart(2, '0');
-          return `${d.getUTCFullYear()}년 ${d.getUTCMonth() + 1}월 ${d.getUTCDate()}일 ${p2(d.getUTCHours())}:${p2(d.getUTCMinutes())}`;
+          const p = tzParts(new Date((time as number) * 1000));
+          return `${p.year}년 ${+p.month}월 ${+p.day}일 ${p.hour}:${p.minute}`;
         },
       },
     });
