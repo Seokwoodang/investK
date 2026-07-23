@@ -24,7 +24,7 @@ export async function POST(req: Request) {
       // KIS 해외차트에 없는 티커는 Yahoo로 폴백 — 공개 v8 차트(crumb 불필요), 선택한 봉 단위 그대로.
       //  KIS는 ADR·최근 리네임 티커(바릭 GOLD→B 등)에서 rt_cd 0인데 0봉을 주는 구멍이 넓다.
       //  Yahoo는 클래스주 구분에 점이 아니라 대시를 쓴다: BRK.B→BRK-B.
-      if (!candles.length) candles = await fetchYahooCandles(ticker.replace(/\./g, '-'), period);
+      if (!candles.length) candles = await fetchYahooCandles(ticker.replace(/\./g, '-'), period, win);
     }
     else if (tab === 'kr_coin') candles = await getUpbitCandles('KRW-' + ticker.split('/')[0], period);
     else if (tab === 'global_coin') candles = await getBinanceCandles(symbolFor(ticker), period);

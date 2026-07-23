@@ -2,10 +2,17 @@ import 'server-only';
 import { REVALIDATE } from '../env';
 import type { Candle, Period } from '../../types';
 
-// Yahoo 차트 캔들 공통 조회(키 불필요) — interval/range로 봉 단위를 지정.
-async function yahooChart(symbol: string, interval: string, range: string): Promise<Candle[]> {
+// Yahoo 차트 캔들 공통 조회(키 불필요) — range(최근 N) 또는 period1/period2(unix초 구간, 무한 스크롤용) 지정.
+async function yahooChart(symbol: string, interval: string, opts: { range?: string; period1?: number; period2?: number }): Promise<Candle[]> {
   try {
-    const r = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=${interval}&range=${range}`, {
+    const qs = new URLSearchParams({ interval });
+    if (opts.period1 != null) {
+      qs.set('period1', String(opts.period1));
+      qs.set('period2', String(opts.period2 ?? Math.floor(Date.now() / 1000)));
+    } else {
+      qs.set('range', opts.range ?? '1y');
+    }
+    const r = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?${qs}`, {
       headers: { 'User-Agent': 'Mozilla/5.0' }, next: { revalidate: 3600 },
     });
     if (!r.ok) return [];
@@ -28,8 +35,13 @@ async function yahooChart(symbol: string, interval: string, range: string): Prom
 
 // Yahoo 일봉 캔들 — ETF 가격 차트용. (국내 ETF는 <코드>.KS/.KQ)
 export async function fetchDailyCandles(symbol: string, range = '1y'): Promise<Candle[]> {
-  return yahooChart(symbol, '1d', range);
+  return yahooChart(symbol, '1d', { range });
 }
+
+const ymdToSec = (ymd: string): number => {
+  const y = Number(ymd.slice(0, 4)), mo = Number(ymd.slice(4, 6)), d = Number(ymd.slice(6, 8));
+  return Math.floor(Date.UTC(y, mo - 1, d) / 1000);
+};
 
 // 우리 봉 단위(Period) → Yahoo interval/range. 분·시간봉은 Yahoo가 과거 구간을 제한하므로 range도 맞춘다.
 const YF_INTERVAL: Record<Period, { interval: string; range: string }> = {
@@ -45,9 +57,16 @@ const YF_INTERVAL: Record<Period, { interval: string; range: string }> = {
 };
 
 // 해외주식 폴백용 — 선택한 봉 단위(Period)에 맞는 Yahoo 캔들. KIS가 못 주는 티커(ADR·리네임 등)에 사용.
-export async function fetchYahooCandles(symbol: string, period: Period): Promise<Candle[]> {
+//  win(from/to 'YYYYMMDD')이 주어지면 그 과거 구간을 조회 → 무한 스크롤(왼쪽 드래그로 과거 로드) 지원.
+//  단 분봉은 Yahoo 소스 자체가 과거를 제한한다(1m≈7일·5~30m≈60일·60m≈2년). 그 한계까지만 로드됨.
+export async function fetchYahooCandles(symbol: string, period: Period, win?: { from?: string; to?: string }): Promise<Candle[]> {
   const m = YF_INTERVAL[period] ?? { interval: '1d', range: '2y' };
-  return yahooChart(symbol, m.interval, m.range);
+  if (win?.from || win?.to) {
+    const period2 = win.to ? ymdToSec(win.to) : Math.floor(Date.now() / 1000);
+    const period1 = win.from ? ymdToSec(win.from) : period2 - 86400 * 365;
+    return yahooChart(symbol, m.interval, { period1, period2 });
+  }
+  return yahooChart(symbol, m.interval, { range: m.range });
 }
 
 // Yahoo Finance 차트 API(키 불필요) — 심볼 하나의 현재가/전일대비. DXY(`DX-Y.NYB`)·VIX(`^VIX`)·美10년물(`^TNX`) 등.
