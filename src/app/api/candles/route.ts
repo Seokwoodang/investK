@@ -21,10 +21,12 @@ export async function POST(req: Request) {
     if (tab === 'kr_stock') candles = isMinute ? await getDomesticMinuteCandles(ticker, period) : await getDomesticCandles(ticker, period, win);
     else if (tab === 'us_stock') {
       candles = await getOverseasCandles(ticker, period, win);
-      // KIS 해외차트에 없는 티커(최근 리네임 등)는 Yahoo 일봉으로 폴백 — 공개 v8 차트(crumb 불필요).
+      // KIS 해외차트에 없는 티커는 Yahoo 일봉으로 폴백 — 공개 v8 차트(crumb 불필요).
+      //  KIS는 ADR·최근 리네임 티커(바릭 GOLD→B 등)에서 rt_cd 0인데 0봉을 주는 구멍이 넓다.
+      //  Yahoo는 클래스주 구분에 점이 아니라 대시를 쓴다: BRK.B→BRK-B.
       if (!candles.length) {
         const range = period === '월봉' ? 'max' : period === '주봉' ? '5y' : '2y';
-        candles = await fetchDailyCandles(ticker, range);
+        candles = await fetchDailyCandles(ticker.replace(/\./g, '-'), range);
       }
     }
     else if (tab === 'kr_coin') candles = await getUpbitCandles('KRW-' + ticker.split('/')[0], period);
