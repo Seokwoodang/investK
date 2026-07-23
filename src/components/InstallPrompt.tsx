@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 // PWA 설치 유도 바텀시트. 모바일에서만, 미설치 + 최근 닫지 않은 경우 아래에서 올라온다.
 //  · 안드로이드/크롬: beforeinstallprompt 이벤트를 잡아 네이티브 설치 다이얼로그 호출.
@@ -81,6 +81,31 @@ export function InstallPrompt() {
     setTimeout(() => setRender(false), 280);
   };
 
+  // 시트 상단 핸들 드래그로 내려서 닫기.
+  const [dragY, setDragY] = useState(0);
+  const [dragging, setDragging] = useState(false);
+  const startY = useRef<number | null>(null);
+  const lastDy = useRef(0);
+  const onDragDown = (e: React.PointerEvent) => {
+    startY.current = e.clientY;
+    setDragging(true);
+    (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
+  };
+  const onDragMove = (e: React.PointerEvent) => {
+    if (startY.current == null) return;
+    const dy = Math.max(0, e.clientY - startY.current);
+    lastDy.current = dy;
+    setDragY(dy);
+  };
+  const onDragUp = () => {
+    if (startY.current == null) return;
+    startY.current = null;
+    setDragging(false);
+    if (lastDy.current > 90) close(false); // 충분히 내리면 닫힘, 아니면 스냅백
+    lastDy.current = 0;
+    setDragY(0);
+  };
+
   const install = async () => {
     if (!deferred) return;
     try {
@@ -110,13 +135,23 @@ export function InstallPrompt() {
         aria-label="앱 설치"
         style={{
           position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 201,
-          transform: open ? 'translateY(0)' : 'translateY(110%)', transition: 'transform .32s cubic-bezier(.22,1,.36,1)',
+          transform: open ? `translateY(${dragY}px)` : 'translateY(110%)',
+          transition: dragging ? 'none' : 'transform .32s cubic-bezier(.22,1,.36,1)',
           background: 'var(--c-panel)', borderTop: '1px solid var(--c-w12)', borderRadius: '22px 22px 0 0',
           boxShadow: '0 -18px 48px rgba(0,0,0,.5)', padding: '22px 20px calc(24px + env(safe-area-inset-bottom))',
           maxWidth: 520, margin: '0 auto',
         }}
       >
-        <div style={{ width: 40, height: 4, borderRadius: 2, background: 'var(--c-w12)', margin: '0 auto 16px' }} />
+        {/* 드래그 핸들 — 아래로 끌어 닫기(터치 영역을 넉넉히). */}
+        <div
+          onPointerDown={onDragDown}
+          onPointerMove={onDragMove}
+          onPointerUp={onDragUp}
+          onPointerCancel={onDragUp}
+          style={{ margin: '-14px 0 6px', padding: '14px 0 10px', cursor: 'grab', touchAction: 'none' }}
+        >
+          <div style={{ width: 40, height: 4, borderRadius: 2, background: 'var(--c-w12)', margin: '0 auto' }} />
+        </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}

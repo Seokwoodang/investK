@@ -6,6 +6,9 @@ import { getDisclosures } from '@/server/providers/dart';
 import { getFundamentals } from '@/server/providers/naverFundamentals';
 import { getUsFundamentals } from '@/server/providers/yahoo';
 import { sendPush, cleanupPushSent } from '@/server/push';
+import { getBriefing } from '@/server/briefing';
+import { getCachedRankedNews } from '@/server/aiNews';
+import { NEWS_TABS } from '@/server/news';
 import type { Stock, Stocks, TabId } from '@/types';
 
 // 알림 판정 크론(GitHub Actions에서 ~20분 간격 호출).
@@ -70,13 +73,31 @@ export async function GET(req: Request) {
     return t;
   }
 
-  // 4) 사용자별 판정
-  for (const user of users) {
-    const alerts = alertsBy.get(user) ?? {};
+  // 카테고리(_cats) 켜져 있으면 카테고리×보유종목 전체에 적용, 없으면(레거시) per-stock 맵 사용.
+  const catsOf = (u: string): string[] => {
+    const st = (alertsBy.get(u) ?? {}) as Record<string, unknown>;
+    return Array.isArray(st._cats)
+      ? (st._cats as string[])
+      : [...new Set(Object.entries(st).filter(([k]) => k !== '_cats').flatMap(([, v]) => (Array.isArray(v) ? (v as string[]) : [])))];
+  };
+  const usesCats = (u: string) => Array.isArray((alertsBy.get(u) ?? {} as Record<string, unknown>)._cats);
 
-    for (const [id, keys] of Object.entries(alerts)) {
-      const s = byId.get(id);
-      if (!s) continue;
+  // 4) 사용자별 판정(종목 기반: swing/target/risk)
+  for (const user of users) {
+    const st = (alertsBy.get(user) ?? {}) as Record<string, string[]>;
+    const cats = catsOf(user);
+    const targets: { s: Stock; keys: string[] }[] = usesCats(user)
+      ? (holdingsBy.get(user) ?? [])
+          .map((h) => byId.get(h.id ?? '') || byId.get(h.ticker ?? ''))
+          .filter((s): s is Stock => !!s)
+          .map((s) => ({ s, keys: cats }))
+      : Object.entries(st)
+          .filter(([id]) => id !== '_cats')
+          .map(([id, keys]) => ({ s: byId.get(id) as Stock | undefined, keys }))
+          .filter((t): t is { s: Stock; keys: string[] } => !!t.s);
+
+    for (const { s, keys } of targets) {
+      const id = s.id;
       const url = `/instrument/${encodeURIComponent(id)}`;
 
       if (keys.includes('swing') && Math.abs(s.pct) >= SWING_PCT) {
@@ -117,6 +138,7 @@ export async function GET(req: Request) {
   if (has.dart()) {
     const codesBy = new Map<string, Set<string>>();
     for (const user of users) {
+      if (usesCats(user) && !catsOf(user).includes('disc')) continue; // 카테고리 모델: 공시 끔이면 스킵
       const set = new Set<string>();
       (holdingsBy.get(user) ?? []).forEach((h) => {
         const t = h.ticker ?? h.id ?? '';
@@ -141,6 +163,35 @@ export async function GET(req: Request) {
         }
       }
     }
+  }
+
+  // 6) 글로벌 카테고리 — 대시보드 브리핑 / 주요 뉴스(구독자 중 켠 사람에게, 새 콘텐츠 1회씩).
+  const briefUsers = users.filter((u) => catsOf(u).includes('brief'));
+  const newsUsers = users.filter((u) => catsOf(u).includes('news'));
+
+  if (briefUsers.length) {
+    try {
+      const b = await getBriefing(today);
+      if (b?.headline) {
+        const dk = `brief:${today}:${b._slot}`; // 슬롯(am/pm/ny)당 1회
+        for (const u of briefUsers) if (await sendPush(u, { title: '오늘의 브리핑', body: b.headline, url: '/', tag: 'brief' }, dk)) sent++;
+      }
+    } catch { /* 브리핑 없으면 스킵 */ }
+  }
+
+  if (newsUsers.length) {
+    try {
+      let top = '';
+      for (const tab of NEWS_TABS) {
+        const ranked = await getCachedRankedNews(`page:${tab}`);
+        const hit = (ranked ?? []).find((n) => n.importance === '상');
+        if (hit) { top = hit.title; break; }
+      }
+      if (top) {
+        const dk = `news:${today}:${top.slice(0, 40)}`; // 같은 제목 하루 1회
+        for (const u of newsUsers) if (await sendPush(u, { title: '주요 뉴스', body: top, url: '/news', tag: 'news' }, dk)) sent++;
+      }
+    } catch { /* 뉴스 없으면 스킵 */ }
   }
 
   await cleanupPushSent();

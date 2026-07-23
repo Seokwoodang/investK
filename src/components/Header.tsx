@@ -22,6 +22,16 @@ const NAV_GROUPS: { title: string; items: { href: string; label: string }[] }[] 
   { title: '내 투자', items: [{ href: '/portfolio', label: '내 자산' }] },
 ];
 
+// 알림 카테고리 — 종목 고르기 대신 '종류'로 켠다. 종목 기반(swing/target/risk/disc)은 보유종목 전체에 적용.
+const ALERT_CATS: { key: string; label: string }[] = [
+  { key: 'brief', label: '대시보드 브리핑' },
+  { key: 'news', label: '주요 뉴스' },
+  { key: 'swing', label: '내 종목 급등락 ±5%' },
+  { key: 'target', label: '내 종목 목표가 도달' },
+  { key: 'risk', label: '내 종목 위험도 상승' },
+  { key: 'disc', label: '내 종목 주요 공시' },
+];
+
 function SearchIcon({ size, stroke = 'var(--c-tx6)' }: { size: number; stroke?: string }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={{ color: stroke }}>
@@ -93,6 +103,23 @@ export function Header({ authed = true, isAdmin = false, user = null }: { authed
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     setInstalled(window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone === true);
   }, []);
+
+  // 알림 카테고리(받을 알림 종류) — 서버(user_alerts._cats)에서 로드, 토글 시 저장.
+  const [alertCats, setAlertCats] = useState<string[]>([]);
+  useEffect(() => {
+    if (!authed) return;
+    fetch('/api/alerts').then((r) => (r.ok ? r.json() : null)).then((j) => {
+      const c = j?.alerts?._cats;
+      if (Array.isArray(c)) setAlertCats(c as string[]);
+    }).catch(() => {});
+  }, [authed]);
+  const toggleCat = (key: string) => {
+    setAlertCats((prev) => {
+      const next = prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key];
+      fetch('/api/alerts', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ cats: next }) }).catch(() => {});
+      return next;
+    });
+  };
 
   // 관리자(is_admin)에게만 '회원관리' 메뉴 노출.
   const navItems = isAdmin ? [...NAV, { href: '/admin', label: '회원관리' }] : NAV;
@@ -262,7 +289,7 @@ export function Header({ authed = true, isAdmin = false, user = null }: { authed
             else if (push.state === 'off') await push.enable();
           }}
           disabled={push.state === 'denied' || push.state === 'loading'}
-          title={push.state === 'denied' ? '브라우저 설정에서 알림 차단을 해제해야 합니다' : '내 종목 공시·급등락·목표가 알림을 이 기기로 받습니다'}
+          title={push.state === 'denied' ? '브라우저 설정에서 알림 차단을 해제해야 합니다' : '켜면 시스템 권한 요청 후, 아래에서 받을 알림 종류를 고를 수 있어요'}
           style={{
             ...utilBtnBase, width: '100%', justifyContent: 'flex-start', padding: '11px 12px',
             border: `1px solid ${push.state === 'on' ? 'var(--c-cy45)' : 'var(--c-w10)'}`,
@@ -273,9 +300,28 @@ export function Header({ authed = true, isAdmin = false, user = null }: { authed
         >
           <span style={{ fontSize: 14 }}>🔔</span>
           <span style={{ fontSize: 13, fontWeight: 700 }}>
-            알림 {push.state === 'on' ? '켜짐' : push.state === 'denied' ? '차단됨' : '꺼짐'}
+            알림 {push.state === 'on' ? '켜짐' : push.state === 'denied' ? '차단됨(브라우저 설정에서 해제)' : '꺼짐'}
           </span>
         </button>
+      )}
+      {/* 받을 알림 종류 — 알림 켜졌을 때만. 종목 기반은 보유종목 전체에 적용. */}
+      {authed && push.state === 'on' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 1, padding: '2px 2px 4px' }}>
+          <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.04em', color: 'var(--c-tx6)', padding: '6px 10px 3px' }}>받을 알림</div>
+          {ALERT_CATS.map((c) => {
+            const on = alertCats.includes(c.key);
+            return (
+              <button
+                key={c.key}
+                onClick={() => toggleCat(c.key)}
+                style={{ display: 'flex', alignItems: 'center', gap: 9, width: '100%', padding: '8px 10px', borderRadius: 8, border: 'none', background: 'transparent', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', color: on ? 'var(--c-tx1c)' : 'var(--c-tx5)' }}
+              >
+                <span style={{ flexShrink: 0, width: 17, height: 17, borderRadius: 5, border: `1px solid ${on ? 'var(--c-accyan)' : 'var(--c-w12)'}`, background: on ? 'var(--c-cy18)' : 'transparent', color: 'var(--c-accyanbr)', fontSize: 11, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{on ? '✓' : ''}</span>
+                <span style={{ fontSize: 12.5, fontWeight: 600 }}>{c.label}</span>
+              </button>
+            );
+          })}
+        </div>
       )}
       {authed ? (
         <button
