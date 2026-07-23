@@ -3,10 +3,12 @@ import { getDomesticCandles, getDomesticMinuteCandles, getOverseasCandles } from
 import { getUpbitCandles } from '@/server/providers/upbit';
 import { getBinanceCandles } from '@/server/providers/binance';
 import { symbolFor } from '@/server/providers/binance';
+import { fetchDailyCandles } from '@/server/providers/yahoo';
 import type { Candle, Period, TabId } from '@/types';
 
 // POST /api/candles { tab, ticker, period } → 실제 과거 OHLC. (미들웨어에서 로그인 게이트 — KIS 쿼터 보호)
 // 국내주식=KIS 일봉, 해외주식=KIS 해외일봉, 국내코인=업비트, 해외코인=바이낸스.
+// 해외주식은 KIS가 못 주면 Yahoo 일봉으로 폴백(최근 리네임 티커 — 예: 바릭 GOLD→B — 를 KIS가 아직 미반영).
 // 실패 시 candles:null → 클라이언트가 에러 UI 표시(가짜 캔들 폴백 없음).
 export async function POST(req: Request) {
   const { tab, ticker, period, from, to } = (await req.json()) as {
@@ -17,7 +19,14 @@ export async function POST(req: Request) {
   try {
     let candles: Candle[] = [];
     if (tab === 'kr_stock') candles = isMinute ? await getDomesticMinuteCandles(ticker, period) : await getDomesticCandles(ticker, period, win);
-    else if (tab === 'us_stock') candles = await getOverseasCandles(ticker, period, win);
+    else if (tab === 'us_stock') {
+      candles = await getOverseasCandles(ticker, period, win);
+      // KIS 해외차트에 없는 티커(최근 리네임 등)는 Yahoo 일봉으로 폴백 — 공개 v8 차트(crumb 불필요).
+      if (!candles.length) {
+        const range = period === '월봉' ? 'max' : period === '주봉' ? '5y' : '2y';
+        candles = await fetchDailyCandles(ticker, range);
+      }
+    }
     else if (tab === 'kr_coin') candles = await getUpbitCandles('KRW-' + ticker.split('/')[0], period);
     else if (tab === 'global_coin') candles = await getBinanceCandles(symbolFor(ticker), period);
     if (!candles.length) return NextResponse.json({ candles: null });
