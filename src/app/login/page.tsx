@@ -19,8 +19,8 @@ export default function LoginPage() {
       <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '16px 20px', maxWidth: 1280, margin: '0 auto', width: '100%', boxSizing: 'border-box' }}>
         <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none' }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/icon.svg" alt="InvestKang" width={30} height={30} style={{ borderRadius: 9 }} />
-          <span style={{ fontSize: 16, fontWeight: 800, color: 'var(--c-tx1)' }}>InvestKang</span>
+          <img src="/icon.svg" alt="InvestK" width={30} height={30} style={{ borderRadius: 9 }} />
+          <span style={{ fontSize: 16, fontWeight: 800, color: 'var(--c-tx1)' }}>InvestK</span>
         </Link>
         <Link href="/" style={{ fontSize: 13, fontWeight: 600, color: 'var(--c-tx4)', textDecoration: 'none', padding: '8px 14px', borderRadius: 999, border: '1px solid var(--c-w10)', background: 'var(--c-w05)' }}>← 대시보드</Link>
       </header>
@@ -34,8 +34,8 @@ export default function LoginPage() {
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/icon.svg" alt="InvestKang" width={30} height={30} style={{ borderRadius: 9 }} />
-            <span style={{ fontSize: 18, fontWeight: 800, letterSpacing: '-0.01em', color: 'var(--c-tx1)' }}>InvestKang</span>
+            <img src="/icon.svg" alt="InvestK" width={30} height={30} style={{ borderRadius: 9 }} />
+            <span style={{ fontSize: 18, fontWeight: 800, letterSpacing: '-0.01em', color: 'var(--c-tx1)' }}>InvestK</span>
           </div>
           <p style={{ margin: '0 0 22px', fontSize: 13, color: 'var(--c-tx5)', lineHeight: 1.6 }}>
             카카오로 간편하게 시작하세요. 시장 보기는 로그인 없이도 가능해요.

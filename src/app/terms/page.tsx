@@ -3,7 +3,7 @@ import { LegalShell, H2, P, LI } from '@/components/LegalShell';
 
 export const metadata: Metadata = {
   title: '이용약관',
-  description: 'InvestKang 이용약관',
+  description: 'InvestK 이용약관',
   robots: { index: false, follow: true },
 };
 
@@ -11,7 +11,7 @@ export default function TermsPage() {
   return (
     <LegalShell title="이용약관" updated="2026년 7월 10일">
       <H2>1. 목적</H2>
-      <P>본 약관은 InvestKang(이하 &ldquo;서비스&rdquo;, 운영: 트루) 이용에 관한 조건과 절차를 규정합니다.</P>
+      <P>본 약관은 InvestK(이하 &ldquo;서비스&rdquo;, 운영: 트루) 이용에 관한 조건과 절차를 규정합니다.</P>
 
       <H2>2. 서비스의 성격 (중요)</H2>
       <P>

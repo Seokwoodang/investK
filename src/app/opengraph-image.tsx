@@ -3,7 +3,7 @@ import { ImageResponse } from 'next/og';
 // 카톡·트위터 등 링크 공유 시 뜨는 대표 이미지(1200×630). 동적 생성이라 별도 이미지 파일 불필요.
 // 파비콘/헤더와 동일한 상승차트 로고 + 영문 브랜딩(한글 폰트 깨짐 방지).
 export const runtime = 'edge';
-export const alt = 'InvestKang — Investment Dashboard';
+export const alt = 'InvestK — Investment Dashboard';
 export const size = { width: 1200, height: 630 };
 export const contentType = 'image/png';
 
@@ -38,7 +38,7 @@ export default function OGImage() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img width="132" height="132" src={`data:image/svg+xml;utf8,${encodeURIComponent(LOGO)}`} alt="" />
-          <div style={{ fontSize: 40, fontWeight: 700, color: '#38e0c8', letterSpacing: '0.02em' }}>InvestKang</div>
+          <div style={{ fontSize: 40, fontWeight: 700, color: '#38e0c8', letterSpacing: '0.02em' }}>InvestK</div>
         </div>
         <div style={{ fontSize: 76, fontWeight: 800, marginTop: 34, lineHeight: 1.1, letterSpacing: '-0.02em' }}>
           Investment Dashboard

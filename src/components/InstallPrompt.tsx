@@ -117,7 +117,7 @@ export function InstallPrompt() {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/icon-192.png" alt="" width={44} height={44} style={{ borderRadius: 11, flexShrink: 0 }} />
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--c-tx1c)' }}>InvestKang 앱으로 설치</div>
+            <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--c-tx1c)' }}>InvestK 앱으로 설치</div>
             <div style={{ fontSize: 12, color: 'var(--c-tx6)' }}>홈 화면에 추가하고 앱처럼 빠르게</div>
           </div>
         </div>

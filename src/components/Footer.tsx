@@ -9,7 +9,7 @@ export function Footer() {
       }}
     >
       <div style={{ display: 'flex', gap: 8, justifyContent: 'center', alignItems: 'center', flexWrap: 'wrap', marginBottom: 8, color: 'var(--c-tx5)', fontWeight: 600 }}>
-        <span>InvestKang</span>
+        <span>InvestK</span>
         <span style={{ color: 'var(--c-tx6)', fontWeight: 500 }}>v{pkg.version}</span>
       </div>
       {/* 운영 주체(매체 소유관계 확인용 — 애드핏 계정과 동일 사업자) */}

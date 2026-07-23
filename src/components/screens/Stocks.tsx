@@ -12,13 +12,6 @@ import { Tip } from '../GlossaryTip';
 import { useViewportLayout } from '../DashboardChrome';
 import { SubNav } from '../SubNav';
 
-const SORTS: { key: SortKey; label: string }[] = [
-  { key: 'vol', label: '거래대금' },
-  { key: 'shares', label: '거래량' },
-  { key: 'price', label: '가격' },
-  { key: 'pct', label: '변동률' },
-  { key: 'risk', label: '위험도' },
-];
 
 function SearchIcon() {
   return (
@@ -127,11 +120,6 @@ export function Stocks() {
   const headColor = (key: SortKey) => (sortKey === key ? 'var(--c-accyanbr)' : 'var(--c-tx6)');
   const arrow = (key: SortKey) => (sortKey === key ? (sortDir === 'desc' ? '↓' : '↑') : '');
 
-  const sortBtnStyle = (active: boolean): React.CSSProperties => ({
-    cursor: 'pointer', border: 'none', padding: '7px 14px', borderRadius: 8, fontSize: 13,
-    fontWeight: 600, fontFamily: 'inherit', whiteSpace: 'nowrap', transition: 'all 180ms',
-    ...(active ? { background: 'var(--c-cy18)', color: 'var(--c-accyanbr)' } : { background: 'transparent', color: 'var(--c-tx4)' }),
-  });
 
   return (
     <div>
@@ -151,8 +139,8 @@ export function Stocks() {
         </div>
       )}
 
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, marginBottom: 16, flexWrap: 'wrap' }}>
-        <div style={{ position: 'relative', flex: 1, minWidth: 200, maxWidth: 340 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
+        <div style={{ position: 'relative', flex: '1 1 240px', minWidth: 200, maxWidth: 340 }}>
           <span style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)', display: 'flex' }}>
             <SearchIcon />
           </span>
@@ -168,32 +156,20 @@ export function Stocks() {
             }}
           />
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-          <button
-            onClick={actions.toggleWatchOnly}
-            style={{
-              cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px',
-              borderRadius: 11, fontSize: 13, fontWeight: 700, fontFamily: 'inherit', whiteSpace: 'nowrap',
-              transition: 'all 180ms', flexShrink: 0,
-              ...(watchOnly
-                ? { background: 'var(--c-cy18)', border: '1px solid var(--c-cy40)', color: 'var(--c-accyanbr)' }
-                : { background: 'var(--c-w04)', border: '1px solid var(--c-w10)', color: 'var(--c-tx4)' }),
-            }}
-          >
-            ★ 관심종목
-          </button>
-          {/* 정렬 그룹 — 전체 폭을 채우고(좁으면 다음 줄로 내려와 가로 꽉 참), 버튼은 균등 분배해 5개 모두 보이게(잘림 방지). */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: '1 1 260px', minWidth: 0 }}>
-            <span style={{ fontSize: 12, color: 'var(--c-tx6)', flexShrink: 0 }}>정렬</span>
-            <div style={{ display: 'flex', gap: 4, padding: 4, background: 'var(--c-w04)', border: '1px solid var(--c-w07)', borderRadius: 11, flex: 1, minWidth: 0 }}>
-              {SORTS.map((s) => (
-                <button key={s.key} onClick={() => actions.setSort(s.key)} style={{ ...sortBtnStyle(sortKey === s.key), flex: 1, minWidth: 0, padding: '7px 4px', fontSize: 12.5, overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {s.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
+        {/* 정렬은 아래 컬럼 헤더 클릭(화살표 표시)으로 — 별도 정렬 바 제거. */}
+        <button
+          onClick={actions.toggleWatchOnly}
+          style={{
+            cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px',
+            borderRadius: 11, fontSize: 13, fontWeight: 700, fontFamily: 'inherit', whiteSpace: 'nowrap',
+            transition: 'all 180ms', flexShrink: 0,
+            ...(watchOnly
+              ? { background: 'var(--c-cy18)', border: '1px solid var(--c-cy40)', color: 'var(--c-accyanbr)' }
+              : { background: 'var(--c-w04)', border: '1px solid var(--c-w10)', color: 'var(--c-tx4)' }),
+          }}
+        >
+          ★ 관심종목
+        </button>
       </div>
 
       {showWatchSummary && (
@@ -219,7 +195,12 @@ export function Stocks() {
         <span />
         <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--c-tx6)' }}>종목</span>
         {layout.showVol && (
-          <span onClick={() => actions.setSort('vol')} style={{ fontSize: 12, fontWeight: 600, textAlign: 'right', color: headColor('vol'), cursor: 'pointer' }}>거래대금 {arrow('vol')}</span>
+          // 거래대금·거래량 둘 다 이 열에 표시되므로 헤더도 두 정렬을 각각 클릭 가능하게.
+          <span style={{ fontSize: 12, fontWeight: 600, textAlign: 'right', display: 'inline-flex', gap: 6, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+            <span onClick={() => actions.setSort('vol')} style={{ color: headColor('vol'), cursor: 'pointer' }}>거래대금 {arrow('vol')}</span>
+            <span style={{ color: 'var(--c-tx6)' }}>·</span>
+            <span onClick={() => actions.setSort('shares')} style={{ color: headColor('shares'), cursor: 'pointer' }}>거래량 {arrow('shares')}</span>
+          </span>
         )}
         <span onClick={() => actions.setSort('price')} style={{ fontSize: 12, fontWeight: 600, textAlign: 'right', color: headColor('price'), cursor: 'pointer' }}>현재가 {arrow('price')}</span>
         <span onClick={() => actions.setSort('pct')} style={{ fontSize: 12, fontWeight: 600, textAlign: 'right', color: headColor('pct'), cursor: 'pointer' }}>변동률 {arrow('pct')}</span>

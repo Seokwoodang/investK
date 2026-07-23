@@ -3,7 +3,7 @@ import { LegalShell, H2, P, LI } from '@/components/LegalShell';
 
 export const metadata: Metadata = {
   title: '개인정보처리방침',
-  description: 'InvestKang 개인정보처리방침',
+  description: 'InvestK 개인정보처리방침',
   robots: { index: false, follow: true },
 };
 
@@ -11,7 +11,7 @@ export default function PrivacyPage() {
   return (
     <LegalShell title="개인정보처리방침" updated="2026년 7월 10일">
       <P>
-        InvestKang(이하 &ldquo;서비스&rdquo;, 운영: 트루)은 이용자의 개인정보를 중요하게 생각하며, 관련 법령을 준수합니다.
+        InvestK(이하 &ldquo;서비스&rdquo;, 운영: 트루)은 이용자의 개인정보를 중요하게 생각하며, 관련 법령을 준수합니다.
         본 방침은 서비스가 어떤 정보를 수집·이용·보관하는지 설명합니다.
       </P>
 

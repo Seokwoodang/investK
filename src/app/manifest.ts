@@ -5,8 +5,8 @@ import type { MetadataRoute } from 'next';
 // + fetch 핸들러 있는 SW(/sw.js). 색은 사이트 다크 톤(--c-bg #05080f).
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'InvestKang — 투자 대시보드',
-    short_name: 'InvestKang',
+    name: 'InvestK — 투자 대시보드',
+    short_name: 'InvestK',
     description: '시장 지표·업종 흐름·저평가 우량주·모의투자를 한 화면에서.',
     start_url: '/',
     scope: '/',

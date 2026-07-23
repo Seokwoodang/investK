@@ -7,8 +7,8 @@ export function LegalShell({ title, updated, children }: { title: string; update
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 28 }}>
         <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none' }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/icon.svg" alt="InvestKang" width={28} height={28} style={{ borderRadius: 8 }} />
-          <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--c-tx2)' }}>InvestKang</span>
+          <img src="/icon.svg" alt="InvestK" width={28} height={28} style={{ borderRadius: 8 }} />
+          <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--c-tx2)' }}>InvestK</span>
         </Link>
         <Link href="/" style={{ fontSize: 13, color: 'var(--c-tx5)', textDecoration: 'none' }}>← 홈</Link>
       </div>

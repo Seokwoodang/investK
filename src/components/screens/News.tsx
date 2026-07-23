@@ -130,7 +130,7 @@ export function News() {
                   <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--c-tx6)', marginBottom: 10 }}>{n.src}</span>
                   {n.why && (
                     <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 12, padding: '10px 12px', borderRadius: 12, background: 'var(--c-cy06)', border: '1px solid var(--c-cy16)' }}>
-                      <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--c-accyanbr)', flexShrink: 0, marginTop: 2 }}>왜 중요</span>
+                      <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--c-accyanbr)', flexShrink: 0, marginTop: 2 }}>핵심 포인트</span>
                       <span style={{ fontSize: 13, lineHeight: 1.55, color: 'var(--c-tx3)' }}>{n.why}</span>
                     </div>
                   )}
