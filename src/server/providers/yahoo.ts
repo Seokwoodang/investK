@@ -1,11 +1,11 @@
 import 'server-only';
 import { REVALIDATE } from '../env';
-import type { Candle } from '../../types';
+import type { Candle, Period } from '../../types';
 
-// Yahoo 일봉 캔들(키 불필요) — ETF 가격 차트용. 1년치 일봉. (국내 ETF는 <코드>.KS/.KQ)
-export async function fetchDailyCandles(symbol: string, range = '1y'): Promise<Candle[]> {
+// Yahoo 차트 캔들 공통 조회(키 불필요) — interval/range로 봉 단위를 지정.
+async function yahooChart(symbol: string, interval: string, range: string): Promise<Candle[]> {
   try {
-    const r = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=${range}`, {
+    const r = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=${interval}&range=${range}`, {
       headers: { 'User-Agent': 'Mozilla/5.0' }, next: { revalidate: 3600 },
     });
     if (!r.ok) return [];
@@ -24,6 +24,30 @@ export async function fetchDailyCandles(symbol: string, range = '1y'): Promise<C
   } catch {
     return [];
   }
+}
+
+// Yahoo 일봉 캔들 — ETF 가격 차트용. (국내 ETF는 <코드>.KS/.KQ)
+export async function fetchDailyCandles(symbol: string, range = '1y'): Promise<Candle[]> {
+  return yahooChart(symbol, '1d', range);
+}
+
+// 우리 봉 단위(Period) → Yahoo interval/range. 분·시간봉은 Yahoo가 과거 구간을 제한하므로 range도 맞춘다.
+const YF_INTERVAL: Record<Period, { interval: string; range: string }> = {
+  '1분': { interval: '1m', range: '5d' },
+  '5분': { interval: '5m', range: '1mo' },
+  '15분': { interval: '15m', range: '1mo' },
+  '30분': { interval: '30m', range: '1mo' },
+  '1시간': { interval: '60m', range: '6mo' },
+  '4시간': { interval: '60m', range: '6mo' }, // Yahoo에 4시간봉 없음 → 1시간봉으로 근사
+  '일봉': { interval: '1d', range: '2y' },
+  '주봉': { interval: '1wk', range: '5y' },
+  '월봉': { interval: '1mo', range: 'max' },
+};
+
+// 해외주식 폴백용 — 선택한 봉 단위(Period)에 맞는 Yahoo 캔들. KIS가 못 주는 티커(ADR·리네임 등)에 사용.
+export async function fetchYahooCandles(symbol: string, period: Period): Promise<Candle[]> {
+  const m = YF_INTERVAL[period] ?? { interval: '1d', range: '2y' };
+  return yahooChart(symbol, m.interval, m.range);
 }
 
 // Yahoo Finance 차트 API(키 불필요) — 심볼 하나의 현재가/전일대비. DXY(`DX-Y.NYB`)·VIX(`^VIX`)·美10년물(`^TNX`) 등.

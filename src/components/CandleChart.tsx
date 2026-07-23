@@ -112,7 +112,10 @@ export function CandleChart({
         tickMarkFormatter: (time: Time, tickMarkType: TickMarkType) => {
           if (typeof time === 'object' && time !== null && 'day' in time) {
             const bd = time as BusinessDay;
-            return tickMarkType === TickMarkType.DayOfMonth ? `${bd.day}일` : `${bd.month}월`;
+            // 연 눈금은 연도로(안 그러면 월봉에서 매년 눈금이 다 '2월'처럼 같은 달로 찍힘).
+            if (tickMarkType === TickMarkType.Year) return `${bd.year}`;
+            if (tickMarkType === TickMarkType.Month) return `${bd.month}월`;
+            return `${bd.day}일`; // DayOfMonth
           }
           const d = new Date((time as number) * 1000);
           const p2 = (n: number) => String(n).padStart(2, '0');

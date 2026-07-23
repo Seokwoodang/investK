@@ -94,26 +94,6 @@ function findStock(stocks: Stocks, id: string, tab: TabId): Stock | null {
 
 const pad2 = (n: number) => String(n).padStart(2, '0');
 const isoDate = (d: Date) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
-const RANGE_PRESETS = ['1주', '1개월', '3개월', '6개월', '1년'] as const;
-type RangePreset = (typeof RANGE_PRESETS)[number];
-// 기간 수익률용 봉: 시작가가 1회 호출에 포함되도록 구간 길이에 맞춰 자동 선택(거래소 호출 상한 대응).
-function autoInterval(fromMs: number, toMs: number): Period {
-  const days = (toMs - fromMs) / 86400000;
-  if (days <= 95) return '일봉';
-  if (days <= 550) return '주봉';
-  return '월봉';
-}
-// 종료일(오늘) 기준으로 프리셋만큼 뺀 시작일.
-function presetStart(end: Date, kind: RangePreset): Date {
-  const s = new Date(end);
-  if (kind === '1주') s.setDate(s.getDate() - 7);
-  else if (kind === '1개월') s.setMonth(s.getMonth() - 1);
-  else if (kind === '3개월') s.setMonth(s.getMonth() - 3);
-  else if (kind === '6개월') s.setMonth(s.getMonth() - 6);
-  else s.setFullYear(s.getFullYear() - 1);
-  return s;
-}
-
 interface DiscItem { date: string; title: string; kind: '수주' | '실적' | '공시'; url: string }
 const DISC_CHIP = (k: DiscItem['kind']) =>
   k === '수주' ? { bg: 'var(--c-cy16)', c: 'var(--c-accyanbr)' }
@@ -205,59 +185,6 @@ export function Detail({ id }: { id: string }) {
   }, [selId, selTicker, state.activeTab, state.period]);
   // 참조 안정화 → 다른 state 변경으로 리렌더돼도 차트 패닝/줌이 리셋되지 않음.
   const candles = useMemo(() => realCandles ?? [], [realCandles]);
-
-  // ── 기간 수익률(독립) — 칩으로 고른 기간만 별도 조회해 (시작가→종료가)로 계산. 차트와 무관. ──
-  const [presetSel, setPresetSel] = useState<RangePreset>('6개월');
-  const [retData, setRetData] = useState<{
-    ret: number; fromMs: number; toMs: number;
-    high: number; low: number; close: number; offHigh: number; offLow: number; upRatio: number;
-  } | null>(null);
-  useEffect(() => {
-    if (!selId || !selTicker) return;
-    const tab = state.activeTab;
-    const isCoin = tab === 'kr_coin' || tab === 'global_coin';
-    const end = new Date();
-    const startD = presetStart(end, presetSel);
-    const fromMs = startD.getTime();
-    const toMs = end.getTime();
-    const per = autoInterval(fromMs, toMs);
-    let cancelled = false;
-    setRetData(null);
-    const calc = (c: Candle[] | null) => {
-      if (cancelled || !c || !c.length) return;
-      const f = c[0];
-      const l = c[c.length - 1];
-      const close = l.c;
-      const high = Math.max(...c.map((x) => x.h));
-      const low = Math.min(...c.map((x) => x.l));
-      const up = c.filter((x) => x.c >= x.o).length;
-      setRetData({
-        ret: ((close - f.o) / f.o) * 100,
-        fromMs: (f.t as number) ?? fromMs,
-        toMs: (l.t as number) ?? toMs,
-        high, low, close,
-        offHigh: high > 0 ? (close / high - 1) * 100 : 0,
-        offLow: low > 0 ? (close / low - 1) * 100 : 0,
-        upRatio: Math.round((up / c.length) * 100),
-      });
-    };
-    if (isCoin) {
-      fetchCoinCandles(tab, selTicker, per, { fromMs, toMs }).then(calc).catch(() => {});
-    } else {
-      const ymd = (d: Date) => isoDate(d).replace(/-/g, '');
-      fetch('/api/candles', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ tab, ticker: selTicker, period: per, from: ymd(startD), to: ymd(end) }),
-      })
-        .then((r) => (r.ok ? r.json() : null))
-        .then((j) => calc(j?.candles ?? null))
-        .catch(() => {});
-    }
-    return () => {
-      cancelled = true;
-    };
-  }, [selId, selTicker, state.activeTab, presetSel]);
 
   // ── AI 차트 분석 전용 통계(고정: 최근 6개월 일봉) — 수익률 기간 칩·봉 토글과 무관. ──
   const [dayStat, setDayStat] = useState<{ ret: number; high: number; low: number; close: number; offHigh: number; offLow: number; upRatio: number } | null>(null);
@@ -495,20 +422,7 @@ export function Detail({ id }: { id: string }) {
     fontWeight: 600, fontFamily: 'inherit', whiteSpace: 'nowrap', transition: 'all 180ms',
     ...(active ? { background: 'var(--c-cy18)', color: 'var(--c-accyanbr)' } : { background: 'transparent', color: 'var(--c-tx4)' }),
   });
-  const chipStyle = (active: boolean): React.CSSProperties => ({
-    cursor: 'pointer', border: 'none', padding: '6px 11px', borderRadius: 8, fontSize: 12,
-    fontWeight: 600, fontFamily: 'inherit', whiteSpace: 'nowrap', transition: 'all 160ms',
-    ...(active ? { background: 'var(--c-cy18)', color: 'var(--c-accyanbr)' } : { background: 'transparent', color: 'var(--c-tx4)' }),
-  });
-  const fmtDay = (ms?: number) => {
-    if (!ms) return '';
-    const d = new Date(ms);
-    return `${d.getFullYear()}.${pad2(d.getMonth() + 1)}.${pad2(d.getDate())}`;
-  };
   const isCoinTab = coinTab;
-  // 기간 수익률 = 칩으로 고른 기간 기준(차트와 독립). 실데이터 없으면 '—' (가짜 폴백 없음).
-  const shownRet = retData ? retData.ret : null;
-  const shownSpan = retData ? `${fmtDay(retData.fromMs)} ~ ${fmtDay(retData.toMs)}` : '';
 
   return (
     <div>
@@ -663,23 +577,9 @@ export function Detail({ id }: { id: string }) {
       {detailTab === 'chart' && (
         <div>
           <div style={{ ...CARD, borderRadius: 24, padding: 24, marginBottom: 20 }}>
-            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
-              {/* 왼쪽: 기간 수익률(숫자) + 그 수익률을 계산할 기간 칩을 한 묶음으로 */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
-                  <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--c-tx4)' }}><TermTip term="기간 수익률">기간 수익률</TermTip></span>
-                  <span style={{ fontSize: 22, fontWeight: 800, color: shownRet == null ? 'var(--c-tx6)' : upColor(shownRet) }}>{shownRet == null ? '—' : fmtPct(shownRet)}</span>
-                  {shownSpan && <span style={{ fontSize: 12, color: 'var(--c-tx6)' }}>{shownSpan}</span>}
-                </div>
-                <div style={{ display: 'inline-flex', gap: 4, padding: 4, background: 'var(--c-w04)', borderRadius: 10, alignSelf: 'flex-start' }}>
-                  {RANGE_PRESETS.map((k) => (
-                    <button key={k} onClick={() => setPresetSel(k)} style={chipStyle(presetSel === k)}>{k}</button>
-                  ))}
-                </div>
-                <span style={{ fontSize: 11, color: 'var(--c-tx6)' }}>↑ 위 수익률을 계산할 기간 (아래 차트와는 별개)</span>
-              </div>
-              {/* 오른쪽: 차트 봉 단위 — 봉이 7~8개라 좁은 화면에선 줄바꿈해 잘림/튀어나옴 방지 */}
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: narrow ? 'flex-start' : 'flex-end', gap: 6, minWidth: 0, maxWidth: '100%', flex: narrow ? '1 1 100%' : '0 1 auto' }}>
+            {/* 차트 봉 단위 — 봉이 7~8개라 좁은 화면에선 줄바꿈해 잘림/튀어나옴 방지 */}
+            <div style={{ display: 'flex', justifyContent: narrow ? 'flex-start' : 'flex-end', marginBottom: 16 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: narrow ? 'flex-start' : 'flex-end', gap: 6, minWidth: 0, maxWidth: '100%' }}>
                 <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: narrow ? 'flex-start' : 'flex-end', gap: 4, padding: 4, background: 'var(--c-w04)', borderRadius: 12, maxWidth: '100%' }}>
                   {(isCoinTab ? PERIODS_COIN : PERIODS_STOCK).map((p) => (
                     <button key={p} onClick={() => actions.setPeriod(p)} style={segStyle(state.period === p)}>{PERIOD_LABEL[p]}</button>
