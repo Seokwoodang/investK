@@ -14,13 +14,12 @@ const NAV: { href: string; label: string }[] = [
   { href: '/stocks', label: '종목' },
   { href: '/news', label: '뉴스' },
   { href: '/mock', label: '모의투자' },
-  { href: '/backtest', label: '백테스트' },
   { href: '/portfolio', label: '내자산' },
 ];
 const NAV_GROUPS: { title: string; items: { href: string; label: string }[] }[] = [
   { title: '시장', items: [{ href: '/', label: '대시보드' }, { href: '/news', label: '뉴스' }] },
   { title: '종목 찾기', items: [{ href: '/stocks', label: '종목' }, { href: '/value', label: '저평가 우량주' }] },
-  { title: '실험실', items: [{ href: '/mock', label: '모의투자' }, { href: '/backtest', label: '백테스트' }] },
+  { title: '실험실', items: [{ href: '/mock', label: '모의투자' }] },
   { title: '내 투자', items: [{ href: '/portfolio', label: '내 자산' }, { href: '/report', label: 'AI 보고서' }] },
 ];
 

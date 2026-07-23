@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import { refreshValueScreen } from '@/server/valueScreen';
-import { persistFactorSnapshot } from '@/server/backtest/factors';
 
 // 하루 1회(장 마감 후) 국내·해외 시총 상위 유니버스의 재무지표를 받아 점수·랭킹을 미리 만들어 저장.
 export const dynamic = 'force-dynamic';
@@ -20,13 +19,6 @@ export async function GET(req: Request) {
       out[market] = -1;
       console.error(`[cron/value-screen] ${market} failed:`, (e as Error).message);
     }
-  }
-  // 2단계(B): 국내 팩터 점수를 날짜별로 축적(향후 정직한 팩터 백테스트 재료). 실패해도 스크리너 갱신은 성공 처리.
-  try {
-    out.snapshot = await persistFactorSnapshot('kr');
-  } catch (e) {
-    out.snapshot = -1;
-    console.error('[cron/value-screen] factor snapshot failed:', (e as Error).message);
   }
   // 한 시장이라도 실패(-1)나 0건이면 500 → GitHub Action이 빨간불로 표시(조용한 실패 방지).
   const failed = (['kr', 'us'] as const).some((m) => out[m] <= 0);

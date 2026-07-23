@@ -9,7 +9,6 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { path: '/news', priority: 0.8, freq: 'hourly' },
     { path: '/stocks', priority: 0.7, freq: 'daily' },
     { path: '/value', priority: 0.7, freq: 'daily' },
-    { path: '/backtest', priority: 0.6, freq: 'weekly' },
   ];
   return routes.map((r) => ({
     url: `${SITE_URL}${r.path}`,

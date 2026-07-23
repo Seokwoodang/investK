@@ -28,7 +28,6 @@ const PROTECTED: RegExp[] = [
   /^\/api\/portfolio(\/|$)/,
   /^\/api\/mock(\/|$)/, // 모의투자 계좌·매매·랭킹(개인 데이터 + 서버 체결)
   /^\/api\/report-history(\/|$)/,
-  /^\/api\/strategies(\/|$)/, // 저장 전략(개인 데이터 + 포워드 성과 계산)
   /^\/api\/push\//, // 웹푸시 구독 저장/해지(개인 데이터)
   /^\/api\/alerts(\/|$)/, // 알림 설정 동기화(개인 데이터)
   /^\/api\/candles(\/|$)/,
