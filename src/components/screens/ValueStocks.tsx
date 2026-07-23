@@ -7,6 +7,7 @@ import { SourceNote, UpdateNote } from '../SourceNote';
 import { TermTip, Popover } from '../GlossaryTip';
 import { InlineSpinner } from '../Footer';
 import { SubNav } from '../SubNav';
+import { useViewportLayout } from '../DashboardChrome';
 import type { Currency, TabId } from '../../types';
 
 type Market = 'kr' | 'us';
@@ -115,6 +116,11 @@ let vsCache: VsCache | null = null;
 
 export function ValueStocks() {
   const { actions } = useDashboard();
+  const { vw } = useViewportLayout();
+  // 좁은 화면(모바일/태블릿): 리스트 내부 스크롤 박스를 없애고 페이지 전체가 스크롤되게 한다.
+  //  (내부 스크롤은 경계에서 페이지로 안 넘어가 '스크롤이 갇히는' 문제 → 데스크톱에서만 사용)
+  const narrow = vw < 768;
+  const narrowRef = useRef(narrow); narrowRef.current = narrow;
   const [market, setMarket] = useState<Market>(vsCache?.market ?? 'kr');
   const [sortKey, setSortKey] = useState(vsCache?.sortKey ?? 'score');
   const [filterKey, setFilterKey] = useState(vsCache?.filterKey ?? 'all');
@@ -164,11 +170,16 @@ export function ValueStocks() {
   const snapRef = useRef<Omit<VsCache, 'scrollTop'>>({ market, sortKey, filterKey, items, total, meta });
   snapRef.current = { market, sortKey, filterKey, items, total, meta };
   useEffect(() => {
-    // 마운트: 복원된 스크롤 위치 적용.
-    if (vsCache && containerRef.current) containerRef.current.scrollTop = vsCache.scrollTop || 0;
+    // 마운트: 복원된 스크롤 위치 적용(좁은 화면=페이지 스크롤, 넓은 화면=컨테이너 스크롤).
+    if (vsCache) {
+      const y = vsCache.scrollTop || 0;
+      if (narrowRef.current) window.scrollTo(0, y);
+      else if (containerRef.current) containerRef.current.scrollTop = y;
+    }
     return () => {
       // 언마운트: 시장·정렬·필터·목록·스크롤 저장(뒤로 오면 그대로 복원).
-      vsCache = { ...snapRef.current, scrollTop: containerRef.current?.scrollTop ?? 0 };
+      const y = narrowRef.current ? window.scrollY : (containerRef.current?.scrollTop ?? 0);
+      vsCache = { ...snapRef.current, scrollTop: y };
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -181,9 +192,11 @@ export function ValueStocks() {
   // 바닥 센티넬이 보이면 다음 페이지 로드(컨테이너 내부 스크롤 기준).
   const listReady = items.length > 0;
   useEffect(() => {
-    const root = containerRef.current;
     const target = sentinelRef.current;
-    if (!root || !target) return;
+    if (!target) return;
+    // 좁은 화면은 뷰포트(root=null) 기준, 넓은 화면은 컨테이너 기준으로 바닥 감지.
+    const root = narrow ? null : containerRef.current;
+    if (!narrow && !root) return;
     const io = new IntersectionObserver(
       (entries) => {
         if (entries[0].isIntersecting && moreRef.current && !loadingRef.current) load(countRef.current);
@@ -192,7 +205,7 @@ export function ValueStocks() {
     );
     io.observe(target);
     return () => io.disconnect();
-  }, [listReady, load]);
+  }, [listReady, load, narrow]);
 
   const seg = (m: Market, label: string) => (
     <button
@@ -306,9 +319,12 @@ export function ValueStocks() {
           </div>
           <div
             ref={containerRef}
-            className="list-scroll"
+            className={narrow ? undefined : 'list-scroll'}
             // paddingTop 4: 호버 시 카드가 translateY(-2px)로 떠오르는데, 첫 카드가 스크롤 컨테이너 상단에 붙어 있으면 잘림(#2)
-            style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: '68vh', overflowY: 'auto', overflowX: 'hidden', overscrollBehavior: 'contain', paddingRight: 4, paddingTop: 4 }}
+            // 좁은 화면: 내부 스크롤 없이 페이지에 흐르게(스크롤 갇힘 방지). 넓은 화면: 68vh 내부 스크롤(정렬 탭 고정).
+            style={narrow
+              ? { display: 'flex', flexDirection: 'column', gap: 10, paddingRight: 4, paddingTop: 4 }
+              : { display: 'flex', flexDirection: 'column', gap: 10, maxHeight: '68vh', overflowY: 'auto', overflowX: 'hidden', overscrollBehavior: 'contain', paddingRight: 4, paddingTop: 4 }}
           >
             {items.map((s, i) => (
               <button
