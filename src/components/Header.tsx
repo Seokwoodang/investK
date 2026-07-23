@@ -96,6 +96,8 @@ export function Header({ authed = true, isAdmin = false, user = null }: { authed
   const [menuOpen, setMenuOpen] = useState(false);
   const [setOpen, setSetOpen] = useState(false);
   const setWrapRef = useRef<HTMLDivElement>(null); // 설정 기어+드롭다운 묶음(바깥클릭 판정용)
+  const menuBtnRef = useRef<HTMLButtonElement>(null); // 햄버거 버튼
+  const menuPanelRef = useRef<HTMLDivElement>(null); // 햄버거 드롭다운 패널
   useEffect(() => {
     setMenuOpen(false);
     setSetOpen(false);
@@ -117,6 +119,23 @@ export function Header({ authed = true, isAdmin = false, user = null }: { authed
       document.removeEventListener('keydown', onEsc);
     };
   }, [setOpen]);
+  // 햄버거 메뉴: 바깥(버튼·패널 외) 클릭 시 닫기 + ESC. (백드롭 div는 헤더의 backdrop-filter가
+  //  컨테이닝 블록이 되어 position:fixed가 헤더 박스 기준으로 잡혀 무효 → 문서 리스너로 처리.)
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onDown = (e: PointerEvent) => {
+      const t = e.target as Node;
+      if (menuBtnRef.current?.contains(t) || menuPanelRef.current?.contains(t)) return;
+      setMenuOpen(false);
+    };
+    const onEsc = (e: KeyboardEvent) => { if (e.key === 'Escape') setMenuOpen(false); };
+    document.addEventListener('pointerdown', onDown);
+    document.addEventListener('keydown', onEsc);
+    return () => {
+      document.removeEventListener('pointerdown', onDown);
+      document.removeEventListener('keydown', onEsc);
+    };
+  }, [menuOpen]);
 
   // 실시간 KST 시계 + 시장별 장 상태(코스피·뉴욕). 타임존으로 계산해 미국 DST 자동 반영.
   const [now, setNow] = useState<Date | null>(null);
@@ -406,7 +425,7 @@ export function Header({ authed = true, isAdmin = false, user = null }: { authed
 
         {/* 햄버거(메뉴) — 좁은 화면 */}
         {!navInline && (
-          <button onClick={() => { setMenuOpen((v) => !v); setSetOpen(false); }} aria-label="메뉴" aria-expanded={menuOpen} style={iconBtn(menuOpen)}>
+          <button ref={menuBtnRef} onClick={() => { setMenuOpen((v) => !v); setSetOpen(false); }} aria-label="메뉴" aria-expanded={menuOpen} style={iconBtn(menuOpen)}>
             <MenuIcon open={menuOpen} />
           </button>
         )}
@@ -429,11 +448,10 @@ export function Header({ authed = true, isAdmin = false, user = null }: { authed
         </div>
       </div>
 
-      {/* 햄버거 드롭다운(메뉴 링크) */}
+      {/* 햄버거 드롭다운(메뉴 링크) — 바깥클릭/ESC는 위 useEffect(pointerdown)로 닫음 */}
       {menuOpen && (
-        <>
-          <div onClick={() => setMenuOpen(false)} style={{ position: 'fixed', inset: 0, top: 64, zIndex: 45, background: 'var(--c-shadow)' }} />
           <div
+            ref={menuPanelRef}
             style={{
               position: 'absolute', top: 'calc(100% + 8px)', right: layout.padX, zIndex: 55, width: 'min(240px, calc(100vw - 32px))',
               background: 'var(--c-panel)', border: '1px solid var(--c-w12)', borderRadius: 16, boxShadow: '0 18px 48px var(--c-shadow)', padding: 8,
@@ -464,7 +482,6 @@ export function Header({ authed = true, isAdmin = false, user = null }: { authed
               ))}
             </nav>
           </div>
-        </>
       )}
 
     </header>

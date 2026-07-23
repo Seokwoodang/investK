@@ -2,14 +2,19 @@
 
 import { createChart, CandlestickSeries, ColorType, CrosshairMode, TickMarkType } from 'lightweight-charts';
 import type { BusinessDay, CandlestickData, IChartApi, ISeriesApi, Time, UTCTimestamp } from 'lightweight-charts';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Candle, Currency, Period } from '../types';
 
 // TradingView Lightweight Charts 기반 인터랙티브 캔들차트(드래그 이동·휠 확대축소·크로스헤어).
 // 데이터는 우리 KIS·업비트·바이낸스 실데이터를 그대로 먹인다. 캔버스라 색은 CSS 토큰을 읽어 직접 적용.
 // 무한 스크롤: loadOlder가 주어지면 왼쪽 끝까지 스크롤할 때 과거 봉을 더 불러와 앞에 이어붙인다.
 
-const H = 360;
+// 화면 폭에 따라 높이 결정(모바일에선 차트가 화면을 잡아먹지 않게). SSR 기본 360(데스크톱).
+function pickHeight(): number {
+  if (typeof window === 'undefined') return 360;
+  const w = window.innerWidth;
+  return w < 480 ? 260 : w < 768 ? 300 : 360;
+}
 
 function tok(name: string): string {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || '#888';
@@ -43,6 +48,7 @@ export function CandleChart({
   theme,
   fit = false,
   loadOlder,
+  height,
 }: {
   candles: Candle[];
   period?: Period;
@@ -50,7 +56,10 @@ export function CandleChart({
   theme?: string; // 테마 변경 시 색 재적용 트리거
   fit?: boolean; // true면 리사이즈 때도 전체 구간을 fit(모달 등 갓 열린 컨테이너용)
   loadOlder?: (oldestMs: number) => Promise<Candle[]>; // 주어지면 왼쪽 끝 스크롤 시 과거 봉 추가 로드
+  height?: number; // 지정 시 고정 높이, 없으면 화면 폭에 맞춰 자동(모바일 축소)
 }) {
+  // 마운트 시 1회 결정(클라이언트 전용 렌더라 하이드레이션 불일치 없음).
+  const [H] = useState(() => height ?? pickHeight());
   const intraday = period === '1분' || period === '5분' || period === '15분' || period === '30분' || period === '1시간' || period === '4시간';
   const intradayRef = useRef(intraday);
   intradayRef.current = intraday;
