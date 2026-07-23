@@ -25,13 +25,6 @@ const btn = (primary?: boolean): React.CSSProperties => ({
   background: primary ? 'var(--c-cy18)' : 'var(--c-w05)', color: primary ? 'var(--c-accyanbr)' : 'var(--c-tx4)',
 });
 
-interface Evaluation {
-  summary: string;
-  concentration: string;
-  risk: string;
-  perStock: { name: string; comment: string }[];
-  rebalance: string[];
-}
 interface SellSignal { level: 'high' | 'mid' | 'info'; text: string; who: string; principle: string; detail: string; formula: string }
 interface SellFundamental {
   code: string; name: string; signals: SellSignal[];
@@ -175,29 +168,6 @@ export function Portfolio() {
     setAll([...map.values()]);
     setCsv('');
     setCsvMsg(`${matched.length}개 추가됨${unmatched.length ? ` · 미매칭 ${unmatched.length}개(수동 보관): ${unmatched.slice(0, 3).join(', ')}${unmatched.length > 3 ? '…' : ''}` : ''}`);
-  };
-
-  // ── AI 평가 ──
-  const [evalData, setEvalData] = useState<Evaluation | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [evalErr, setEvalErr] = useState(false); // 실패를 무통보로 넘기지 않기 위한 표시
-  const runEval = () => {
-    if (!rows.length) return;
-    track('ai_portfolio_eval', { holdings: rows.length });
-    setLoading(true);
-    setEvalData(null);
-    setEvalErr(false);
-    const lines = [...rows].sort((a, b) => b.valueKrw - a.valueKrw).map((r) => ({
-      name: r.name, group: r.group, weight: totalKrw > 0 ? (r.valueKrw / totalKrw) * 100 : 0, plPct: r.plPct, risk: r.risk,
-    }));
-    fetch('/api/ai/portfolio', {
-      method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ lines, totalValueKrw: totalKrw, groupWeights }),
-    })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((j) => { if (j?.summary) setEvalData(j as Evaluation); else setEvalErr(true); })
-      .catch(() => setEvalErr(true))
-      .finally(() => setLoading(false));
   };
 
   // ── 매도 점검 ── 펀더멘털(목표가·퀄리티)은 서버, 임계값(손절·익절·비중·트레일링)은 클라에서 즉시 계산.
@@ -564,64 +534,7 @@ export function Portfolio() {
             )}
           </div>
 
-          {/* AI 평가 */}
-          <div style={{ ...CARD, padding: 24, marginBottom: 16 }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: evalData || loading ? 16 : 0, flexWrap: 'wrap' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.06em', padding: '3px 9px', borderRadius: 6, background: 'var(--c-cy18)', color: 'var(--c-accyanbr)' }}>AI 평가</span>
-                <span style={{ fontSize: 13, color: 'var(--c-tx5)' }}>집중도 · 위험 · 종목 코멘트 · 리밸런싱 제안</span>
-              </div>
-              <button style={btn(true)} onClick={runEval} disabled={loading}>{loading && <InlineSpinner size={12} color="currentColor" />} {loading ? '평가 중…' : evalData ? '다시 평가' : 'AI 평가 받기'}</button>
-            </div>
-            {loading && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '20px 0', color: 'var(--c-tx5)', fontSize: 14 }}>
-                <InlineSpinner />
-                포트폴리오를 분석하는 중입니다…
-              </div>
-            )}
-            {evalErr && !loading && (
-              <div style={{ padding: '12px 16px', borderRadius: 12, background: 'var(--c-rd06)', border: '1px solid var(--c-rd20)', fontSize: 13, color: 'var(--c-tx3)' }}>
-                AI 평가 생성에 실패했습니다. 잠시 후 다시 시도해주세요.
-              </div>
-            )}
-            {evalData && !loading && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                <p style={{ margin: 0, fontSize: 15, lineHeight: 1.7, color: 'var(--c-tx1)' }}>{evalData.summary}</p>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))', gap: 12 }}>
-                  <div style={{ background: 'var(--c-w04)', borderRadius: 12, padding: 14 }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--c-accyan)', marginBottom: 6 }}>집중도</div>
-                    <div style={{ fontSize: 13, lineHeight: 1.6, color: 'var(--c-tx2)' }}>{evalData.concentration}</div>
-                  </div>
-                  <div style={{ background: 'var(--c-w04)', borderRadius: 12, padding: 14 }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--c-warn)', marginBottom: 6 }}>위험</div>
-                    <div style={{ fontSize: 13, lineHeight: 1.6, color: 'var(--c-tx2)' }}>{evalData.risk}</div>
-                  </div>
-                </div>
-                {evalData.perStock?.length > 0 && (
-                  <div>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--c-tx4)', marginBottom: 8 }}>종목별 코멘트</div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                      {evalData.perStock.map((p, i) => (
-                        <div key={i} style={{ display: 'flex', gap: 10, fontSize: 13, lineHeight: 1.6 }}>
-                          <span style={{ fontWeight: 700, color: 'var(--c-tx2)', minWidth: 90, flexShrink: 0 }}>{p.name}</span>
-                          <span style={{ color: 'var(--c-tx4)' }}>{p.comment}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {evalData.rebalance?.length > 0 && (
-                  <div style={{ background: 'linear-gradient(135deg, var(--c-cy07), var(--c-bl05))', border: '1px solid var(--c-cy18)', borderRadius: 12, padding: 16 }}>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--c-accyanbr)', marginBottom: 8 }}>리밸런싱 제안</div>
-                    <ul style={{ margin: 0, paddingLeft: 18, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                      {evalData.rebalance.map((s, i) => <li key={i} style={{ fontSize: 13, lineHeight: 1.6, color: 'var(--c-tx2)' }}>{s}</li>)}
-                    </ul>
-                  </div>
-                )}
-                <SourceNote text="AI 생성 — Claude (Anthropic) · 보유종목·시세를 종합한 참고용 평가이며 투자 자문이 아닙니다." />
-              </div>
-            )}
-          </div>
+          {/* AI 평가(포트폴리오 평가받기) 섹션 — 일단 제거. /api/ai/portfolio 라우트는 유지. */}
         </>
       )}
 
