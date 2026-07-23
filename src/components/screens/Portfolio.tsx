@@ -4,7 +4,6 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { fmtPct, fmtPrice, upColor } from '../../lib/format';
 import { parseHoldingsText, resolveStock, usdKrwFromFx, usePortfolio, useResolvedPrices, valuePortfolio } from '../../lib/portfolio';
 import { useDashboard } from '../../store/DashboardContext';
-import { track } from '../../lib/ga';
 import { TAB_MAP, type Currency, type TabId } from '../../types';
 import { SourceNote, UpdateNote } from '../SourceNote';
 import { GlossaryTip, TermTip } from '../GlossaryTip';
@@ -175,8 +174,6 @@ export function Portfolio() {
   const [sellLoading, setSellLoading] = useState(false);
   const [cfg, setCfg] = useState<SellConfig>(DEFAULT_CFG);
   const [expanded, setExpanded] = useState<string | null>(null);
-  const [aiSell, setAiSell] = useState<{ summary: string; perStock: { name: string; comment: string }[] } | null>(null);
-  const [aiSellLoading, setAiSellLoading] = useState(false);
   const rowsRef = useRef(rows); rowsRef.current = rows;
   const sig = holdings.map((h) => `${h.id}:${h.qty}:${h.avg}`).join('|');
   const ready = holdings.length > 0 && totalKrw > 0;
@@ -220,22 +217,6 @@ export function Portfolio() {
   const sellCounts = sellRows.reduce((acc, s) => ((acc[s.verdict] = (acc[s.verdict] || 0) + 1), acc), {} as Record<string, number>);
   const activePreset = PRESETS.find((p) => p.cfg.stopLoss === cfg.stopLoss && p.cfg.takeProfit === cfg.takeProfit)?.label;
 
-  // AI 매도 총평 — 판정은 규칙(위), AI는 신호 종합 설명만.
-  const [aiSellErr, setAiSellErr] = useState(false);
-  const runSellAi = () => {
-    if (!sellRows.length) return;
-    track('ai_sell_summary', { holdings: sellRows.length });
-    setAiSellLoading(true); setAiSell(null); setAiSellErr(false);
-    const items = sellRows.map(({ r, f, signals, verdict }) => ({
-      name: r.name, verdict, plPct: r.plPct, signals: signals.map((s) => s.text),
-      per: f?.per ?? null, roe: f?.roe ?? null, debtRatio: f?.debtRatio ?? null,
-    }));
-    fetch('/api/ai/sell', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ items }) })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((j) => { if (j?.summary) setAiSell(j); else setAiSellErr(true); })
-      .catch(() => setAiSellErr(true))
-      .finally(() => setAiSellLoading(false));
-  };
 
   const krw = (v: number) => '₩' + Math.round(v).toLocaleString('ko-KR');
 
@@ -387,14 +368,9 @@ export function Portfolio() {
               <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.06em', padding: '3px 9px', borderRadius: 6, background: 'var(--c-am16)', color: 'var(--c-warn)' }}>매도 점검</span>
               <span style={{ fontSize: 13, color: 'var(--c-tx5)' }}>대가들의 매도 원칙으로 점검 · 신호를 누르면 근거 설명</span>
               {sellFund && (
-                <>
-                  <button onClick={runSellAi} disabled={aiSellLoading || !sellRows.length} style={{ ...btn(true), marginLeft: 'auto', fontSize: 12, padding: '6px 12px' }}>
-                    {aiSellLoading && <InlineSpinner size={12} color="currentColor" />} {aiSellLoading ? 'AI 총평 생성 중…' : aiSell ? 'AI 총평 다시' : 'AI 매도 총평'}
-                  </button>
-                  <span style={{ fontSize: 12, color: 'var(--c-tx5)' }}>
-                    점검필요 <b style={{ color: 'var(--c-down)' }}>{sellCounts.review || 0}</b> · 관찰 <b style={{ color: 'var(--c-warn)' }}>{sellCounts.watch || 0}</b> · 보유 <b style={{ color: 'var(--c-up)' }}>{sellCounts.hold || 0}</b>
-                  </span>
-                </>
+                <span style={{ fontSize: 12, color: 'var(--c-tx5)', marginLeft: 'auto' }}>
+                  점검필요 <b style={{ color: 'var(--c-down)' }}>{sellCounts.review || 0}</b> · 관찰 <b style={{ color: 'var(--c-warn)' }}>{sellCounts.watch || 0}</b> · 보유 <b style={{ color: 'var(--c-up)' }}>{sellCounts.hold || 0}</b>
+                </span>
               )}
             </div>
 
@@ -500,36 +476,7 @@ export function Portfolio() {
                     </div>
                   );
                 })}
-                {aiSellErr && !aiSellLoading && (
-                  <div style={{ marginTop: 4, padding: '12px 16px', borderRadius: 12, background: 'var(--c-rd06)', border: '1px solid var(--c-rd20)', fontSize: 13, color: 'var(--c-tx3)' }}>
-                    AI 총평 생성에 실패했습니다. 잠시 후 다시 시도해주세요.
-                  </div>
-                )}
-                {(aiSellLoading || aiSell) && (
-                  <div style={{ marginTop: 4, padding: 16, borderRadius: 12, background: 'linear-gradient(135deg, var(--c-cy07), var(--c-bl05))', border: '1px solid var(--c-cy18)' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: aiSell ? 10 : 0 }}>
-                      <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.06em', padding: '3px 9px', borderRadius: 6, background: 'var(--c-cy18)', color: 'var(--c-accyanbr)' }}>AI 매도 총평</span>
-                      <span style={{ fontSize: 11, color: 'var(--c-tx6)' }}>판정은 규칙, 해석은 AI</span>
-                    </div>
-                    {aiSellLoading && !aiSell && <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--c-tx5)' }}><InlineSpinner size={13} />신호를 종합하는 중입니다…</div>}
-                    {aiSell && (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                        <p style={{ margin: 0, fontSize: 14, lineHeight: 1.7, color: 'var(--c-tx1)' }}>{aiSell.summary}</p>
-                        {aiSell.perStock?.length > 0 && (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                            {aiSell.perStock.map((p, i) => (
-                              <div key={i} style={{ display: 'flex', gap: 10, fontSize: 13, lineHeight: 1.6 }}>
-                                <span style={{ fontWeight: 700, color: 'var(--c-tx2)', minWidth: 90, flexShrink: 0 }}>{p.name}</span>
-                                <span style={{ color: 'var(--c-tx4)' }}>{p.comment}</span>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )}
-                <SourceNote text="매도 점검 — 대가 원칙 기반(오닐·피셔·버핏·그레이엄·리버모어). 신호 클릭 시 근거 설명. AI 총평은 규칙 판정을 해석할 뿐 매매 지시가 아닙니다." />
+                <SourceNote text="매도 점검 — 대가 원칙 기반(오닐·피셔·버핏·그레이엄·리버모어) 규칙 판정. 신호 클릭 시 근거 설명. 매매 지시가 아닙니다." />
               </div>
             )}
           </div>
