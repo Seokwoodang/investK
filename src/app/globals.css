@@ -329,7 +329,8 @@ input::placeholder {
 .list-scroll {
   overflow-y: auto;
   overflow-x: hidden;
-  overscroll-behavior: contain;
+  /* 경계에서 스크롤을 페이지로 넘김(contain은 리스트 끝에서 스크롤이 갇힘). */
+  overscroll-behavior: auto;
 }
 .list-scroll::-webkit-scrollbar {
   width: 8px;
