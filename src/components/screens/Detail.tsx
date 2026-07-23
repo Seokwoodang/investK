@@ -82,12 +82,13 @@ const RISK_DIMS: { key: keyof Stock['risk4']; label: string; tail: string }[] = 
   { key: 'sent', label: '뉴스 감성', tail: '최근 뉴스 톤의 부정 정도' },
 ];
 
-function findStock(stocks: Stocks, id: string, tab: TabId): Stock | null {
+// 종목을 찾고 '어느 시장(탭)'에서 찾았는지도 반환 — 새로고침 시 activeTab 복원에 필요.
+function findStockEntry(stocks: Stocks, id: string, tab: TabId): { stock: Stock; tab: TabId } | null {
   const inTab = stocks[tab].find((s) => s.id === id);
-  if (inTab) return inTab;
+  if (inTab) return { stock: inTab, tab };
   for (const tb of Object.keys(stocks) as TabId[]) {
     const f = stocks[tb].find((s) => s.id === id);
-    if (f) return f;
+    if (f) return { stock: f, tab: tb };
   }
   return null;
 }
@@ -108,22 +109,26 @@ export function Detail({ id }: { id: string }) {
   const subscribeStocks = useSubscribeStocks();
   const subscribeCoins = useSubscribeCoins();
   const subscribeUs = useSubscribeUs();
-  const fromUniverse = findStock(data.stocks, id, state.activeTab);
+  const uniEntry = findStockEntry(data.stocks, id, state.activeTab);
+  const fromUniverse = uniEntry?.stock ?? null;
 
   // 유니버스에 없는 종목(보유한 미국 ETF·소형주 등)도 상세를 볼 수 있게 /api/resolve로 즉석 조회해
   // 최소 정보로 합성한다. (과거엔 못 찾으면 무한 로딩이었음)
   const [resolved, setResolved] = useState<Stock | null>(null);
+  const [resolvedTab, setResolvedTab] = useState<TabId | null>(null);
   const [notFound, setNotFound] = useState(false);
   useEffect(() => {
     if (fromUniverse || id.startsWith('manual:')) return; // 유니버스에 있거나 수동입력이면 조회 불필요
     let cancelled = false;
     setResolved(null);
+    setResolvedTab(null);
     setNotFound(false);
     fetch(`/api/resolve?price=${encodeURIComponent(id)}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((j) => {
         if (cancelled) return;
         if (j?.found) {
+          if (j.tab === 'us_stock' || j.tab === 'kr_stock') setResolvedTab(j.tab);
           setResolved({
             id, name: j.name || id, ticker: j.ticker || id, price: j.price ?? 0, cur: j.cur === '$' ? '$' : '₩',
             pct: j.pct ?? 0, risk: 'mid', issue: `${j.name || id}의 가격·거래량 흐름을 확인하세요.`, chartNote: '',
@@ -140,6 +145,14 @@ export function Detail({ id }: { id: string }) {
 
   const sel = fromUniverse ?? resolved;
   const selId = sel?.id;
+
+  // 새로고침 복원: 종목의 실제 시장(유니버스에서 찾은 탭 또는 resolve의 tab)으로 activeTab을 맞춘다.
+  //  (안 그러면 activeTab이 기본값 kr_stock으로 남아 미국 종목이 국내로 조회돼 차트·K-리서치가 깨짐.)
+  const stockTab = uniEntry?.tab ?? resolvedTab ?? null;
+  useEffect(() => {
+    if (stockTab && stockTab !== state.activeTab) actions.setTab(stockTab);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stockTab]);
 
   // GA: 종목 열람·상세 탭 전환 추적(URL이 안 바뀌는 앱 내부 행동이라 페이지뷰로는 안 잡힘)
   useEffect(() => {
