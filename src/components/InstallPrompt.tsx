@@ -43,32 +43,37 @@ export function InstallPrompt() {
   const [ios, setIos] = useState(false);
   const [render, setRender] = useState(false); // 마운트 유지(닫힘 애니메이션용)
 
+  // (A) 항상: SW 등록 + beforeinstallprompt 캡처 + 설정의 '앱 설치' 버튼이 여는 커스텀 이벤트 수신.
   useEffect(() => {
-    if (isStandalone() || suppressed() || !isMobile()) return;
-
-    // 설치 조건 충족용 SW 등록(웹푸시 구독과 무관하게).
     if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
-
-    if (isIos()) {
-      setIos(true); setRender(true);
-      const t = setTimeout(() => setOpen(true), 3500); // 잠깐 둘러본 뒤 노출
-      return () => clearTimeout(t);
-    }
-
-    const onBip = (e: Event) => {
-      e.preventDefault(); // 브라우저 기본 배너 차단 → 우리 시트로 대체
-      setDeferred(e as BIPEvent);
-      setRender(true);
-      setTimeout(() => setOpen(true), 1500);
-    };
+    const onBip = (e: Event) => { e.preventDefault(); setDeferred(e as BIPEvent); };
     const onInstalled = () => { setOpen(false); try { localStorage.setItem(DISMISS_KEY, '-1'); } catch { /* */ } };
+    // 설정 '앱 설치' 버튼 → 억제/데스크톱 여부와 무관하게 시트를 연다.
+    const onOpen = () => { setIos(isIos()); setRender(true); setTimeout(() => setOpen(true), 30); };
     window.addEventListener('beforeinstallprompt', onBip);
     window.addEventListener('appinstalled', onInstalled);
+    window.addEventListener('ik:open-install', onOpen);
     return () => {
       window.removeEventListener('beforeinstallprompt', onBip);
       window.removeEventListener('appinstalled', onInstalled);
+      window.removeEventListener('ik:open-install', onOpen);
     };
   }, []);
+
+  // (B) 자동 노출: 모바일 + 미설치 + 최근 안 닫음일 때만. iOS는 잠깐 뒤, 안드로이드는 bip 잡히면.
+  useEffect(() => {
+    if (isStandalone() || suppressed() || !isMobile()) return;
+    if (isIos()) {
+      setIos(true); setRender(true);
+      const t = setTimeout(() => setOpen(true), 3500);
+      return () => clearTimeout(t);
+    }
+    if (deferred) {
+      setRender(true);
+      const t = setTimeout(() => setOpen(true), 1500);
+      return () => clearTimeout(t);
+    }
+  }, [deferred]);
 
   const close = (permanent = false) => {
     try { localStorage.setItem(DISMISS_KEY, permanent ? '-1' : String(Date.now())); } catch { /* */ }
@@ -134,8 +139,8 @@ export function InstallPrompt() {
           <>
             {/* iOS — beforeinstallprompt 미지원 → 수동 가이드 */}
             <div style={{ background: 'var(--c-w04)', border: '1px solid var(--c-w08)', borderRadius: 14, padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <Step n={1}>사파리 하단 <b style={{ color: 'var(--c-tx3)' }}>공유 버튼</b>(<span style={{ color: 'var(--c-acblue)' }}>⬆︎</span>) 을 누르세요</Step>
-              <Step n={2}>메뉴에서 <b style={{ color: 'var(--c-tx3)' }}>&ldquo;홈 화면에 추가&rdquo;</b> 를 선택</Step>
+              <Step n={1}><b style={{ color: 'var(--c-tx3)' }}>공유 버튼</b>(<span style={{ color: 'var(--c-acblue)' }}>⬆︎</span>)을 누르세요 <span style={{ color: 'var(--c-tx6)' }}>· 사파리는 하단, 크롬은 주소창 옆 상단</span></Step>
+              <Step n={2}><b style={{ color: 'var(--c-tx3)' }}>&ldquo;홈 화면에 추가&rdquo;</b> 를 선택 <span style={{ color: 'var(--c-tx6)' }}>· 안 보이면 &ldquo;더 보기&rdquo;를 누르고 아래로</span></Step>
               <Step n={3}>오른쪽 위 <b style={{ color: 'var(--c-tx3)' }}>&ldquo;추가&rdquo;</b> 를 누르면 끝!</Step>
             </div>
             <button onClick={() => close(false)} style={ghostBtn}>알겠어요</button>

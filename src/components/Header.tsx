@@ -9,17 +9,16 @@ import { useViewportLayout } from './DashboardChrome';
 
 // 메뉴 다이어트(v0.17.0): 저평가우량주→종목의 탭, 보고서→내자산의 탭으로 내려 8→6개.
 // 모바일 햄버거에선 그룹 라벨(시장/종목 찾기/실험실/내 투자)로 묶어 사이트 구조가 드러나게.
+// 모의투자(/mock)는 런칭용으로 네비에서 일단 숨김 — 라우트·API·크론·DB는 유지(되돌리기 쉬움).
 const NAV: { href: string; label: string }[] = [
   { href: '/', label: '대시보드' },
   { href: '/stocks', label: '종목' },
   { href: '/news', label: '뉴스' },
-  { href: '/mock', label: '모의투자' },
   { href: '/portfolio', label: '내자산' },
 ];
 const NAV_GROUPS: { title: string; items: { href: string; label: string }[] }[] = [
   { title: '시장', items: [{ href: '/', label: '대시보드' }, { href: '/news', label: '뉴스' }] },
   { title: '종목 찾기', items: [{ href: '/stocks', label: '종목' }, { href: '/value', label: '저평가 우량주' }] },
-  { title: '실험실', items: [{ href: '/mock', label: '모의투자' }] },
   { title: '내 투자', items: [{ href: '/portfolio', label: '내 자산' }] },
 ];
 
@@ -87,6 +86,13 @@ export function Header({ authed = true, isAdmin = false, user = null }: { authed
     return () => mq.removeEventListener('change', h);
   }, []);
   const themeIsDark = state.theme === 'dark' || (state.theme === 'system' && osDark);
+
+  // 이미 홈화면 앱으로 설치됐는지(standalone) — 설정의 '앱 설치' 버튼 노출 여부.
+  const [installed, setInstalled] = useState(false);
+  useEffect(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    setInstalled(window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone === true);
+  }, []);
 
   // 관리자(is_admin)에게만 '회원관리' 메뉴 노출.
   const navItems = isAdmin ? [...NAV, { href: '/admin', label: '회원관리' }] : NAV;
@@ -237,6 +243,17 @@ export function Header({ authed = true, isAdmin = false, user = null }: { authed
         <span style={{ fontSize: 16, fontWeight: 800 }}>가</span>
         <span style={{ fontSize: 13, fontWeight: 700 }}>큰글씨 {state.largeFont ? '켜짐' : '꺼짐'}</span>
       </button>
+      {/* 앱 설치 — 설치 시트를 다시 연다(iOS=수동 가이드, 안드로이드/데스크톱=네이티브 설치). 이미 설치됐으면 숨김. */}
+      {!installed && (
+        <button
+          onClick={() => { setSetOpen(false); window.dispatchEvent(new Event('ik:open-install')); }}
+          title="홈 화면에 앱으로 추가"
+          style={{ ...utilBtnBase, width: '100%', justifyContent: 'flex-start', padding: '11px 12px' }}
+        >
+          <span style={{ fontSize: 15, fontWeight: 800 }}>⤓</span>
+          <span style={{ fontSize: 13, fontWeight: 700 }}>앱 설치</span>
+        </button>
+      )}
       {/* 브라우저 알림(웹푸시) — 로그인 사용자만. 켜면 공시·급등락·목표가 알림이 기기로 도착. */}
       {authed && push.state !== 'unsupported' && (
         <button
