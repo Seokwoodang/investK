@@ -207,11 +207,10 @@ export function Header({ authed = true, isAdmin = false, user = null }: { authed
     };
   }, [now]);
 
-  // /value·/report는 메뉴에서 내려갔지만(각각 종목·내자산의 탭) 상위 메뉴가 활성으로 보이게 매핑.
+  // /value는 메뉴에서 내려갔지만(종목의 탭) 상위 메뉴가 활성으로 보이게 매핑.
   const activeHref =
     pathname === '/' ? '/'
       : pathname.startsWith('/instrument') || pathname.startsWith('/value') ? '/stocks'
-      : pathname.startsWith('/report') ? '/portfolio'
       : '/' + (pathname.split('/')[1] || '');
   const gq = state.gQuery.trim().toLowerCase();
 

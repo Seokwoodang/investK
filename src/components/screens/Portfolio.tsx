@@ -481,7 +481,6 @@ export function Portfolio() {
             )}
           </div>
 
-          {/* AI 평가(포트폴리오 평가받기) 섹션 — 일단 제거. /api/ai/portfolio 라우트는 유지. */}
         </>
       )}
 
