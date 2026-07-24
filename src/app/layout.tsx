@@ -52,6 +52,19 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               "(function(){try{var d=document.documentElement;var t=localStorage.getItem('dash_theme');if(t==='light')d.classList.add('theme-light');else if(t==='dark')d.classList.add('theme-dark');if(localStorage.getItem('dash_large_font')==='true')d.classList.add('large-font');}catch(e){}})();",
           }}
         />
+        {/* 구조화 데이터(JSON-LD) — 구글이 'InvestK' 엔티티/사이트를 인식하게(브랜드·제목·사이트링크 개선). */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              '@context': 'https://schema.org',
+              '@graph': [
+                { '@type': 'WebSite', '@id': `${SITE_URL}/#website`, url: SITE_URL, name: 'InvestK', description: DESC, inLanguage: 'ko-KR' },
+                { '@type': 'WebApplication', name: 'InvestK', url: SITE_URL, applicationCategory: 'FinanceApplication', operatingSystem: 'Web', browserRequirements: 'Requires JavaScript', description: DESC, inLanguage: 'ko-KR', isAccessibleForFree: true },
+              ],
+            }),
+          }}
+        />
       </head>
       <body>{children}</body>
       <GoogleAnalytics gaId={GA_ID} />
