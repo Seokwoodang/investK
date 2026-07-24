@@ -95,10 +95,12 @@ export async function getCardData(): Promise<CardData> {
   const today = kstYmd();
   const upcoming = (data.macro.events ?? []).filter((e) => e.date >= today).sort((a, z) => a.date.localeCompare(z.date));
   const ev = upcoming.find((e) => e.tag === '고영향') ?? upcoming[0];
+  // Pretendard에 없는 글리프(두부 방지) 제거: 이모지·국기·한자(CJK). 화살표(↑↓→)는 유지.
+  const clean = (s: string) => s.replace(/[\u{1F000}-\u{1FAFF}\u{1F1E6}-\u{1F1FF}\u{2600}-\u{27BF}\u{3400}-\u{9FFF}️‍]/gu, '').replace(/\s{2,}/g, ' ').trim();
   const event = ev
     ? {
-        name: ev.name,
-        sub: ((s) => (s.length > 48 ? s.slice(0, 47) + '…' : s))(ev.desc || ev.rel?.title || ''),
+        name: clean(ev.name),
+        sub: ((s) => (s.length > 48 ? s.slice(0, 47) + '…' : s))(clean(ev.desc || ev.rel?.title || '')),
         month: `${parseInt(ev.date.slice(5, 7), 10)}월`,
         day: ev.date.slice(8, 10),
       }
