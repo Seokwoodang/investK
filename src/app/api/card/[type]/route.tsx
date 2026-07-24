@@ -1,5 +1,5 @@
 import { ImageResponse } from 'next/og';
-import { getCardData, type CardData, type Move } from '@/server/cardData';
+import { getCardData, getNewsCardData, type CardData, type Move, type NewsCardData, type NewsItem } from '@/server/cardData';
 
 // 인스타 카드뉴스 5장(1080×1350, 4:5). 다크 테마. 디자인 핸드오프 시안을 Satori로 포팅.
 //  type ∈ cover|kr|global|crypto|outro. 데이터는 getCardData()가 실시장값으로 조립.
@@ -311,7 +311,106 @@ const RENDERERS: Record<string, (d: CardData) => React.ReactElement> = {
   cover: Cover, kr: Kr, global: Global, crypto: Crypto, outro: Outro,
 };
 
+// ══════════════ 뉴스 캐러셀 ══════════════
+const impColor = (im: string) => (im === '호재' ? UP : im === '악재' ? DOWN : SUB);
+const impTint = (im: string) => (im === '호재' ? UP_T : im === '악재' ? DOWN_T : 'rgba(255,255,255,0.08)');
+
+// 뉴스 커버
+function NewsCover(nd: NewsCardData) {
+  const top = nd.items[0];
+  return (
+    <Frame>
+      <Header right={nd.dateLabel} />
+      <div style={{ display: 'flex', flexDirection: 'column', flex: 1, justifyContent: 'center', gap: 30 }}>
+        <div style={{ display: 'flex' }}>
+          <div style={{ display: 'flex', alignItems: 'center', background: TEAL_T2, borderRadius: 999, padding: '12px 26px', fontSize: 26, fontWeight: 800, color: TEAL }}>오늘의 투자 뉴스</div>
+        </div>
+        <div style={{ display: 'flex', fontSize: 88, fontWeight: 900, color: TXT, letterSpacing: '-0.04em', lineHeight: 1.2, marginTop: 8 }}>{top ? top.title : '오늘의 주요 뉴스'}</div>
+        <div style={{ display: 'flex', fontSize: 40, fontWeight: 700, color: SUB, letterSpacing: '-0.02em', marginTop: 12 }}>꼭 알아야 할 핵심 뉴스 {Math.min(nd.items.length, 3)}선</div>
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ display: 'flex', width: 40, height: 8, background: TEAL, borderRadius: 4 }} />
+          {[1, 2, 3, 4].map((i) => <div key={i} style={{ display: 'flex', width: 8, height: 8, background: 'rgba(255,255,255,0.18)', borderRadius: 4 }} />)}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', background: TEAL, borderRadius: 999, padding: '16px 32px', fontSize: 27, fontWeight: 900, color: BG }}>넘겨서 확인 →</div>
+      </div>
+    </Frame>
+  );
+}
+
+// 뉴스 항목 카드
+function NewsCard({ item, idx, total }: { item: NewsItem; idx: number; total: number }) {
+  return (
+    <Frame>
+      <Header right={`${idx + 1} / ${total}`} />
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginTop: 44 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <div style={{ display: 'flex', fontSize: 60, fontWeight: 900, color: TEAL, letterSpacing: '-0.03em' }}>{String(idx + 1).padStart(2, '0')}</div>
+          <div style={{ display: 'flex', alignItems: 'center', background: impTint(item.impact), borderRadius: 12, padding: '10px 22px', fontSize: 28, fontWeight: 900, color: impColor(item.impact) }}>{item.impact}</div>
+        </div>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', flex: 1, justifyContent: 'center', gap: 40 }}>
+        <div style={{ display: 'flex', fontSize: 58, fontWeight: 900, color: TXT, letterSpacing: '-0.03em', lineHeight: 1.32 }}>{item.title}</div>
+        {item.why && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 18, background: TEAL_T, borderRadius: 28, padding: '40px 44px' }}>
+            <div style={{ display: 'flex' }}>
+              <div style={{ display: 'flex', alignItems: 'center', background: TEAL, borderRadius: 12, padding: '10px 22px', fontSize: 26, fontWeight: 900, color: BG }}>핵심 포인트</div>
+            </div>
+            <div style={{ display: 'flex', fontSize: 38, fontWeight: 700, color: TXT, lineHeight: 1.5 }}>{item.why}</div>
+          </div>
+        )}
+      </div>
+      <Footer active={idx + 1} right={item.src ? `출처 · ${item.src}` : '@investk'} />
+    </Frame>
+  );
+}
+
+// 뉴스 마무리
+function NewsOutro(nd: NewsCardData) {
+  return (
+    <Frame>
+      <Header right="끝" />
+      <div style={{ display: 'flex', flexDirection: 'column', flex: 1, justifyContent: 'center', gap: 44 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+          <div style={{ display: 'flex' }}>
+            <div style={{ display: 'flex', alignItems: 'center', background: TEAL_T2, borderRadius: 999, padding: '12px 26px', fontSize: 26, fontWeight: 800, color: TEAL }}>매일 업데이트</div>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', fontSize: 84, fontWeight: 900, color: TXT, letterSpacing: '-0.04em', lineHeight: 1.25 }}>
+            <div style={{ display: 'flex' }}>시장 뉴스,</div>
+            <div style={{ display: 'flex' }}><span style={{ color: TEAL }}>매일 3분</span>이면 끝</div>
+          </div>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: TEAL, borderRadius: 20, padding: 34, fontSize: 36, fontWeight: 900, color: BG }}>전체 뉴스·지표 → investk.app</div>
+          <div style={{ display: 'flex', justifyContent: 'center', fontSize: 27, fontWeight: 700, color: SUB }}>팔로우하고 매일 받아보세요</div>
+        </div>
+      </div>
+      <Footer active={4} right="참고용 지표 · 투자 권유 아님 · @investk" />
+    </Frame>
+  );
+}
+
+function renderNews(type: string, nd: NewsCardData): React.ReactElement | null {
+  if (type === 'news-cover') return <NewsCover {...nd} />;
+  if (type === 'news-outro') return <NewsOutro {...nd} />;
+  const m = /^news-(\d+)$/.exec(type);
+  if (m) {
+    const idx = parseInt(m[1], 10);
+    const item = nd.items[idx];
+    if (!item) return null;
+    return <NewsCard item={item} idx={idx} total={Math.min(nd.items.length, 3)} />;
+  }
+  return null;
+}
+
 export async function GET(_req: Request, { params }: { params: { type: string } }) {
+  if (params.type.startsWith('news')) {
+    const nd = await getNewsCardData();
+    const el = renderNews(params.type, nd);
+    if (!el) return new Response('no news card', { status: 404 });
+    return new ImageResponse(el, { width: 1080, height: 1350, fonts: await fonts() });
+  }
   const render = RENDERERS[params.type];
   if (!render) return new Response('unknown card type', { status: 404 });
   const d = await getCardData();

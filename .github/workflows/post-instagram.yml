@@ -1,24 +1,22 @@
-name: Post to Instagram
+name: Post to Instagram (briefing)
 
-# 데일리 카드뉴스를 인스타그램에 자동 게시한다(브리핑 슬롯 갱신 ~30분 뒤에 최신 내용으로).
-# KST → UTC:  06:30 = 21:30(전일) · 17:30 = 08:30 · 22:30 = 13:30
+# 아침 시장 브리핑 캐러셀 5장을 인스타그램에 자동 게시(브리핑 갱신 ~30분 뒤).
+# KST 06:30 = 21:30(전일) UTC.
 on:
   schedule:
-    - cron: '30 21 * * *' # 06:30 KST — 오전 브리핑 카드
-    - cron: '30 8 * * *'  # 17:30 KST — 오후 브리핑 카드
-    - cron: '30 13 * * *' # 22:30 KST — 저녁 브리핑 카드
+    - cron: '30 21 * * *' # 06:30 KST — 아침 시장 브리핑
   workflow_dispatch:
     inputs:
       type:
-        description: '게시 종류(daily=캐러셀 5장)'
+        description: '게시 종류(daily=브리핑 5장)'
         default: 'daily'
 
 jobs:
   post:
     runs-on: ubuntu-latest
     steps:
-      - name: Publish Instagram card
+      - name: Publish briefing carousel
         run: |
-          curl -fsS --max-time 90 --retry 1 --retry-delay 20 -X GET \
+          curl -fsS --max-time 110 --retry 1 --retry-delay 20 -X GET \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
             "https://investk.app/api/ig/publish?type=${{ github.event.inputs.type || 'daily' }}"

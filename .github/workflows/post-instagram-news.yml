@@ -1,0 +1,18 @@
+name: Post to Instagram (news)
+
+# 저녁 '오늘의 투자 뉴스' 캐러셀을 인스타그램에 자동 게시(랭킹 뉴스 갱신 후).
+# KST 20:00 = 11:00 UTC.
+on:
+  schedule:
+    - cron: '0 11 * * *' # 20:00 KST — 저녁 뉴스 요약
+  workflow_dispatch: {}
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish news carousel
+        run: |
+          curl -fsS --max-time 110 --retry 1 --retry-delay 20 -X GET \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "https://investk.app/api/ig/publish?type=news"

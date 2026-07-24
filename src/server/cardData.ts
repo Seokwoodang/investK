@@ -1,6 +1,8 @@
 import 'server-only';
 import { getDashboardData } from '@/server/data';
 import { getBriefing } from '@/server/briefing';
+import { getCachedRankedNews } from '@/server/aiNews';
+import { NEWS_TABS } from '@/server/news';
 
 // 인스타 카드뉴스 5장에 바인딩할 실데이터를 한 번에 조립한다.
 //  지수·환율·시장지표·자산군요약 = 대시보드 데이터(KIS/실연동), 다우·BTC = Yahoo 보강,
@@ -113,4 +115,28 @@ export async function getCardData(): Promise<CardData> {
     headline: b.headline || '',
     hero, heroOther, event,
   };
+}
+
+// ── 뉴스 캐러셀 데이터 ──
+export type NewsImpact = '호재' | '악재' | '중립';
+export interface NewsItem { title: string; why: string; impact: NewsImpact; src: string }
+export interface NewsCardData { dateLabel: string; items: NewsItem[] }
+
+const IMP_ORDER: Record<string, number> = { 상: 0, 중: 1, 하: 2 };
+
+// 전체 뉴스 탭의 캐시된 랭킹 뉴스를 취합 → 제목 중복 제거 → 중요도순 → 상위 4개.
+export async function getNewsCardData(): Promise<NewsCardData> {
+  const lists = await Promise.all(NEWS_TABS.map((t) => getCachedRankedNews(`page:${t}`).catch(() => null)));
+  const seen = new Set<string>();
+  const merged = [] as { title: string; why: string; impact: NewsImpact; src: string; importance: string }[];
+  for (const l of lists) {
+    for (const n of l ?? []) {
+      const key = n.title.trim();
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      merged.push({ title: n.title, why: n.why, impact: n.impact, src: n.src, importance: n.importance });
+    }
+  }
+  merged.sort((a, z) => (IMP_ORDER[a.importance] ?? 9) - (IMP_ORDER[z.importance] ?? 9));
+  return { dateLabel: kstDateLabel(), items: merged.slice(0, 4).map(({ title, why, impact, src }) => ({ title, why, impact, src })) };
 }

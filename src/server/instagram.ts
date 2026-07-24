@@ -1,5 +1,6 @@
 import 'server-only';
 import { getBriefing } from '@/server/briefing';
+import { getNewsCardData } from '@/server/cardData';
 import { SITE_URL } from '@/lib/site';
 
 // 인스타그램 자동 게시(Instagram 비즈니스 로그인 API, graph.instagram.com).
@@ -88,22 +89,44 @@ export function cardImageUrl(type: string): string {
   return `${SITE_URL}/api/card/${type}?t=${Date.now()}`;
 }
 
+const IMP_EMOJI: Record<string, string> = { 호재: '📈', 악재: '📉', 중립: '➖' };
+
 export async function buildCaption(type: string): Promise<string> {
-  if (type === 'brief') {
-    const b = await getBriefing(kstYmd());
-    const facts = (b.facts ?? []).slice(0, 3).map((f) => `• [${f.k}] ${f.t}`).join('\n');
+  if (type === 'news') {
+    const nd = await getNewsCardData();
+    const items = nd.items.slice(0, 3).map((n, i) => `${i + 1}. ${IMP_EMOJI[n.impact] ?? ''} ${n.title}`).join('\n');
     return [
-      `📊 오늘의 시장 브리핑 · ${kstDateLabel()}`,
+      `📰 오늘의 투자 뉴스 · ${kstDateLabel()}`,
       '',
-      b.headline || '오늘의 시장 요약',
+      items || '오늘의 주요 시장 뉴스',
       '',
-      facts,
-      '',
-      '※ 참고용 지표이며 투자 권유가 아닙니다.',
-      '👉 더 많은 지표는 프로필 링크 investk.app',
+      '※ 참고용 정보이며 투자 권유가 아닙니다.',
+      '👉 전체 뉴스·지표는 프로필 링크 investk.app',
       '',
       HASHTAGS.join(' '),
     ].join('\n');
   }
-  throw new Error('알 수 없는 카드 타입: ' + type);
+  // 기본: 시장 브리핑
+  const b = await getBriefing(kstYmd());
+  const facts = (b.facts ?? []).slice(0, 3).map((f) => `• [${f.k}] ${f.t}`).join('\n');
+  return [
+    `📊 오늘의 시장 브리핑 · ${kstDateLabel()}`,
+    '',
+    b.headline || '오늘의 시장 요약',
+    '',
+    facts,
+    '',
+    '※ 참고용 지표이며 투자 권유가 아닙니다.',
+    '👉 더 많은 지표는 프로필 링크 investk.app',
+    '',
+    HASHTAGS.join(' '),
+  ].join('\n');
+}
+
+// 뉴스 캐러셀 카드 목록(커버 + 뉴스 N + 마무리). 뉴스 개수에 맞춰 동적 생성.
+export async function newsCards(): Promise<string[]> {
+  const nd = await getNewsCardData();
+  const n = Math.min(nd.items.length, 3);
+  if (n === 0) return [];
+  return ['news-cover', ...Array.from({ length: n }, (_, i) => `news-${i}`), 'news-outro'];
 }
