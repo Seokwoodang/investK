@@ -8,6 +8,12 @@ const GA_ID = process.env.NEXT_PUBLIC_GA_ID || 'G-EB6L1EW9Q5';
 
 const DESC = '코스피·코스닥 지수, VIX·미 국채금리, 김치프리미엄·공포탐욕지수, 환율과 업종 흐름을 한 화면에. 저평가 우량주 스크리너·주요 뉴스까지. 참고 정보이며 투자 자문이 아닙니다.';
 
+// 검색엔진 소유권 확인 코드(콘솔에서 발급받아 채움). env 우선, 없으면 아래 상수.
+//  · 구글 서치콘솔: HTML 태그 방식의 content 값
+//  · 네이버 서치어드바이저: naver-site-verification content 값
+const GOOGLE_VERIFY = process.env.NEXT_PUBLIC_GOOGLE_VERIFY || '';
+const NAVER_VERIFY = process.env.NEXT_PUBLIC_NAVER_VERIFY || '';
+
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
@@ -32,6 +38,11 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: 'InvestK — 투자 대시보드',
     description: DESC,
+  },
+  // 검색엔진 소유권 확인(코드가 채워졌을 때만 meta 태그 렌더).
+  verification: {
+    ...(GOOGLE_VERIFY ? { google: GOOGLE_VERIFY } : {}),
+    ...(NAVER_VERIFY ? { other: { 'naver-site-verification': NAVER_VERIFY } } : {}),
   },
 };
 
