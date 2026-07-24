@@ -26,6 +26,10 @@ const BG = '#0A121E', SURF = '#16202E', TXT = '#FFFFFF', SUB = '#8B97A8', TEAL =
 const UP = '#FF4D5E', DOWN = '#4D8DFF', FEAR = '#FFB454';
 const UP_T = 'rgba(255,77,94,0.14)', DOWN_T = 'rgba(77,141,255,0.14)', TEAL_T = 'rgba(56,224,200,0.10)', TEAL_T2 = 'rgba(56,224,200,0.12)';
 
+// 실제 브랜드 로고(상승차트 마크, /icon.svg와 동일). data-URI로 인라인.
+const LOGO_SVG = `<svg width="56" height="56" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="bg" x1="0" y1="0" x2="48" y2="48" gradientUnits="userSpaceOnUse"><stop stop-color="#101a29"/><stop offset="1" stop-color="#0a121d"/></linearGradient><linearGradient id="area" x1="24" y1="10" x2="24" y2="40" gradientUnits="userSpaceOnUse"><stop stop-color="#35e0c8" stop-opacity="0.42"/><stop offset="1" stop-color="#35e0c8" stop-opacity="0"/></linearGradient></defs><rect width="48" height="48" rx="12" fill="url(#bg)"/><rect x="0.5" y="0.5" width="47" height="47" rx="11.5" stroke="#35e0c8" stroke-opacity="0.35"/><path d="M9 31 L19 25 L27 28 L39 14 L39 39 L9 39 Z" fill="url(#area)"/><path d="M9 31 L19 25 L27 28 L39 14" stroke="#38e6cd" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M31.5 13.5 L39 14 L38.5 21.5" stroke="#38e6cd" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>`;
+const LOGO_SRC = `data:image/svg+xml;utf8,${encodeURIComponent(LOGO_SVG)}`;
+
 const col = (chg: number) => (chg > 0 ? UP : chg < 0 ? DOWN : SUB);
 const tint = (chg: number) => (chg > 0 ? UP_T : chg < 0 ? DOWN_T : 'rgba(255,255,255,0.08)');
 const arrow = (chg: number) => (chg > 0 ? '▲' : chg < 0 ? '▼' : '·');
@@ -36,8 +40,9 @@ const chipPct = (chg: number) => `${arrow(chg)} ${absPct(chg)}`;
 function Header({ right }: { right: string }) {
   return (
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 52, height: 52, background: TEAL, borderRadius: 16, fontSize: 30, fontWeight: 900, color: BG }}>K</div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img width="56" height="56" src={LOGO_SRC} alt="" />
         <div style={{ display: 'flex', fontSize: 32, fontWeight: 800, color: TXT, letterSpacing: '-0.02em' }}>InvestK</div>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', background: SURF, borderRadius: 999, padding: '14px 28px', fontSize: 25, fontWeight: 700, color: SUB }}>{right}</div>
@@ -315,78 +320,105 @@ const RENDERERS: Record<string, (d: CardData) => React.ReactElement> = {
 const impColor = (im: string) => (im === '호재' ? UP : im === '악재' ? DOWN : SUB);
 const impTint = (im: string) => (im === '호재' ? UP_T : im === '악재' ? DOWN_T : 'rgba(255,255,255,0.08)');
 
-// 뉴스 커버
+// 뉴스 커버 — 배지 + 대표 헤드라인 + 3건 티저 리스트
 function NewsCover(nd: NewsCardData) {
-  const top = nd.items[0];
+  const items = nd.items.slice(0, 3);
+  const top = items[0];
   return (
     <Frame>
-      <Header right={nd.dateLabel} />
-      <div style={{ display: 'flex', flexDirection: 'column', flex: 1, justifyContent: 'center', gap: 30 }}>
+      <Header right={`${nd.dateLabel} · 저녁`} />
+      <div style={{ display: 'flex', flexDirection: 'column', flex: 1, justifyContent: 'center', gap: 36 }}>
         <div style={{ display: 'flex' }}>
-          <div style={{ display: 'flex', alignItems: 'center', background: TEAL_T2, borderRadius: 999, padding: '12px 26px', fontSize: 26, fontWeight: 800, color: TEAL }}>오늘의 투자 뉴스</div>
+          <div style={{ display: 'flex', alignItems: 'center', background: TEAL_T2, borderRadius: 999, padding: '12px 26px', fontSize: 26, fontWeight: 800, color: TEAL }}>오늘 꼭 알아야 할 뉴스 {items.length}</div>
         </div>
-        <div style={{ display: 'flex', fontSize: 88, fontWeight: 900, color: TXT, letterSpacing: '-0.04em', lineHeight: 1.2, marginTop: 8 }}>{top ? top.title : '오늘의 주요 뉴스'}</div>
-        <div style={{ display: 'flex', fontSize: 40, fontWeight: 700, color: SUB, letterSpacing: '-0.02em', marginTop: 12 }}>꼭 알아야 할 핵심 뉴스 {Math.min(nd.items.length, 3)}선</div>
+        <div style={{ display: 'flex', fontSize: 86, fontWeight: 900, color: TXT, letterSpacing: '-0.04em', lineHeight: 1.2 }}>{top ? top.title : '오늘의 주요 뉴스'}</div>
+        <div style={{ display: 'flex', fontSize: 40, fontWeight: 700, color: SUB, letterSpacing: '-0.02em' }}>넘기면서 30초면 충분해요</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 24 }}>
+          {items.map((it, i) => (
+            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 24, background: SURF, borderRadius: 20, padding: '28px 34px' }}>
+              <div style={{ display: 'flex', fontSize: 30, fontWeight: 900, color: TEAL, flexShrink: 0 }}>{String(i + 1).padStart(2, '0')}</div>
+              <div style={{ display: 'flex', fontSize: 29, fontWeight: 700, color: TXT, lineHeight: 1.3 }}>{it.title}</div>
+            </div>
+          ))}
+        </div>
       </div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <div style={{ display: 'flex', width: 40, height: 8, background: TEAL, borderRadius: 4 }} />
           {[1, 2, 3, 4].map((i) => <div key={i} style={{ display: 'flex', width: 8, height: 8, background: 'rgba(255,255,255,0.18)', borderRadius: 4 }} />)}
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', background: TEAL, borderRadius: 999, padding: '16px 32px', fontSize: 27, fontWeight: 900, color: BG }}>넘겨서 확인 →</div>
+        <div style={{ display: 'flex', alignItems: 'center', background: TEAL, borderRadius: 999, padding: '16px 32px', fontSize: 27, fontWeight: 900, color: BG }}>넘겨서 요약 보기 →</div>
       </div>
     </Frame>
   );
 }
 
-// 뉴스 항목 카드
+// 뉴스 항목 카드 — 카테고리 칩 + 제목 + 팩트 불릿 3 + '왜 중요해?'
 function NewsCard({ item, idx, total }: { item: NewsItem; idx: number; total: number }) {
   return (
     <Frame>
       <Header right={`${idx + 1} / ${total}`} />
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginTop: 44 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', flex: 1, justifyContent: 'center', gap: 38 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          <div style={{ display: 'flex', fontSize: 60, fontWeight: 900, color: TEAL, letterSpacing: '-0.03em' }}>{String(idx + 1).padStart(2, '0')}</div>
-          <div style={{ display: 'flex', alignItems: 'center', background: impTint(item.impact), borderRadius: 12, padding: '10px 22px', fontSize: 28, fontWeight: 900, color: impColor(item.impact) }}>{item.impact}</div>
+          <div style={{ display: 'flex', alignItems: 'center', background: impTint(item.impact), borderRadius: 999, padding: '10px 24px', fontSize: 25, fontWeight: 800, color: impColor(item.impact) }}>{item.category}</div>
+          <div style={{ display: 'flex', fontSize: 25, fontWeight: 700, color: SUB }}>NEWS {String(idx + 1).padStart(2, '0')}</div>
         </div>
-      </div>
-      <div style={{ display: 'flex', flexDirection: 'column', flex: 1, justifyContent: 'center', gap: 40 }}>
-        <div style={{ display: 'flex', fontSize: 58, fontWeight: 900, color: TXT, letterSpacing: '-0.03em', lineHeight: 1.32 }}>{item.title}</div>
+        <div style={{ display: 'flex', fontSize: 68, fontWeight: 900, color: TXT, letterSpacing: '-0.04em', lineHeight: 1.28 }}>{item.title}</div>
+        {item.bullets.length > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 24, background: SURF, borderRadius: 28, padding: '44px 48px' }}>
+            {item.bullets.map((b, i) => (
+              <div key={i} style={{ display: 'flex', gap: 18, alignItems: 'flex-start' }}>
+                <div style={{ display: 'flex', width: 10, height: 10, background: TEAL, borderRadius: 5, marginTop: 16, flexShrink: 0 }} />
+                <div style={{ display: 'flex', fontSize: 30, fontWeight: 600, color: '#D3DAE3', lineHeight: 1.5 }}>{b}</div>
+              </div>
+            ))}
+          </div>
+        )}
         {item.why && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 18, background: TEAL_T, borderRadius: 28, padding: '40px 44px' }}>
-            <div style={{ display: 'flex' }}>
-              <div style={{ display: 'flex', alignItems: 'center', background: TEAL, borderRadius: 12, padding: '10px 22px', fontSize: 26, fontWeight: 900, color: BG }}>핵심 포인트</div>
-            </div>
-            <div style={{ display: 'flex', fontSize: 38, fontWeight: 700, color: TXT, lineHeight: 1.5 }}>{item.why}</div>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 20, background: TEAL_T, borderRadius: 24, padding: '34px 40px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: TEAL, borderRadius: 12, padding: '10px 20px', fontSize: 24, fontWeight: 900, color: BG, flexShrink: 0 }}>왜 중요해?</div>
+            <div style={{ display: 'flex', fontSize: 29, fontWeight: 700, color: TXT, lineHeight: 1.45 }}>{item.why}</div>
           </div>
         )}
       </div>
-      <Footer active={idx + 1} right={item.src ? `출처 · ${item.src}` : '@investk'} />
+      <Footer active={idx + 1} right="@investk" />
     </Frame>
   );
 }
 
-// 뉴스 마무리
+// 뉴스 마무리 — 대비 한 줄 + 내일 안내 + CTA
 function NewsOutro(nd: NewsCardData) {
+  const w = nd.wrap;
+  const line1 = w ? w.a : '오늘의 뉴스,';
+  const line2 = w ? w.b : '3분이면 정리 끝';
+  const c1 = w ? UP : TXT;
+  const c2 = w ? DOWN : TEAL;
   return (
     <Frame>
       <Header right="끝" />
       <div style={{ display: 'flex', flexDirection: 'column', flex: 1, justifyContent: 'center', gap: 44 }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
           <div style={{ display: 'flex' }}>
-            <div style={{ display: 'flex', alignItems: 'center', background: TEAL_T2, borderRadius: 999, padding: '12px 26px', fontSize: 26, fontWeight: 800, color: TEAL }}>매일 업데이트</div>
+            <div style={{ display: 'flex', alignItems: 'center', background: TEAL_T2, borderRadius: 999, padding: '12px 26px', fontSize: 26, fontWeight: 800, color: TEAL }}>오늘 뉴스 한 줄 정리</div>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', fontSize: 84, fontWeight: 900, color: TXT, letterSpacing: '-0.04em', lineHeight: 1.25 }}>
-            <div style={{ display: 'flex' }}>시장 뉴스,</div>
-            <div style={{ display: 'flex' }}><span style={{ color: TEAL }}>매일 3분</span>이면 끝</div>
+          <div style={{ display: 'flex', flexDirection: 'column', fontSize: 80, fontWeight: 900, letterSpacing: '-0.04em', lineHeight: 1.28 }}>
+            <div style={{ display: 'flex', color: c1 }}>{line1}</div>
+            <div style={{ display: 'flex', color: c2 }}>{line2}</div>
+          </div>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: SURF, borderRadius: 28, padding: '40px 48px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div style={{ display: 'flex', fontSize: 25, fontWeight: 800, color: TEAL }}>내일 아침 6시 반</div>
+            <div style={{ display: 'flex', fontSize: 40, fontWeight: 900, color: TXT, letterSpacing: '-0.02em' }}>시장 지표 브리핑으로 돌아와요</div>
+            <div style={{ display: 'flex', fontSize: 26, fontWeight: 600, color: SUB }}>매일 아침 지표 · 저녁 뉴스</div>
           </div>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: TEAL, borderRadius: 20, padding: 34, fontSize: 36, fontWeight: 900, color: BG }}>전체 뉴스·지표 → investk.app</div>
-          <div style={{ display: 'flex', justifyContent: 'center', fontSize: 27, fontWeight: 700, color: SUB }}>팔로우하고 매일 받아보세요</div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: TEAL, borderRadius: 20, padding: 34, fontSize: 36, fontWeight: 900, color: BG }}>전체 뉴스 보러가기 → investk.app</div>
+          <div style={{ display: 'flex', justifyContent: 'center', fontSize: 27, fontWeight: 700, color: SUB }}>놓치기 싫으면 팔로우 + 저장</div>
         </div>
       </div>
-      <Footer active={4} right="참고용 지표 · 투자 권유 아님 · @investk" />
+      <Footer active={4} right="참고용 정보 · 투자 권유 아님 · @investk" />
     </Frame>
   );
 }
