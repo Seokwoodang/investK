@@ -31,21 +31,43 @@ async function igPost(path: string, body: Record<string, string>): Promise<any> 
   return j;
 }
 
+// 컨테이너 처리 완료 대기(대개 즉시 FINISHED). 최대 ~24초.
+async function waitFinished(creationId: string): Promise<void> {
+  for (let i = 0; i < 12; i++) {
+    const s = await fetch(`${IG_API}/${creationId}?fields=status_code&access_token=${token()}`).then((r) => r.json());
+    if (s?.status_code === 'FINISHED') return;
+    if (s?.status_code === 'ERROR') throw new Error('이미지 처리 실패(status ERROR)');
+    await new Promise((res) => setTimeout(res, 2000));
+  }
+}
+
 // 단일 이미지 게시. 성공 시 게시물 id 반환.
 export async function publishImage(imageUrl: string, caption: string): Promise<{ id: string }> {
   const ig = await igUserId();
   const container = await igPost(`${ig}/media`, { image_url: imageUrl, caption });
-  const creationId = String(container.id);
-  // 이미지 처리 상태 폴링(대개 즉시 FINISHED). 최대 ~20초.
-  for (let i = 0; i < 10; i++) {
-    const s = await fetch(`${IG_API}/${creationId}?fields=status_code&access_token=${token()}`).then((r) => r.json());
-    if (s?.status_code === 'FINISHED') break;
-    if (s?.status_code === 'ERROR') throw new Error('이미지 처리 실패(status ERROR)');
-    await new Promise((res) => setTimeout(res, 2000));
-  }
-  const pub = await igPost(`${ig}/media_publish`, { creation_id: creationId });
+  await waitFinished(String(container.id));
+  const pub = await igPost(`${ig}/media_publish`, { creation_id: String(container.id) });
   return { id: String(pub.id) };
 }
+
+// 캐러셀(여러 장) 게시: 각 이미지 자식 컨테이너 → CAROUSEL 부모 → 게시.
+export async function publishCarousel(imageUrls: string[], caption: string): Promise<{ id: string }> {
+  if (imageUrls.length < 2) return publishImage(imageUrls[0], caption);
+  const ig = await igUserId();
+  const children: string[] = [];
+  for (const url of imageUrls) {
+    const c = await igPost(`${ig}/media`, { image_url: url, is_carousel_item: 'true' });
+    await waitFinished(String(c.id));
+    children.push(String(c.id));
+  }
+  const parent = await igPost(`${ig}/media`, { media_type: 'CAROUSEL', children: children.join(','), caption });
+  await waitFinished(String(parent.id));
+  const pub = await igPost(`${ig}/media_publish`, { creation_id: String(parent.id) });
+  return { id: String(pub.id) };
+}
+
+// 하루 캐러셀 카드 순서.
+export const DAILY_CARDS = ['cover', 'kr', 'global', 'crypto', 'outro'] as const;
 
 // 장기 토큰 갱신(24h~60일 사이에 호출). 갱신된 새 토큰 문자열을 반환한다.
 // 주: Vercel 환경변수는 코드에서 못 바꾸므로, 반환값을 별도 저장소/수동 갱신에 사용.

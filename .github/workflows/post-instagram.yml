@@ -10,8 +10,8 @@ on:
   workflow_dispatch:
     inputs:
       type:
-        description: '카드 종류'
-        default: 'brief'
+        description: '게시 종류(daily=캐러셀 5장)'
+        default: 'daily'
 
 jobs:
   post:
@@ -21,4 +21,4 @@ jobs:
         run: |
           curl -fsS --max-time 90 --retry 1 --retry-delay 20 -X GET \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
-            "https://investk.app/api/ig/publish?type=${{ github.event.inputs.type || 'brief' }}"
+            "https://investk.app/api/ig/publish?type=${{ github.event.inputs.type || 'daily' }}"
