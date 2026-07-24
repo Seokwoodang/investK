@@ -45,19 +45,15 @@ function Header({ right }: { right: string }) {
         <img width="56" height="56" src={LOGO_SRC} alt="" />
         <div style={{ display: 'flex', fontSize: 32, fontWeight: 800, color: TXT, letterSpacing: '-0.02em' }}>InvestK</div>
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', background: SURF, borderRadius: 999, padding: '14px 28px', fontSize: 25, fontWeight: 700, color: SUB }}>{right}</div>
+      {right ? <div style={{ display: 'flex', alignItems: 'center', background: SURF, borderRadius: 999, padding: '14px 28px', fontSize: 25, fontWeight: 700, color: SUB }}>{right}</div> : null}
     </div>
   );
 }
-function Footer({ active, right }: { active: number; right: string }) {
+// 하단 꼬리말: 인스타가 캐러셀 위치를 표시하므로 진행 점은 제거하고 우측 텍스트만.
+function Footer({ right }: { right: string }) {
   const disc = right.includes('·');
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        {[0, 1, 2, 3, 4].map((i) => (
-          <div key={i} style={{ display: 'flex', width: i === active ? 40 : 8, height: 8, background: i === active ? TEAL : 'rgba(255,255,255,0.18)', borderRadius: 4 }} />
-        ))}
-      </div>
+    <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
       <div style={{ display: 'flex', fontSize: disc ? 22 : 24, fontWeight: disc ? 600 : 700, color: disc ? DISC : SUB }}>{right}</div>
     </div>
   );
@@ -121,7 +117,7 @@ function Cover(d: CardData) {
         </div>
         <div style={{ display: 'flex', fontSize: 96, fontWeight: 900, color: TXT, letterSpacing: '-0.04em', lineHeight: 1.15, marginTop: 12 }}>{h.name}, 하루 만에</div>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 20 }}>
-          <div style={{ display: 'flex', fontSize: 210, fontWeight: 900, color: col(h.chg), letterSpacing: '-0.05em', lineHeight: 1 }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', fontSize: 210, fontWeight: 900, color: col(h.chg), letterSpacing: '-0.05em', lineHeight: 1 }}>
             {signed}<span style={{ fontSize: 110, fontWeight: 900 }}>%</span>
           </div>
           <div style={{ display: 'flex', fontSize: 72, fontWeight: 900, color: TXT, letterSpacing: '-0.03em' }}>{word}</div>
@@ -140,11 +136,7 @@ function Cover(d: CardData) {
           ))}
         </div>
       </div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div style={{ display: 'flex', width: 40, height: 8, background: TEAL, borderRadius: 4 }} />
-          {[1, 2, 3, 4].map((i) => <div key={i} style={{ display: 'flex', width: 8, height: 8, background: 'rgba(255,255,255,0.18)', borderRadius: 4 }} />)}
-        </div>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
         <div style={{ display: 'flex', alignItems: 'center', background: TEAL, borderRadius: 999, padding: '16px 32px', fontSize: 27, fontWeight: 900, color: BG }}>넘겨서 30초 정리 →</div>
       </div>
     </Frame>
@@ -183,7 +175,7 @@ function Kr(d: CardData) {
         <Row label="원/달러 환율" m={d.usdkrw} spark />
         <OneLiner text={d.lineKr} />
       </div>
-      <Footer active={1} right="@investk" />
+      <Footer right="@investk" />
     </Frame>
   );
 }
@@ -201,7 +193,7 @@ function Global(d: CardData) {
         <Row label="VIX" m={d.vix} sublabel="VIX 공포지수 · 변동성 지표" warnTint={d.vix.chg > 0} />
         <OneLiner text={d.lineGlobal} />
       </div>
-      <Footer active={2} right="@investk" />
+      <Footer right="@investk" />
     </Frame>
   );
 }
@@ -267,7 +259,7 @@ function Crypto(d: CardData) {
         )}
         <OneLiner text={d.lineCrypto} />
       </div>
-      <Footer active={3} right="@investk" />
+      <Footer right="@investk" />
     </Frame>
   );
 }
@@ -278,7 +270,7 @@ function Outro(d: CardData) {
   const word = (c: number, up: string, dn: string, fl: string) => (c > 0.3 ? up : c < -0.3 ? dn : fl);
   return (
     <Frame>
-      <Header right="끝" />
+      <Header right="" />
       <div style={{ display: 'flex', flexDirection: 'column', flex: 1, justifyContent: 'center', gap: 44 }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
           <div style={{ display: 'flex' }}>
@@ -307,7 +299,7 @@ function Outro(d: CardData) {
           <div style={{ display: 'flex', justifyContent: 'center', fontSize: 27, fontWeight: 700, color: SUB }}>매일 아침, 프로필 링크에서</div>
         </div>
       </div>
-      <Footer active={4} right="참고용 지표 · 투자 권유 아님 · @investk" />
+      <Footer right="참고용 지표 · 투자 권유 아님 · @investk" />
     </Frame>
   );
 }
@@ -342,11 +334,7 @@ function NewsCover(nd: NewsCardData) {
           ))}
         </div>
       </div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div style={{ display: 'flex', width: 40, height: 8, background: TEAL, borderRadius: 4 }} />
-          {[1, 2, 3, 4].map((i) => <div key={i} style={{ display: 'flex', width: 8, height: 8, background: 'rgba(255,255,255,0.18)', borderRadius: 4 }} />)}
-        </div>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
         <div style={{ display: 'flex', alignItems: 'center', background: TEAL, borderRadius: 999, padding: '16px 32px', fontSize: 27, fontWeight: 900, color: BG }}>넘겨서 요약 보기 →</div>
       </div>
     </Frame>
@@ -381,7 +369,7 @@ function NewsCard({ item, idx, total }: { item: NewsItem; idx: number; total: nu
           </div>
         )}
       </div>
-      <Footer active={idx + 1} right="@investk" />
+      <Footer right="@investk" />
     </Frame>
   );
 }
@@ -395,7 +383,7 @@ function NewsOutro(nd: NewsCardData) {
   const c2 = w ? DOWN : TEAL;
   return (
     <Frame>
-      <Header right="끝" />
+      <Header right="" />
       <div style={{ display: 'flex', flexDirection: 'column', flex: 1, justifyContent: 'center', gap: 44 }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
           <div style={{ display: 'flex' }}>
@@ -418,7 +406,7 @@ function NewsOutro(nd: NewsCardData) {
           <div style={{ display: 'flex', justifyContent: 'center', fontSize: 27, fontWeight: 700, color: SUB }}>놓치기 싫으면 팔로우 + 저장</div>
         </div>
       </div>
-      <Footer active={4} right="참고용 정보 · 투자 권유 아님 · @investk" />
+      <Footer right="참고용 정보 · 투자 권유 아님 · @investk" />
     </Frame>
   );
 }
