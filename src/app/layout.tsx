@@ -6,7 +6,7 @@ import './globals.css';
 // GA4 측정 ID. env로 덮어쓸 수 있고(없으면 기본값), 측정 ID는 공개 정보라 노출돼도 무방.
 const GA_ID = process.env.NEXT_PUBLIC_GA_ID || 'G-EB6L1EW9Q5';
 
-const DESC = '시장 개장 전 핵심 지표·업종 흐름·자산군 현황을 한눈에. 분석·점수·요약은 참고 정보이며 투자 자문이 아닙니다.';
+const DESC = '코스피·코스닥 지수, VIX·미 국채금리, 김치프리미엄·공포탐욕지수, 환율과 업종 흐름을 한 화면에. 저평가 우량주 스크리너·주요 뉴스까지. 참고 정보이며 투자 자문이 아닙니다.';
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
