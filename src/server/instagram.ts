@@ -49,6 +49,7 @@ export async function publishImage(imageUrl: string, caption: string): Promise<{
   const container = await igPost(`${ig}/media`, { image_url: imageUrl, caption });
   await waitFinished(String(container.id));
   const pub = await igPost(`${ig}/media_publish`, { creation_id: String(container.id) });
+  await postFirstComment(String(pub.id));
   return { id: String(pub.id) };
 }
 
@@ -65,7 +66,15 @@ export async function publishCarousel(imageUrls: string[], caption: string): Pro
   const parent = await igPost(`${ig}/media`, { media_type: 'CAROUSEL', children: children.join(','), caption });
   await waitFinished(String(parent.id));
   const pub = await igPost(`${ig}/media_publish`, { creation_id: String(parent.id) });
+  await postFirstComment(String(pub.id));
   return { id: String(pub.id) };
+}
+
+// 게시 직후 안내 첫 댓글 자동 작성(키워드 유도). 계정 본인 댓글이라 웹훅 owner-skip에 걸려 루프 없음.
+const FIRST_COMMENT = '💬 「지표」 라고 댓글 남기면 실시간 시장지표 링크를 DM으로 보내드려요 📩\n팔로우하면 매일 아침·저녁 시장 정리를 자동으로 받아볼 수 있어요 🙌';
+async function postFirstComment(mediaId: string): Promise<void> {
+  try { await igPost(`${mediaId}/comments`, { message: FIRST_COMMENT }); }
+  catch (e) { console.error('[ig] 첫 댓글 실패:', (e as Error).message); }
 }
 
 // 릴스(세로 영상) 게시. video_url은 공개 접근 가능한 mp4여야 한다.
@@ -74,6 +83,7 @@ export async function publishReel(videoUrl: string, caption: string): Promise<{ 
   const container = await igPost(`${ig}/media`, { media_type: 'REELS', video_url: videoUrl, caption, share_to_feed: 'true' });
   await waitFinished(String(container.id), 26); // 영상 인코딩 대기(최대 ~52초)
   const pub = await igPost(`${ig}/media_publish`, { creation_id: String(container.id) });
+  await postFirstComment(String(pub.id));
   return { id: String(pub.id) };
 }
 
