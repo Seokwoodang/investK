@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { publishCarousel, publishImage, buildCaption, cardImageUrl, newsCards, valueCards, calendarCards, termCards, DAILY_CARDS } from '@/server/instagram';
+import { publishCarousel, publishImage, publishReel, buildCaption, cardImageUrl, newsCards, valueCards, calendarCards, termCards, DAILY_CARDS } from '@/server/instagram';
 
 // 인스타그램 자동 게시 엔드포인트(GitHub Actions cron이 호출).
 //  ?type=daily    : 시장 브리핑 캐러셀 5장(기본)
@@ -36,8 +36,14 @@ async function run(req: Request) {
   if (!authed(req, url)) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   const type = url.searchParams.get('type') || 'daily';
   const dry = url.searchParams.get('dry') === '1';
+  const video = url.searchParams.get('video'); // 있으면 릴스(세로 영상) 게시
   try {
     const caption = await buildCaption(CAPTION_TYPE[type] ?? 'brief');
+    if (video) {
+      if (dry) return NextResponse.json({ ok: true, dry: true, mode: 'reel', video, caption });
+      const res = await publishReel(video, caption);
+      return NextResponse.json({ ok: true, id: res.id, mode: 'reel' });
+    }
     const cards = await cardsFor(type);
     if (!cards.length) return NextResponse.json({ ok: false, error: '게시할 카드 없음(데이터 캐시 비어있음)' }, { status: 503 });
     const imageUrls = cards.map(cardImageUrl);

@@ -32,14 +32,15 @@ async function igPost(path: string, body: Record<string, string>): Promise<any> 
   return j;
 }
 
-// 컨테이너 처리 완료 대기(대개 즉시 FINISHED). 최대 ~24초.
-async function waitFinished(creationId: string): Promise<void> {
-  for (let i = 0; i < 12; i++) {
+// 컨테이너 처리 완료 대기(이미지는 대개 즉시, 영상은 인코딩 시간 필요).
+async function waitFinished(creationId: string, tries = 12): Promise<void> {
+  for (let i = 0; i < tries; i++) {
     const s = await fetch(`${IG_API}/${creationId}?fields=status_code&access_token=${token()}`).then((r) => r.json());
     if (s?.status_code === 'FINISHED') return;
-    if (s?.status_code === 'ERROR') throw new Error('이미지 처리 실패(status ERROR)');
+    if (s?.status_code === 'ERROR') throw new Error('미디어 처리 실패(status ERROR)');
     await new Promise((res) => setTimeout(res, 2000));
   }
+  throw new Error('미디어 처리 시간 초과');
 }
 
 // 단일 이미지 게시. 성공 시 게시물 id 반환.
@@ -67,8 +68,23 @@ export async function publishCarousel(imageUrls: string[], caption: string): Pro
   return { id: String(pub.id) };
 }
 
+// 릴스(세로 영상) 게시. video_url은 공개 접근 가능한 mp4여야 한다.
+export async function publishReel(videoUrl: string, caption: string): Promise<{ id: string }> {
+  const ig = await igUserId();
+  const container = await igPost(`${ig}/media`, { media_type: 'REELS', video_url: videoUrl, caption, share_to_feed: 'true' });
+  await waitFinished(String(container.id), 26); // 영상 인코딩 대기(최대 ~52초)
+  const pub = await igPost(`${ig}/media_publish`, { creation_id: String(container.id) });
+  return { id: String(pub.id) };
+}
+
 // 하루 캐러셀 카드 순서.
 export const DAILY_CARDS = ['cover', 'kr', 'global', 'crypto', 'outro'] as const;
+// 릴스로 만들 캐러셀 카드 순서(타입별).
+export const REEL_CARDS: Record<string, string[]> = {
+  daily: ['cover', 'kr', 'global', 'crypto', 'outro'],
+  news: ['news-cover', 'news-0', 'news-1', 'news-2', 'news-outro'],
+  value: ['value-cover', 'value-0', 'value-1', 'value-2', 'value-3', 'value-4', 'value-outro'],
+};
 
 // 장기 토큰 갱신(24h~60일 사이에 호출). 갱신된 새 토큰 문자열을 반환한다.
 // 주: Vercel 환경변수는 코드에서 못 바꾸므로, 반환값을 별도 저장소/수동 갱신에 사용.
