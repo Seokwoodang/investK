@@ -1,5 +1,9 @@
 import { ImageResponse } from 'next/og';
-import { getCardData, getNewsCardData, type CardData, type Move, type NewsCardData, type NewsItem } from '@/server/cardData';
+import {
+  getCardData, getNewsCardData, getValueCardData, getCalendarCardData, getTermCardData,
+  type CardData, type Move, type NewsCardData, type NewsItem,
+  type ValueCardData, type ValueStock, type CalCardData, type CalEvent, type TermCardData,
+} from '@/server/cardData';
 
 // 인스타 카드뉴스 5장(1080×1350, 4:5). 다크 테마. 디자인 핸드오프 시안을 Satori로 포팅.
 //  type ∈ cover|kr|global|crypto|outro. 데이터는 getCardData()가 실시장값으로 조립.
@@ -411,6 +415,393 @@ function NewsOutro(nd: NewsCardData) {
   );
 }
 
+// ══════════════ 공용 조각 ══════════════
+function Badge({ text }: { text: string }) {
+  return (
+    <div style={{ display: 'flex' }}>
+      <div style={{ display: 'flex', alignItems: 'center', background: TEAL_T2, borderRadius: 999, padding: '12px 26px', fontSize: 26, fontWeight: 800, color: TEAL }}>{text}</div>
+    </div>
+  );
+}
+function CtaBar({ text, sub }: { text: string; sub?: string }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: TEAL, borderRadius: 20, padding: 34, fontSize: 36, fontWeight: 900, color: BG }}>{text}</div>
+      {sub ? <div style={{ display: 'flex', justifyContent: 'center', fontSize: 27, fontWeight: 700, color: SUB }}>{sub}</div> : null}
+    </div>
+  );
+}
+function CoverCta({ text }: { text: string }) {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
+      <div style={{ display: 'flex', alignItems: 'center', background: TEAL, borderRadius: 999, padding: '16px 32px', fontSize: 27, fontWeight: 900, color: BG }}>{text}</div>
+    </div>
+  );
+}
+
+// ══════════════ ① 저평가 우량주 TOP5 ══════════════
+function ValueCover(vd: ValueCardData) {
+  const label = vd.market === 'kr' ? '국내' : '해외';
+  return (
+    <Frame>
+      <Header right={vd.dateLabel} />
+      <div style={{ display: 'flex', flexDirection: 'column', flex: 1, justifyContent: 'center', gap: 32 }}>
+        <Badge text="이번 주 저평가 우량주" />
+        <div style={{ display: 'flex', flexDirection: 'column', fontSize: 100, fontWeight: 900, color: TXT, letterSpacing: '-0.04em', lineHeight: 1.18 }}>
+          <div style={{ display: 'flex' }}>지표로 고른</div>
+          <div style={{ display: 'flex' }}>{label} <span style={{ color: TEAL }}>&nbsp;TOP 5</span></div>
+        </div>
+        <div style={{ display: 'flex', fontSize: 38, fontWeight: 700, color: SUB, letterSpacing: '-0.02em' }}>PER · PBR · ROE · 배당, 숫자로만 골랐습니다</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 16 }}>
+          {vd.items.map((s, i) => (
+            <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: SURF, borderRadius: 18, padding: '24px 34px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 22 }}>
+                <div style={{ display: 'flex', fontSize: 28, fontWeight: 900, color: TEAL }}>{s.rank}</div>
+                <div style={{ display: 'flex', fontSize: 29, fontWeight: 800, color: TXT }}>{s.name}</div>
+              </div>
+              {s.upside !== '—' ? <div style={{ display: 'flex', fontSize: 27, fontWeight: 800, color: UP }}>상승여력 {s.upside}</div> : <div style={{ display: 'flex', fontSize: 27, fontWeight: 800, color: TEAL }}>{s.score}점</div>}
+            </div>
+          ))}
+        </div>
+        <div style={{ display: 'flex', fontSize: 23, fontWeight: 600, color: DISC }}>지표 기준 자동 선별 · 종목 추천 아님</div>
+      </div>
+      <CoverCta text="1위부터 보기 →" />
+    </Frame>
+  );
+}
+function ValueStockCard({ s, total }: { s: ValueStock; total: number }) {
+  return (
+    <Frame>
+      <Header right="이번 주 TOP 5" />
+      <div style={{ display: 'flex', flexDirection: 'column', flex: 1, justifyContent: 'center', gap: 34 }}>
+        <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+              <div style={{ display: 'flex', fontSize: 30, fontWeight: 900, color: TEAL }}>{s.rank}</div>
+              {s.badge ? <div style={{ display: 'flex', alignItems: 'center', background: TEAL_T2, borderRadius: 999, padding: '8px 20px', fontSize: 23, fontWeight: 800, color: TEAL }}>{s.badge}</div> : null}
+            </div>
+            <div style={{ display: 'flex', fontSize: 84, fontWeight: 900, color: TXT, letterSpacing: '-0.04em', lineHeight: 1.1 }}>{s.name}</div>
+            <div style={{ display: 'flex', fontSize: 27, fontWeight: 600, color: SUB }}>{s.priceLine}</div>
+          </div>
+          {s.upside !== '—' ? (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
+              <div style={{ display: 'flex', fontSize: 25, fontWeight: 700, color: SUB }}>상승여력</div>
+              <div style={{ display: 'flex', fontSize: 76, fontWeight: 900, color: UP, lineHeight: 1, letterSpacing: '-0.03em' }}>{s.upside}</div>
+            </div>
+          ) : null}
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'row', gap: 16 }}>
+          {[{ k: 'PER', v: s.per }, { k: 'PBR', v: s.pbr }, { k: 'ROE', v: s.roe }, { k: '배당수익률', v: s.div }].map((m, i) => (
+            <div key={i} style={{ display: 'flex', flexDirection: 'column', flex: 1, gap: 12, background: SURF, borderRadius: 20, padding: '30px 24px' }}>
+              <div style={{ display: 'flex', fontSize: 23, fontWeight: 700, color: SUB }}>{m.k}</div>
+              <div style={{ display: 'flex', fontSize: 44, fontWeight: 900, color: TXT, letterSpacing: '-0.02em' }}>{m.v}</div>
+            </div>
+          ))}
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 22, background: SURF, borderRadius: 24, padding: '38px 44px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', fontSize: 26, fontWeight: 700, color: SUB }}>InvestK 종합 점수</div>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+              <div style={{ display: 'flex', fontSize: 56, fontWeight: 900, color: TEAL, lineHeight: 1 }}>{s.score}</div>
+              <div style={{ display: 'flex', fontSize: 28, fontWeight: 700, color: SUB }}>/ 100</div>
+            </div>
+          </div>
+          <div style={{ display: 'flex', width: '100%', height: 14, background: 'rgba(255,255,255,0.08)', borderRadius: 7 }}>
+            <div style={{ display: 'flex', height: 14, background: TEAL, borderRadius: 7, width: `${s.score}%` }} />
+          </div>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 20, background: TEAL_T, borderRadius: 24, padding: '32px 40px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: TEAL, borderRadius: 12, padding: '10px 20px', fontSize: 24, fontWeight: 900, color: BG, flexShrink: 0 }}>한줄평</div>
+          <div style={{ display: 'flex', fontSize: 29, fontWeight: 700, color: TXT, lineHeight: 1.45 }}>{s.comment}</div>
+        </div>
+      </div>
+      <Footer right="@investk" />
+    </Frame>
+  );
+}
+function ValueOutro(vd: ValueCardData) {
+  const nextLabel = vd.market === 'kr' ? '해외' : '국내';
+  return (
+    <Frame>
+      <Header right="" />
+      <div style={{ display: 'flex', flexDirection: 'column', flex: 1, justifyContent: 'center', gap: 44 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+          <Badge text="매주 월요일" />
+          <div style={{ display: 'flex', flexDirection: 'column', fontSize: 84, fontWeight: 900, color: TXT, letterSpacing: '-0.04em', lineHeight: 1.25 }}>
+            <div style={{ display: 'flex' }}>싸게 사는 게</div>
+            <div style={{ display: 'flex' }}><span style={{ color: TEAL }}>절반</span>입니다</div>
+          </div>
+          <div style={{ display: 'flex', fontSize: 33, fontWeight: 600, color: SUB, lineHeight: 1.5 }}>전체 순위와 세부 지표는 앱에서 무료로 볼 수 있어요.</div>
+        </div>
+        <CtaBar text="전체 순위 → investk.app/value" sub={`다음 주 월요일, ${nextLabel} TOP 5로 돌아옵니다`} />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, border: '1px solid rgba(255,255,255,0.12)', borderRadius: 20, padding: '30px 38px' }}>
+          <div style={{ display: 'flex', fontSize: 24, fontWeight: 800, color: SUB }}>꼭 읽어주세요</div>
+          <div style={{ display: 'flex', fontSize: 25, fontWeight: 600, color: SUB, lineHeight: 1.5 }}>공개된 재무 지표 기준의 자동 선별 결과이며, 특정 종목의 매수·매도 추천이 아닙니다. 투자 판단과 책임은 본인에게 있습니다.</div>
+        </div>
+      </div>
+      <Footer right="참고용 지표 · 투자 권유 아님 · @investk" />
+    </Frame>
+  );
+}
+function renderValue(type: string, vd: ValueCardData): React.ReactElement | null {
+  if (type === 'value-cover') return <ValueCover {...vd} />;
+  if (type === 'value-outro') return <ValueOutro {...vd} />;
+  const m = /^value-(\d+)$/.exec(type);
+  if (m) {
+    const s = vd.items[parseInt(m[1], 10)];
+    if (!s) return null;
+    return <ValueStockCard s={s} total={vd.items.length} />;
+  }
+  return null;
+}
+
+// ══════════════ ② 주간 경제 캘린더 ══════════════
+function CalRow({ e }: { e: CalEvent }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 26, background: e.high ? 'rgba(255,77,94,0.10)' : SURF, borderRadius: 20, padding: '26px 34px' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 96, flexShrink: 0 }}>
+        <div style={{ display: 'flex', fontSize: 22, fontWeight: 700, color: SUB }}>{e.dow}</div>
+        <div style={{ display: 'flex', fontSize: 40, fontWeight: 900, color: TXT, lineHeight: 1.15 }}>{e.day}</div>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1, minWidth: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <div style={{ display: 'flex', fontSize: 31, fontWeight: 800, color: TXT, letterSpacing: '-0.01em' }}>{e.name}</div>
+          {e.high ? <div style={{ display: 'flex', alignItems: 'center', background: 'rgba(255,77,94,0.16)', borderRadius: 999, padding: '5px 16px', fontSize: 21, fontWeight: 800, color: UP, flexShrink: 0 }}>고영향</div> : null}
+        </div>
+        {e.desc ? <div style={{ display: 'flex', fontSize: 24, fontWeight: 600, color: SUB }}>{e.desc}</div> : null}
+      </div>
+      <div style={{ display: 'flex', fontSize: 27, fontWeight: 800, color: SUB, flexShrink: 0 }}>{e.time}</div>
+    </div>
+  );
+}
+function CalCover(cd: CalCardData) {
+  return (
+    <Frame>
+      <Header right={cd.dateLabel} />
+      <div style={{ display: 'flex', flexDirection: 'column', flex: 1, justifyContent: 'center', gap: 34 }}>
+        <Badge text="저장해두고 보세요" />
+        <div style={{ display: 'flex', flexDirection: 'column', fontSize: 96, fontWeight: 900, color: TXT, letterSpacing: '-0.04em', lineHeight: 1.2 }}>
+          <div style={{ display: 'flex' }}>이번 주</div>
+          <div style={{ display: 'flex' }}>시장 <span style={{ color: TEAL }}>&nbsp;캘린더</span></div>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <div style={{ display: 'flex', fontSize: 40, fontWeight: 800, color: SUB }}>{cd.range}</div>
+          {cd.highCount > 0 ? <div style={{ display: 'flex', alignItems: 'center', background: UP_T, borderRadius: 999, padding: '10px 24px', fontSize: 26, fontWeight: 800, color: UP }}>고영향 {cd.highCount}개</div> : null}
+        </div>
+        {cd.highlight ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 20, background: SURF, borderRadius: 28, padding: '44px 48px', marginTop: 16 }}>
+            <div style={{ display: 'flex', fontSize: 25, fontWeight: 800, color: UP }}>이번 주 하이라이트</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 28 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', background: 'rgba(255,77,94,0.12)', borderRadius: 18, padding: '20px 28px', flexShrink: 0 }}>
+                <div style={{ display: 'flex', fontSize: 24, fontWeight: 700, color: '#FF9AA5' }}>{cd.highlight.dow}</div>
+                <div style={{ display: 'flex', fontSize: 50, fontWeight: 900, color: TXT, lineHeight: 1.1 }}>{cd.highlight.day.split('.')[1]}</div>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1, minWidth: 0 }}>
+                <div style={{ display: 'flex', fontSize: 42, fontWeight: 900, color: TXT, letterSpacing: '-0.02em' }}>{cd.highlight.name}</div>
+                {cd.highlight.desc ? <div style={{ display: 'flex', fontSize: 27, fontWeight: 600, color: SUB }}>{cd.highlight.desc}</div> : null}
+              </div>
+            </div>
+          </div>
+        ) : null}
+      </div>
+      <CoverCta text="이번 주 일정 보기 →" />
+    </Frame>
+  );
+}
+function CalHalf({ cd, half }: { cd: CalCardData; half: 'first' | 'second' }) {
+  const events = half === 'first' ? cd.firstHalf : cd.secondHalf;
+  const en = half === 'first' ? 'MON – WED' : 'THU – SUN';
+  const ko = half === 'first' ? '월 · 화 · 수' : '목 · 금 · 주말';
+  return (
+    <Frame>
+      <Header right={half === 'first' ? '주 전반' : '주 후반'} />
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 48 }}>
+        <div style={{ display: 'flex', fontSize: 26, fontWeight: 800, color: TEAL }}>{en}</div>
+        <div style={{ display: 'flex', fontSize: 64, fontWeight: 900, color: TXT, letterSpacing: '-0.04em' }}>{ko}</div>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', flex: 1, justifyContent: 'center', gap: 16 }}>
+        {events.length ? events.map((e, i) => <CalRow key={i} e={e} />) : <div style={{ display: 'flex', fontSize: 30, fontWeight: 600, color: SUB }}>예정된 주요 일정이 없어요.</div>}
+        {half === 'second' && cd.tip ? (
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 20, background: TEAL_T, borderRadius: 24, padding: '32px 40px', marginTop: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: TEAL, borderRadius: 12, padding: '10px 20px', fontSize: 24, fontWeight: 900, color: BG, flexShrink: 0 }}>팁</div>
+            <div style={{ display: 'flex', fontSize: 28, fontWeight: 700, color: TXT, lineHeight: 1.45 }}>{cd.tip}</div>
+          </div>
+        ) : null}
+      </div>
+      <Footer right="@investk" />
+    </Frame>
+  );
+}
+function CalOutro(cd: CalCardData) {
+  return (
+    <Frame>
+      <Header right="" />
+      <div style={{ display: 'flex', flexDirection: 'column', flex: 1, justifyContent: 'center', gap: 44 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+          <Badge text="이번 주 한 줄 요약" />
+          <div style={{ display: 'flex', flexDirection: 'column', fontSize: 88, fontWeight: 900, color: TXT, letterSpacing: '-0.04em', lineHeight: 1.25 }}>
+            <div style={{ display: 'flex' }}>이번 주 고비는</div>
+            <div style={{ display: 'flex' }}><span style={{ color: UP }}>{cd.highlight ? cd.highlight.dowFull : '주중'}</span>입니다</div>
+          </div>
+          <div style={{ display: 'flex', fontSize: 34, fontWeight: 600, color: SUB, lineHeight: 1.5 }}>{cd.highlight ? `${cd.highlight.name} 결과에 한 주 방향이 갈려요.` : '개별 종목 이슈에 집중하기 좋은 한 주예요.'}</div>
+        </div>
+        <CtaBar text="매일 아침 브리핑 받기 → investk.app" sub="결과 나오면 아침 브리핑으로 바로 정리해드려요" />
+      </div>
+      <Footer right="참고용 지표 · 투자 권유 아님 · @investk" />
+    </Frame>
+  );
+}
+function renderCalendar(type: string, cd: CalCardData): React.ReactElement | null {
+  if (type === 'cal-cover') return <CalCover {...cd} />;
+  if (type === 'cal-1') return <CalHalf cd={cd} half="first" />;
+  if (type === 'cal-2') return <CalHalf cd={cd} half="second" />;
+  if (type === 'cal-outro') return <CalOutro {...cd} />;
+  return null;
+}
+
+// ══════════════ ③ 투자 용어 1분 ══════════════
+function termCoverSize(term: string): number {
+  const isLatin = /^[A-Za-z0-9]+$/.test(term);
+  if (isLatin) return term.length <= 3 ? 320 : term.length <= 4 ? 250 : 200;
+  return Math.min(230, Math.floor(880 / (term.length + 1)));
+}
+function TermCover(td: TermCardData) {
+  return (
+    <Frame>
+      <Header right="매주 수요일" />
+      <div style={{ display: 'flex', flexDirection: 'column', flex: 1, justifyContent: 'center', gap: 8 }}>
+        <Badge text="1분 투자 상식" />
+        <div style={{ display: 'flex', fontSize: termCoverSize(td.term), fontWeight: 900, color: TEAL, letterSpacing: '-0.05em', lineHeight: 1.05 }}>{td.term}<span style={{ color: TXT }}>?</span></div>
+        <div style={{ display: 'flex', flexDirection: 'column', fontSize: 52, fontWeight: 800, color: TXT, letterSpacing: '-0.02em', lineHeight: 1.4, marginTop: 12 }}>
+          {(td.coverSub ?? []).slice(0, 2).map((l, i) => <div key={i} style={{ display: 'flex' }}>{l}</div>)}
+        </div>
+        <div style={{ display: 'flex', fontSize: 30, fontWeight: 600, color: SUB, marginTop: 20 }}>뉴스에 매일 나오는데 아직 모른다면, 1분만 쓰세요</div>
+      </div>
+      <CoverCta text="1분 시작 →" />
+    </Frame>
+  );
+}
+function TermDef(td: TermCardData) {
+  return (
+    <Frame>
+      <Header right="1 / 3" />
+      <div style={{ display: 'flex', flexDirection: 'column', flex: 1, justifyContent: 'center', gap: 40 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div style={{ display: 'flex', fontSize: 26, fontWeight: 800, color: TEAL }}>{td.fullName}</div>
+          <div style={{ display: 'flex', fontSize: 84, fontWeight: 900, color: TXT, letterSpacing: '-0.04em' }}>{td.term}이 뭐냐면요</div>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', fontSize: 44, fontWeight: 700, color: '#D3DAE3', letterSpacing: '-0.02em', lineHeight: 1.55 }}>
+          {(td.defLines ?? []).slice(0, 4).map((l, i) => (
+            <div key={i} style={{ display: 'flex', flexWrap: 'wrap' }}>{l.t}{l.hl ? <span style={{ color: TEAL }}>&nbsp;{l.hl}&nbsp;</span> : null}{l.t2 ?? ''}</div>
+          ))}
+        </div>
+        {td.formula ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 20, background: SURF, borderRadius: 28, padding: '40px 48px' }}>
+            <div style={{ display: 'flex', fontSize: 24, fontWeight: 800, color: SUB }}>공식</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
+              <div style={{ display: 'flex', fontSize: 52, fontWeight: 900, color: TEAL }}>{td.term}</div>
+              <div style={{ display: 'flex', fontSize: 44, fontWeight: 800, color: SUB }}>=</div>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+                <div style={{ display: 'flex', fontSize: 34, fontWeight: 800, color: TXT }}>{td.formula.a}</div>
+                <div style={{ display: 'flex', width: 300, height: 3, background: 'rgba(255,255,255,0.3)' }} />
+                <div style={{ display: 'flex', fontSize: 34, fontWeight: 800, color: TXT }}>{td.formula.b}</div>
+              </div>
+            </div>
+          </div>
+        ) : null}
+      </div>
+      <Footer right="@investk" />
+    </Frame>
+  );
+}
+function TermExample(td: TermCardData) {
+  return (
+    <Frame>
+      <Header right="2 / 3" />
+      <div style={{ display: 'flex', flexDirection: 'column', flex: 1, justifyContent: 'center', gap: 40 }}>
+        <div style={{ display: 'flex', fontSize: 76, fontWeight: 900, color: TXT, letterSpacing: '-0.04em' }}>실제 숫자로 볼까요</div>
+        {td.example ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 24, background: SURF, borderRadius: 28, padding: '44px 48px' }}>
+            <div style={{ display: 'flex', fontSize: 26, fontWeight: 800, color: TEAL }}>{td.example.ticker}</div>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 18, flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', fontSize: 44, fontWeight: 800, color: TXT }}>{td.example.a}</div>
+              <div style={{ display: 'flex', fontSize: 36, fontWeight: 700, color: SUB }}>÷</div>
+              <div style={{ display: 'flex', fontSize: 44, fontWeight: 800, color: TXT }}>{td.example.b}</div>
+              <div style={{ display: 'flex', fontSize: 36, fontWeight: 700, color: SUB }}>=</div>
+              <div style={{ display: 'flex', fontSize: 60, fontWeight: 900, color: TEAL }}>{td.example.result}</div>
+            </div>
+            {td.example.note ? <div style={{ display: 'flex', fontSize: 25, fontWeight: 600, color: SUB }}>{td.example.note}</div> : null}
+          </div>
+        ) : null}
+        <div style={{ display: 'flex', flexDirection: 'row', gap: 20 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16, flex: 1, background: TEAL_T, borderRadius: 24, padding: 40 }}>
+            <div style={{ display: 'flex', alignItems: 'center', background: TEAL, borderRadius: 999, padding: '8px 20px', fontSize: 24, fontWeight: 900, color: BG, alignSelf: 'flex-start' }}>{td.low.title}</div>
+            <div style={{ display: 'flex', fontSize: 30, fontWeight: 600, color: TXT, lineHeight: 1.5 }}>{td.low.sub}</div>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16, flex: 1, background: 'rgba(255,180,84,0.10)', borderRadius: 24, padding: 40 }}>
+            <div style={{ display: 'flex', alignItems: 'center', background: FEAR, borderRadius: 999, padding: '8px 20px', fontSize: 24, fontWeight: 900, color: BG, alignSelf: 'flex-start' }}>{td.high.title}</div>
+            <div style={{ display: 'flex', fontSize: 30, fontWeight: 600, color: TXT, lineHeight: 1.5 }}>{td.high.sub}</div>
+          </div>
+        </div>
+      </div>
+      <Footer right="@investk" />
+    </Frame>
+  );
+}
+function TermTips(td: TermCardData) {
+  return (
+    <Frame>
+      <Header right="3 / 3" />
+      <div style={{ display: 'flex', flexDirection: 'column', flex: 1, justifyContent: 'center', gap: 36 }}>
+        <div style={{ display: 'flex', fontSize: 76, fontWeight: 900, color: TXT, letterSpacing: '-0.04em' }}>이렇게 써먹으세요</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          {(td.tips ?? []).slice(0, 2).map((t, i) => (
+            <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 24, background: SURF, borderRadius: 24, padding: '38px 44px' }}>
+              <div style={{ display: 'flex', fontSize: 34, fontWeight: 900, color: TEAL, flexShrink: 0 }}>{i + 1}</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div style={{ display: 'flex', fontSize: 33, fontWeight: 800, color: TXT }}>{t.title}</div>
+                <div style={{ display: 'flex', fontSize: 26, fontWeight: 600, color: SUB, lineHeight: 1.5 }}>{t.sub}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 20, background: 'rgba(255,77,94,0.10)', borderRadius: 24, padding: '34px 40px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,77,94,0.9)', borderRadius: 12, padding: '10px 20px', fontSize: 24, fontWeight: 900, color: TXT, flexShrink: 0 }}>흔한 오해</div>
+          <div style={{ display: 'flex', fontSize: 29, fontWeight: 700, color: TXT, lineHeight: 1.5 }}>{td.misconception}</div>
+        </div>
+      </div>
+      <Footer right="@investk" />
+    </Frame>
+  );
+}
+function TermOutro(td: TermCardData) {
+  return (
+    <Frame>
+      <Header right="" />
+      <div style={{ display: 'flex', flexDirection: 'column', flex: 1, justifyContent: 'center', gap: 44 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+          <Badge text="오늘의 1분, 끝" />
+          <div style={{ display: 'flex', flexDirection: 'column', fontSize: 84, fontWeight: 900, color: TXT, letterSpacing: '-0.04em', lineHeight: 1.3 }}>
+            <div style={{ display: 'flex' }}>이제 {td.term} 보이면</div>
+            <div style={{ display: 'flex' }}><span style={{ color: TEAL }}>아는 척</span> 가능</div>
+          </div>
+          <div style={{ display: 'flex', fontSize: 32, fontWeight: 600, color: SUB, lineHeight: 1.5 }}>다음 주 수요일엔 {td.nextTerm}을 정리해드려요. 궁금한 용어는 댓글로 남겨주세요.</div>
+        </div>
+        <CtaBar text="전 종목 지표 확인 → investk.app" sub="저장해두면 다음에 또 볼 수 있어요" />
+      </div>
+      <Footer right="참고용 정보 · 투자 권유 아님 · @investk" />
+    </Frame>
+  );
+}
+function renderTerm(type: string, td: TermCardData): React.ReactElement | null {
+  if (type === 'term-cover') return <TermCover {...td} />;
+  if (type === 'term-def') return <TermDef {...td} />;
+  if (type === 'term-example') return <TermExample {...td} />;
+  if (type === 'term-tips') return <TermTips {...td} />;
+  if (type === 'term-outro') return <TermOutro {...td} />;
+  return null;
+}
+
 function renderNews(type: string, nd: NewsCardData): React.ReactElement | null {
   if (type === 'news-cover') return <NewsCover {...nd} />;
   if (type === 'news-outro') return <NewsOutro {...nd} />;
@@ -425,14 +816,14 @@ function renderNews(type: string, nd: NewsCardData): React.ReactElement | null {
 }
 
 export async function GET(_req: Request, { params }: { params: { type: string } }) {
-  if (params.type.startsWith('news')) {
-    const nd = await getNewsCardData();
-    const el = renderNews(params.type, nd);
-    if (!el) return new Response('no news card', { status: 404 });
-    return new ImageResponse(el, { width: 1080, height: 1350, fonts: await fonts() });
-  }
-  const render = RENDERERS[params.type];
+  const t = params.type;
+  const img = (el: React.ReactElement | null) => (el ? new ImageResponse(el, { width: 1080, height: 1350, fonts: fontsPromise }) : new Response('no card', { status: 404 }));
+  const fontsPromise = await fonts();
+  if (t.startsWith('news')) return img(renderNews(t, await getNewsCardData()));
+  if (t.startsWith('value')) return img(renderValue(t, await getValueCardData()));
+  if (t.startsWith('cal')) return img(renderCalendar(t, await getCalendarCardData()));
+  if (t.startsWith('term')) return img(renderTerm(t, await getTermCardData()));
+  const render = RENDERERS[t];
   if (!render) return new Response('unknown card type', { status: 404 });
-  const d = await getCardData();
-  return new ImageResponse(render(d), { width: 1080, height: 1350, fonts: await fonts() });
+  return img(render(await getCardData()));
 }

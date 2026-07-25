@@ -4,6 +4,17 @@ import { getBriefing } from '@/server/briefing';
 import { getCachedRankedNews } from '@/server/aiNews';
 import { NEWS_TABS } from '@/server/news';
 import { getOrGenerateJSON } from '@/server/ai';
+import { getValuePage, type Market, type ScoredStock } from '@/server/valueScreen';
+import { GLOSSARY } from '@/data';
+
+// KST 기준 연-주차 키(주간 시리즈 캐시·로테이션용).
+function kstWeek(): { year: number; week: number; key: string } {
+  const d = new Date(Date.now() + 9 * 3600 * 1000);
+  const jan1 = Date.UTC(d.getUTCFullYear(), 0, 1);
+  const week = Math.floor((d.getTime() - jan1) / (7 * 86400000));
+  return { year: d.getUTCFullYear(), week, key: `${d.getUTCFullYear()}W${week}` };
+}
+const KO_DOW = ['일', '월', '화', '수', '목', '금', '토'];
 
 // 인스타 카드뉴스 5장에 바인딩할 실데이터를 한 번에 조립한다.
 //  지수·환율·시장지표·자산군요약 = 대시보드 데이터(KIS/실연동), 다우·BTC = Yahoo 보강,
@@ -195,4 +206,148 @@ export async function getNewsCardData(): Promise<NewsCardData> {
   if (wrap && (!wrap.a || !wrap.b || [...wrap.a].length > 11 || [...wrap.b].length > 11)) wrap = null;
 
   return { dateLabel, items: items.length ? items : fallback.items, wrap };
+}
+
+// ══════════════ ① 저평가 우량주 TOP5 (주간) ══════════════
+export interface ValueStock { rank: string; name: string; priceLine: string; per: string; pbr: string; roe: string; div: string; upside: string; score: number; badge: string; comment: string }
+export interface ValueCardData { dateLabel: string; market: Market; items: ValueStock[] }
+
+export async function getValueCardData(marketOverride?: Market): Promise<ValueCardData> {
+  const wk = kstWeek();
+  const market: Market = marketOverride ?? (wk.week % 2 === 0 ? 'kr' : 'us');
+  const page = await getValuePage(market, 'score', 0, 5, 'all').catch(() => null);
+  const top = page?.items ?? [];
+  const dateLabel = kstDateLabel();
+  if (!top.length) return { dateLabel, market, items: [] };
+
+  const priceLine = (s: ScoredStock) =>
+    market === 'kr'
+      ? `현재가 ${Math.round(s.price).toLocaleString('en-US')}원 · 시총 ${s.marketCapText}`
+      : `현재가 $${s.price.toLocaleString('en-US', { maximumFractionDigits: 2 })} · 시총 ${s.marketCapText}`;
+  const base = top.map((s, i) => ({
+    rank: String(i + 1).padStart(2, '0'),
+    name: s.name,
+    priceLine: priceLine(s),
+    per: s.per == null ? '—' : `${s.per.toFixed(1)}배`,
+    pbr: s.pbr == null ? '—' : `${s.pbr.toFixed(2)}배`,
+    roe: s.roe == null ? '—' : `${s.roe.toFixed(1)}%`,
+    div: s.divYield == null ? '—' : `${s.divYield.toFixed(1)}%`,
+    upside: s.upside != null && s.upside > 0 ? `+${Math.round(s.upside)}%` : '—',
+    score: Math.round(s.score),
+    badge: s.graham ? '그레이엄 안전마진' : s.buffett ? '버핏형 우량' : '',
+  }));
+
+  const fallbackComments = top.map((s) => {
+    if (s.graham) return '이익·자산 대비 싸고 안전마진까지 갖춘 밸류주.';
+    if (s.buffett) return '높은 ROE로 꾸준히 돈 버는 우량주.';
+    if ((s.divYield ?? 0) >= 4) return '배당 매력이 큰 방어형 종목.';
+    if ((s.per ?? 99) < 8) return '이익 대비 확실히 저평가된 구간이에요.';
+    return '지표 균형이 좋은 저평가 후보입니다.';
+  });
+  const obj = await getOrGenerateJSON<{ comments: string[] }>({
+    cacheKey: `value-cards:${market}:${wk.key}`,
+    kind: 'value-cards',
+    system:
+      '너는 한국어 투자 카피라이터다. 각 종목의 지표를 보고 인스타 카드용 한줄평을 만든다. ' +
+      'JSON만 출력(코드펜스 금지): {"comments":["...", ...]}. 입력 종목 수와 정확히 같은 개수. ' +
+      '각 35자 이내, 사실·지표 기반, 단정적 예측·매수 권유 금지.',
+    prompt: async () =>
+      `저평가 우량주 선별 결과(점수순):\n${top
+        .map((s, i) => `${i + 1}. ${s.name} · PER ${s.per}배 PBR ${s.pbr}배 ROE ${s.roe}% 배당 ${s.divYield ?? 0}% 상승여력 ${s.upside ?? '?'}% 종합 ${Math.round(s.score)}점${s.graham ? ' [그레이엄]' : ''}${s.buffett ? ' [버핏형]' : ''}`)
+        .join('\n')}\n\n각 종목 한줄평을 순서대로 배열로.`,
+    fallback: { comments: fallbackComments },
+  });
+  const comments = obj.comments?.length === top.length ? obj.comments : fallbackComments;
+  return { dateLabel, market, items: base.map((b, i) => ({ ...b, comment: comments[i] || fallbackComments[i] })) };
+}
+
+// ══════════════ ② 주간 경제 캘린더 ══════════════
+export interface CalEvent { dow: string; day: string; name: string; desc: string; time: string; high: boolean }
+export interface CalCardData { dateLabel: string; range: string; highCount: number; highlight: (CalEvent & { dowFull: string }) | null; firstHalf: CalEvent[]; secondHalf: CalEvent[]; tip: string }
+
+export async function getCalendarCardData(): Promise<CalCardData> {
+  const data = await getDashboardData({ withMacroExtras: true });
+  const clean = (s: string) => s.replace(/[\u{1F000}-\u{1FAFF}\u{1F1E6}-\u{1F1FF}\u{2600}-\u{27BF}\u{3400}-\u{9FFF}️‍]/gu, '').replace(/\s{2,}/g, ' ').trim();
+  const dateLabel = kstDateLabel();
+
+  // 이번 주(월~일) 범위 계산(KST).
+  const now = new Date(Date.now() + 9 * 3600 * 1000);
+  const dow0 = now.getUTCDay(); // 0=일
+  const mondayOffset = dow0 === 0 ? -6 : 1 - dow0;
+  const mon = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + mondayOffset));
+  const ymd = (d: Date) => `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
+  const sun = new Date(mon.getTime() + 6 * 86400000);
+  const md = (iso: string) => `${parseInt(iso.slice(5, 7), 10)}.${parseInt(iso.slice(8, 10), 10)}`;
+
+  const inWeek = (data.macro.events ?? []).filter((e) => e.date >= ymd(mon) && e.date <= ymd(sun)).sort((a, z) => a.date.localeCompare(z.date) || a.time.localeCompare(z.time));
+  const toEv = (e: (typeof inWeek)[number]): CalEvent => {
+    const dt = new Date(`${e.date}T00:00:00Z`);
+    const rawDesc = clean(e.desc || e.interpret || e.rel?.title || '');
+    const desc = rawDesc.length > 24 ? rawDesc.slice(0, 23) + '…' : rawDesc;
+    return { dow: KO_DOW[dt.getUTCDay()], day: md(e.date), name: clean(e.name), desc, time: e.time || '장중', high: e.tag === '고영향' };
+  };
+  const evs = inWeek.map(toEv);
+  const wdOf = (iso: string) => new Date(`${iso}T00:00:00Z`).getUTCDay();
+  const firstHalf = inWeek.filter((e) => [1, 2, 3].includes(wdOf(e.date))).map(toEv).slice(0, 5);
+  const secondHalf = inWeek.filter((e) => ![1, 2, 3].includes(wdOf(e.date))).map(toEv).slice(0, 5);
+  const highEv = inWeek.find((e) => e.tag === '고영향');
+  const highlight = highEv
+    ? { ...toEv(highEv), dowFull: `${KO_DOW[wdOf(highEv.date)]}요일` }
+    : evs[0]
+    ? { ...evs[0], dowFull: `${evs[0].dow}요일` }
+    : null;
+  const highCount = evs.filter((e) => e.high).length;
+  const tip = highlight ? `${highlight.name} 전후로 변동성이 커질 수 있어요. 결과를 꼭 확인하세요.` : '이번 주는 대형 이벤트가 적어 개별 종목 이슈에 주목해요.';
+  return { dateLabel, range: `${md(ymd(mon))} – ${md(ymd(sun))}`, highCount, highlight, firstHalf, secondHalf, tip };
+}
+
+// ══════════════ ③ 투자 용어 1분 (주간) ══════════════
+const TERM_ROTATION = ['PER', 'PBR', 'ROE', '배당수익률', 'VIX', '김치프리미엄', '공포탐욕지수', '시가총액', 'EPS', '부채비율'];
+export interface TermCardData {
+  term: string; fullName: string; coverSub: string[];
+  defLines: { t: string; hl?: string; t2?: string }[]; formula: { a: string; b: string } | null;
+  example: { ticker: string; a: string; b: string; result: string; note: string } | null;
+  low: { title: string; sub: string }; high: { title: string; sub: string };
+  tips: { title: string; sub: string }[]; misconception: string; nextTerm: string;
+}
+
+export async function getTermCardData(termOverride?: string): Promise<TermCardData> {
+  const wk = kstWeek();
+  const term = termOverride && TERM_ROTATION.includes(termOverride) ? termOverride : TERM_ROTATION[wk.week % TERM_ROTATION.length];
+  const nextTerm = TERM_ROTATION[(TERM_ROTATION.indexOf(term) + 1) % TERM_ROTATION.length];
+  const glossDef = GLOSSARY[term] || '';
+
+  const fallback: Omit<TermCardData, 'term' | 'nextTerm'> = {
+    fullName: term,
+    coverSub: ['1분이면', '이해할 수 있어요'],
+    defLines: [{ t: glossDef || `${term}는 투자에서 자주 쓰이는 지표예요.` }],
+    formula: null,
+    example: null,
+    low: { title: '낮으면', sub: '상황에 따라 해석이 달라요' },
+    high: { title: '높으면', sub: '업종·맥락과 함께 봐야 해요' },
+    tips: [
+      { title: '맥락과 함께 보세요', sub: '지표 하나만으로 판단하지 마세요' },
+      { title: '비교가 기본이에요', sub: '같은 업종·과거 평균과 비교하세요' },
+    ],
+    misconception: `"${term} 하나로 좋은 주식/나쁜 주식"을 단정하면 안 돼요.`,
+  };
+
+  const obj = await getOrGenerateJSON<Omit<TermCardData, 'term' | 'nextTerm'>>({
+    cacheKey: `term-cards:${term}:${wk.key}`,
+    kind: 'term-cards',
+    system:
+      '너는 한국어 투자 교육 카피라이터다. 초보자용 인스타 카드 콘텐츠를 만든다. 존댓말, 쉽고 정확하게, 투자 권유 금지. ' +
+      'JSON만 출력(코드펜스 금지). 형식: {' +
+      '"fullName":"영문 풀네임 · 한글명",' +
+      '"coverSub":["커버 서브 2줄"],' +
+      '"defLines":[{"t":"문장","hl":"강조어(선택)","t2":"강조 뒤 문장(선택)"}],' +
+      '"formula":{"a":"분자(예: 주가)","b":"분모(예: 주당순이익)"} 또는 null,' +
+      '"example":{"ticker":"예시 대상","a":"값1","b":"값2","result":"결과","note":"보조설명"} 또는 null,' +
+      '"low":{"title":"낮으면","sub":"의미 한 줄"},"high":{"title":"높으면","sub":"의미 한 줄"},' +
+      '"tips":[{"title":"팁 제목","sub":"설명"}],"misconception":"흔한 오해 한 문장"}. ' +
+      'defLines 2~4개, tips 정확히 2개. 숫자 예시는 그럴듯한 값으로. 지수형 용어(VIX·공포탐욕 등)는 formula를 null로.',
+    prompt: async () => `투자 용어: "${term}"\n참고 정의: ${glossDef || '(없음)'}\n\n위 JSON 형식으로 초보자용 카드 콘텐츠를 만들어줘.`,
+    fallback,
+  });
+  return { term, nextTerm, ...fallback, ...obj };
 }

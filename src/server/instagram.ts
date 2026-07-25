@@ -1,6 +1,6 @@
 import 'server-only';
 import { getBriefing } from '@/server/briefing';
-import { getNewsCardData } from '@/server/cardData';
+import { getNewsCardData, getValueCardData, getCalendarCardData, getTermCardData } from '@/server/cardData';
 import { SITE_URL } from '@/lib/site';
 
 // 인스타그램 자동 게시(Instagram 비즈니스 로그인 API, graph.instagram.com).
@@ -91,6 +91,10 @@ export function cardImageUrl(type: string): string {
 
 const IMP_EMOJI: Record<string, string> = { 호재: '📈', 악재: '📉', 중립: '➖' };
 
+const VALUE_TAGS = ['#저평가주', '#가치투자', '#배당주', '#주식', '#투자', '#재테크', '#PER', '#우량주', '#investK'];
+const TERM_TAGS = ['#주식용어', '#투자공부', '#주식초보', '#재테크', '#경제상식', '#주식', '#투자', '#investK'];
+const CAL_TAGS = ['#경제캘린더', '#증시일정', '#FOMC', '#주식', '#투자', '#경제', '#재테크', '#investK'];
+
 export async function buildCaption(type: string): Promise<string> {
   if (type === 'news') {
     const nd = await getNewsCardData();
@@ -104,6 +108,49 @@ export async function buildCaption(type: string): Promise<string> {
       '👉 전체 뉴스·지표는 프로필 링크 investk.app',
       '',
       HASHTAGS.join(' '),
+    ].join('\n');
+  }
+  if (type === 'value') {
+    const vd = await getValueCardData();
+    const label = vd.market === 'kr' ? '국내' : '해외';
+    const list = vd.items.map((s, i) => `${i + 1}. ${s.name}${s.upside !== '—' ? ` (상승여력 ${s.upside})` : ''}`).join('\n');
+    return [
+      `💎 이번 주 저평가 우량주 ${label} TOP5`,
+      '',
+      list || 'PER·PBR·ROE·배당 지표로 자동 선별',
+      '',
+      '※ 지표 기준 자동 선별이며 종목 추천이 아닙니다.',
+      '👉 전체 순위·세부 지표 investk.app/value',
+      '',
+      VALUE_TAGS.join(' '),
+    ].join('\n');
+  }
+  if (type === 'calendar') {
+    const cd = await getCalendarCardData();
+    const highs = [...cd.firstHalf, ...cd.secondHalf].filter((e) => e.high).slice(0, 4).map((e) => `• ${e.day} ${e.name}`).join('\n');
+    return [
+      `🗓 이번 주 시장 캘린더 (${cd.range})`,
+      '',
+      highs || '이번 주 주요 경제 일정',
+      '',
+      '※ 참고용 정보이며 투자 권유가 아닙니다.',
+      '👉 매일 아침 브리핑 investk.app',
+      '',
+      CAL_TAGS.join(' '),
+    ].join('\n');
+  }
+  if (type === 'term') {
+    const td = await getTermCardData();
+    return [
+      `💡 1분 투자 상식 · ${td.term}`,
+      '',
+      `${td.fullName}`,
+      '뉴스에 매일 나오는 그 용어, 오늘 확실히 정리해요.',
+      '',
+      '※ 참고용 정보이며 투자 권유가 아닙니다.',
+      '👉 전 종목 지표 investk.app',
+      '',
+      TERM_TAGS.join(' '),
     ].join('\n');
   }
   // 기본: 시장 브리핑
@@ -129,4 +176,20 @@ export async function newsCards(): Promise<string[]> {
   const n = Math.min(nd.items.length, 3);
   if (n === 0) return [];
   return ['news-cover', ...Array.from({ length: n }, (_, i) => `news-${i}`), 'news-outro'];
+}
+
+// 주간 시리즈 카드 목록.
+export async function valueCards(): Promise<string[]> {
+  const vd = await getValueCardData();
+  const n = Math.min(vd.items.length, 5);
+  if (n === 0) return [];
+  return ['value-cover', ...Array.from({ length: n }, (_, i) => `value-${i}`), 'value-outro'];
+}
+export async function calendarCards(): Promise<string[]> {
+  const cd = await getCalendarCardData();
+  if (!cd.firstHalf.length && !cd.secondHalf.length) return [];
+  return ['cal-cover', 'cal-1', 'cal-2', 'cal-outro'];
+}
+export function termCards(): string[] {
+  return ['term-cover', 'term-def', 'term-example', 'term-tips', 'term-outro'];
 }
