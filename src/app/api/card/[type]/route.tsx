@@ -41,18 +41,16 @@ const absPct = (chg: number) => `${Math.abs(chg).toFixed(2)}%`;
 const chipPct = (chg: number) => `${arrow(chg)} ${absPct(chg)}`;
 
 // ── 공통 크롬 ──
-function Header({ right }: { right: string }) {
+// 큰 로고·계정명·페이지표시(n/4)는 제거(인스타가 자체 표시). 대신 퍼가기 방지용으로
+// 우측 상단에 은은한 도메인 워터마크만 둔다(인스타 밖으로 유출 시 출처 식별).
+function Header(_props: { right: string }) {
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img width="56" height="56" src={LOGO_SRC} alt="" />
-        <div style={{ display: 'flex', fontSize: 32, fontWeight: 800, color: TXT, letterSpacing: '-0.02em' }}>InvestK</div>
-      </div>
-      {right ? <div style={{ display: 'flex', alignItems: 'center', background: SURF, borderRadius: 999, padding: '14px 28px', fontSize: 25, fontWeight: 700, color: SUB }}>{right}</div> : null}
+    <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
+      <div style={{ display: 'flex', fontSize: 25, fontWeight: 800, color: 'rgba(139,151,168,0.55)', letterSpacing: '-0.01em' }}>investk.app</div>
     </div>
   );
 }
+void LOGO_SRC; // (미사용) 로고 마크는 프로필사진(/api/pfp)에서만 사용.
 // 하단 꼬리말: 인스타가 캐러셀 위치를 표시하므로 진행 점은 제거하고 우측 텍스트만.
 function Footer({ right }: { right: string }) {
   const disc = right.includes('·');
@@ -299,7 +297,7 @@ function Outro(d: CardData) {
           </div>
         )}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: TEAL, borderRadius: 20, padding: 34, fontSize: 36, fontWeight: 900, color: BG }}>전체 지표 보러가기 → investk.app</div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: TEAL, borderRadius: 20, padding: 34, fontSize: 36, fontWeight: 900, color: BG }}>전체 지표는 프로필 링크에서 ↑</div>
           <div style={{ display: 'flex', justifyContent: 'center', fontSize: 27, fontWeight: 700, color: SUB }}>매일 아침, 프로필 링크에서</div>
         </div>
       </div>
@@ -406,7 +404,7 @@ function NewsOutro(nd: NewsCardData) {
           </div>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: TEAL, borderRadius: 20, padding: 34, fontSize: 36, fontWeight: 900, color: BG }}>전체 뉴스 보러가기 → investk.app</div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: TEAL, borderRadius: 20, padding: 34, fontSize: 36, fontWeight: 900, color: BG }}>전체 뉴스는 프로필 링크에서 ↑</div>
           <div style={{ display: 'flex', justifyContent: 'center', fontSize: 27, fontWeight: 700, color: SUB }}>놓치기 싫으면 팔로우 + 저장</div>
         </div>
       </div>
@@ -533,7 +531,7 @@ function ValueOutro(vd: ValueCardData) {
           </div>
           <div style={{ display: 'flex', fontSize: 33, fontWeight: 600, color: SUB, lineHeight: 1.5 }}>전체 순위와 세부 지표는 앱에서 무료로 볼 수 있어요.</div>
         </div>
-        <CtaBar text="전체 순위 → investk.app/value" sub={`다음 주 월요일, ${nextLabel} TOP 5로 돌아옵니다`} />
+        <CtaBar text="전체 순위는 프로필 링크에서 ↑" sub={`다음 주 월요일, ${nextLabel} TOP 5로 돌아옵니다`} />
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, border: '1px solid rgba(255,255,255,0.12)', borderRadius: 20, padding: '30px 38px' }}>
           <div style={{ display: 'flex', fontSize: 24, fontWeight: 800, color: SUB }}>꼭 읽어주세요</div>
           <div style={{ display: 'flex', fontSize: 25, fontWeight: 600, color: SUB, lineHeight: 1.5 }}>공개된 재무 지표 기준의 자동 선별 결과이며, 특정 종목의 매수·매도 추천이 아닙니다. 투자 판단과 책임은 본인에게 있습니다.</div>
@@ -645,7 +643,7 @@ function CalOutro(cd: CalCardData) {
           </div>
           <div style={{ display: 'flex', fontSize: 34, fontWeight: 600, color: SUB, lineHeight: 1.5 }}>{cd.highlight ? `${cd.highlight.name} 결과에 한 주 방향이 갈려요.` : '개별 종목 이슈에 집중하기 좋은 한 주예요.'}</div>
         </div>
-        <CtaBar text="매일 아침 브리핑 받기 → investk.app" sub="결과 나오면 아침 브리핑으로 바로 정리해드려요" />
+        <CtaBar text="매일 브리핑은 프로필 링크에서 ↑" sub="결과 나오면 아침 브리핑으로 바로 정리해드려요" />
       </div>
       <Footer right="참고용 지표 · 투자 권유 아님 · @investk" />
     </Frame>
@@ -787,7 +785,7 @@ function TermOutro(td: TermCardData) {
           </div>
           <div style={{ display: 'flex', fontSize: 32, fontWeight: 600, color: SUB, lineHeight: 1.5 }}>다음 주 수요일엔 {td.nextTerm}을 정리해드려요. 궁금한 용어는 댓글로 남겨주세요.</div>
         </div>
-        <CtaBar text="전 종목 지표 확인 → investk.app" sub="저장해두면 다음에 또 볼 수 있어요" />
+        <CtaBar text="전 종목 지표는 프로필 링크에서 ↑" sub="저장해두면 다음에 또 볼 수 있어요" />
       </div>
       <Footer right="참고용 정보 · 투자 권유 아님 · @investk" />
     </Frame>
@@ -824,7 +822,7 @@ function BreakingCard(d: BreakingData) {
       </div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ display: 'flex', fontSize: 22, fontWeight: 600, color: DISC }}>참고용 지표 · 투자 권유 아님</div>
-        <div style={{ display: 'flex', alignItems: 'center', background: TEAL, borderRadius: 999, padding: '16px 32px', fontSize: 27, fontWeight: 900, color: BG }}>실시간 지표 → investk.app</div>
+        <div style={{ display: 'flex', alignItems: 'center', background: TEAL, borderRadius: 999, padding: '16px 32px', fontSize: 27, fontWeight: 900, color: BG }}>실시간 지표는 프로필 링크에서 ↑</div>
       </div>
     </Frame>
   );
