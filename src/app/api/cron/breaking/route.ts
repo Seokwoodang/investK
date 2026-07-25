@@ -19,6 +19,15 @@ export async function GET(req: Request) {
     (!!process.env.MOCK_FILL_TOKEN && url.searchParams.get('t') === process.env.MOCK_FILL_TOKEN);
   if (!okAuth) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
 
+  // 발사 기록(GA가 릴스 게시 성공 후 호출) — 유형 키를 오늘 목록에 추가.
+  const mark = url.searchParams.get('mark');
+  if (mark) {
+    const day = kstYmd();
+    const state = (await kvGet<{ keys: string[] }>(`breaking:${day}`)) ?? { keys: [] };
+    if (!state.keys.includes(mark)) await kvSet(`breaking:${day}`, { keys: [...state.keys, mark] });
+    return NextResponse.json({ ok: true, marked: mark });
+  }
+
   try {
     const shock = await getBreakingCardData();
     if (!shock) return NextResponse.json({ ok: true, fired: false, reason: 'no shock' });

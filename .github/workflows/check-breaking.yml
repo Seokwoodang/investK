@@ -1,6 +1,7 @@
-name: Breaking market alert (Instagram)
+name: Breaking market alert (Instagram reel)
 
-# 급변동 감지 시 속보 카드 자동 게시. ~30분마다 확인(엔드포인트가 자체 게이트: 급변동+중복방지+하루 상한).
+# 급변동 감지 시 '속보'를 릴스(세로영상)로 자동 게시. ~30분마다 감지만 하고,
+# 급변동이 있을 때만 렌더/업로드/게시(엔드포인트가 중복방지·하루 상한 자체 게이트).
 on:
   schedule:
     - cron: '*/30 * * * *'
@@ -10,7 +11,41 @@ jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - name: Check & post breaking
+      - name: Probe shock
+        id: probe
         run: |
-          curl -fsS --max-time 90 -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
-            "https://investk.app/api/cron/breaking"
+          RESP=$(curl -fsS --max-time 60 -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "https://investk.app/api/cron/breaking?dry=1")
+          KEY=$(echo "$RESP" | jq -r '.shock.key // empty')
+          echo "key=$KEY" >> "$GITHUB_OUTPUT"
+          [ -n "$KEY" ] && echo "급변동 감지: $KEY" || echo "급변동 없음"
+
+      - uses: actions/checkout@v4
+        if: steps.probe.outputs.key != ''
+      - uses: actions/setup-node@v4
+        if: steps.probe.outputs.key != ''
+        with:
+          node-version: '20'
+      - name: Install ffmpeg
+        if: steps.probe.outputs.key != ''
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      - name: Render breaking reel
+        if: steps.probe.outputs.key != ''
+        run: node scripts/make-reel.mjs --base https://investk.app --cards breaking --per 5.5 --out /tmp/reel.mp4
+
+      - name: Upload & publish reel
+        if: steps.probe.outputs.key != ''
+        run: |
+          NAME="reel-breaking-$(date +%Y%m%d%H%M).mp4"
+          SLOT=$(curl -fsS -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" "https://investk.app/api/ig/reel-slot?name=$NAME")
+          SIGNED=$(echo "$SLOT" | jq -r .signedUrl); PUBLIC=$(echo "$SLOT" | jq -r .publicUrl)
+          curl -fsS -X PUT "$SIGNED" -H "content-type: video/mp4" --data-binary @/tmp/reel.mp4
+          ENC=$(python3 -c "import urllib.parse,sys;print(urllib.parse.quote(sys.argv[1],safe=''))" "$PUBLIC")
+          curl -fsS --max-time 110 -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" "https://investk.app/api/ig/publish?type=breaking&video=$ENC"
+
+      - name: Mark fired
+        if: steps.probe.outputs.key != ''
+        run: |
+          curl -fsS -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "https://investk.app/api/cron/breaking?mark=${{ steps.probe.outputs.key }}"
