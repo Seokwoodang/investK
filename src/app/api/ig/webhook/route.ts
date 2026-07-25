@@ -12,6 +12,7 @@ const IG_API = 'https://graph.instagram.com/v21.0';
 const VERIFY = process.env.IG_WEBHOOK_VERIFY || 'investk-verify-9f3a2c';
 const KEYWORDS = ['지표', '링크', '가격', '정보'];
 const DM_TEXT = '안녕하세요! 📊 실시간 시장 지표는 여기서 확인하세요 👇\nhttps://investk.app\n\n매일 아침·저녁 시장 브리핑도 팔로우하면 놓치지 않아요 🙌';
+const REPLY_TEXT = 'DM으로 링크 보내드렸어요! 📩 확인해주세요 🙌';
 
 const token = () => process.env.INSTA_TOKEN ?? '';
 let _igId: string | null = null;
@@ -45,11 +46,18 @@ export async function POST(req: Request) {
         if (!commentId) continue;
         if (v.from?.id && me && String(v.from.id) === me) continue; // 내 댓글 무시
         if (!KEYWORDS.some((k) => text.includes(k))) continue;
+        // 1) 프라이빗 리플라이(DM) 발송
         await fetch(`${IG_API}/${me}/messages?access_token=${token()}`, {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({ recipient: { comment_id: commentId }, message: { text: DM_TEXT } }),
         }).then((r) => r.json()).then((j) => { if (j?.error) console.error('[ig/webhook] DM 실패:', JSON.stringify(j.error)); }).catch(() => {});
+        // 2) 공개 대댓글("DM 보냈어요") — 다른 사람들도 보고 참여 유도
+        await fetch(`${IG_API}/${commentId}/replies`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({ message: REPLY_TEXT, access_token: token() }),
+        }).then((r) => r.json()).then((j) => { if (j?.error) console.error('[ig/webhook] 대댓글 실패:', JSON.stringify(j.error)); }).catch(() => {});
       }
     }
   } catch (e) {
