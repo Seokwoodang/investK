@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { kvGet, kvSet } from '@/server/kv';
 
 // 인스타 댓글 → 자동 DM(무료·무제한, ManyChat 불필요).
 //  게시물 댓글에 키워드(지표/링크 등)가 있으면 그 사람에게 investk.app 링크를 DM으로 보낸다.
@@ -12,7 +13,7 @@ const IG_API = 'https://graph.instagram.com/v21.0';
 const VERIFY = process.env.IG_WEBHOOK_VERIFY || 'investk-verify-9f3a2c';
 const KEYWORDS = ['지표', '링크', '가격', '정보'];
 const DM_TEXT = '안녕하세요! 📊 실시간 시장 지표는 여기서 확인하세요 👇\nhttps://investk.app\n\n매일 아침·저녁 시장 브리핑도 팔로우하면 놓치지 않아요 🙌';
-const REPLY_TEXT = 'DM으로 링크 보내드렸어요! 📩 확인해주세요 🙌';
+const REPLY_TEXT = 'DM 보내드렸어요! 📩 메시지함 확인해주세요 🙌'; // 키워드(지표/링크/가격/정보) 포함 금지 — 자기 트리거 방지
 
 const token = () => process.env.INSTA_TOKEN ?? '';
 let _igId: string | null = null;
@@ -44,8 +45,14 @@ export async function POST(req: Request) {
         const text = String(v.text ?? '');
         const commentId = v.id;
         if (!commentId) continue;
+        if (v.parent_id) continue; // 대댓글(답글)엔 반응 안 함 — 내 답글이 다시 트리거되는 루프 차단
         if (v.from?.id && me && String(v.from.id) === me) continue; // 내 댓글 무시
+        if (String(v.from?.username ?? '').toLowerCase() === 'invest___k') continue; // 내 계정 이중 방어
         if (!KEYWORDS.some((k) => text.includes(k))) continue;
+        // 중복 처리 방지(Meta 재전송·재시도) — 같은 댓글 1회만
+        const seenKey = `wh:${commentId}`;
+        if (await kvGet(seenKey)) continue;
+        await kvSet(seenKey, Date.now());
         // 1) 프라이빗 리플라이(DM) 발송
         await fetch(`${IG_API}/${me}/messages?access_token=${token()}`, {
           method: 'POST',
