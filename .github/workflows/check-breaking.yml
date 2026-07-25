@@ -1,0 +1,16 @@
+name: Breaking market alert (Instagram)
+
+# 급변동 감지 시 속보 카드 자동 게시. ~30분마다 확인(엔드포인트가 자체 게이트: 급변동+중복방지+하루 상한).
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch: {}
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check & post breaking
+        run: |
+          curl -fsS --max-time 90 -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "https://investk.app/api/cron/breaking"

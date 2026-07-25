@@ -351,3 +351,49 @@ export async function getTermCardData(termOverride?: string): Promise<TermCardDa
   });
   return { term, nextTerm, ...fallback, ...obj };
 }
+
+// ══════════════ 급변동 속보 ══════════════
+export interface ShockTile { label: string; chg: number; txt?: string }
+export interface BreakingData { key: string; time: string; headline: string; sub: string; dir: 'up' | 'down'; tiles: ShockTile[] }
+
+const kstTimeLabel = () => new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', hour: 'numeric', minute: '2-digit', hour12: true }).format(new Date());
+
+// 야후 실시간으로 급변동 감지. 지수 ±3% / VIX 급등·30↑ / BTC ±5% 중 가장 강한 것 하나.
+export async function getBreakingCardData(): Promise<BreakingData | null> {
+  const [kospi, kosdaq, sp, nasdaq, vix, btc] = await Promise.all([
+    yq('%5EKS11'), yq('%5EKQ11'), yq('%5EGSPC'), yq('%5EIXIC'), yq('%5EVIX'), yq('BTC-USD'),
+  ]);
+  const idx = [
+    { name: '코스피', q: kospi }, { name: '코스닥', q: kosdaq }, { name: 'S&P 500', q: sp }, { name: '나스닥', q: nasdaq },
+  ].filter((x) => x.q) as { name: string; q: { price: number; chg: number } }[];
+
+  type Cand = { key: string; sev: number; dir: 'up' | 'down'; headline: string; sub: string };
+  const cands: Cand[] = [];
+  for (const x of idx) {
+    const c = x.q.chg;
+    if (Math.abs(c) >= 3) {
+      const dir = c > 0 ? 'up' : 'down';
+      const word = Math.abs(c) >= 5 ? (dir === 'up' ? '폭등' : '폭락') : dir === 'up' ? '급등' : '급락';
+      cands.push({ key: `index-${dir}`, sev: Math.abs(c) + (dir === 'down' ? 0.5 : 0), dir,
+        headline: `${x.name} ${c > 0 ? '+' : ''}${c.toFixed(1)}% ${word}`,
+        sub: dir === 'down' ? '위험 회피 심리가 커지고 있어요. 지금 무슨 일인지 확인하세요.' : '강한 매수세가 유입되고 있어요.' });
+    }
+  }
+  if (vix && (vix.chg >= 12 || vix.price >= 30)) {
+    cands.push({ key: 'vix-up', sev: 4 + vix.chg / 10, dir: 'up', headline: `공포지수(VIX) ${vix.price.toFixed(1)} 급등`, sub: 'VIX가 치솟으며 시장 불안이 커지고 있어요.' });
+  }
+  if (btc && Math.abs(btc.chg) >= 5) {
+    const dir = btc.chg > 0 ? 'up' : 'down';
+    cands.push({ key: `btc-${dir}`, sev: Math.abs(btc.chg) / 1.5, dir, headline: `비트코인 ${btc.chg > 0 ? '+' : ''}${btc.chg.toFixed(1)}% ${dir === 'up' ? '급등' : '급락'}`, sub: dir === 'down' ? '코인 시장에 매도세가 몰리고 있어요.' : '코인 시장에 강한 매수세가 붙었어요.' });
+  }
+  if (!cands.length) return null;
+  cands.sort((a, z) => z.sev - a.sev);
+  const top = cands[0];
+  const tiles: ShockTile[] = [
+    { label: '코스피', chg: kospi?.chg ?? 0 },
+    { label: '나스닥', chg: nasdaq?.chg ?? 0 },
+    { label: 'VIX', chg: vix?.chg ?? 0, txt: vix ? vix.price.toFixed(1) : '—' },
+    { label: '비트코인', chg: btc?.chg ?? 0 },
+  ];
+  return { key: top.key, time: kstTimeLabel(), headline: top.headline, sub: top.sub, dir: top.dir, tiles };
+}

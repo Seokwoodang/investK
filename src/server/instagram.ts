@@ -1,6 +1,6 @@
 import 'server-only';
 import { getBriefing } from '@/server/briefing';
-import { getNewsCardData, getValueCardData, getCalendarCardData, getTermCardData } from '@/server/cardData';
+import { getNewsCardData, getValueCardData, getCalendarCardData, getTermCardData, getBreakingCardData } from '@/server/cardData';
 import { SITE_URL } from '@/lib/site';
 
 // 인스타그램 자동 게시(Instagram 비즈니스 로그인 API, graph.instagram.com).
@@ -153,6 +153,20 @@ export async function buildCaption(type: string): Promise<string> {
       '👉 매일 아침 브리핑 investk.app',
       '',
       CAL_TAGS.join(' '),
+    ].join('\n');
+  }
+  if (type === 'breaking') {
+    const b = await getBreakingCardData();
+    return [
+      `🚨 속보${b ? ` · ${b.time}` : ''}`,
+      '',
+      b ? b.headline : '시장 급변동',
+      b ? b.sub : '',
+      '',
+      '※ 참고용 지표이며 투자 권유가 아닙니다.',
+      '👉 실시간 지표는 프로필 링크 investk.app',
+      '',
+      ['#속보', '#증시', '#코스피', '#나스닥', '#급락', '#급등', '#주식', '#투자', '#investK'].join(' '),
     ].join('\n');
   }
   if (type === 'term') {

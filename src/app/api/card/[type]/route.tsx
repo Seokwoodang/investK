@@ -1,8 +1,8 @@
 import { ImageResponse } from 'next/og';
 import {
-  getCardData, getNewsCardData, getValueCardData, getCalendarCardData, getTermCardData,
+  getCardData, getNewsCardData, getValueCardData, getCalendarCardData, getTermCardData, getBreakingCardData,
   type CardData, type Move, type NewsCardData, type NewsItem,
-  type ValueCardData, type ValueStock, type CalCardData, type CalEvent, type TermCardData,
+  type ValueCardData, type ValueStock, type CalCardData, type CalEvent, type TermCardData, type BreakingData,
 } from '@/server/cardData';
 
 // 인스타 카드뉴스 5장(1080×1350, 4:5). 다크 테마. 디자인 핸드오프 시안을 Satori로 포팅.
@@ -802,6 +802,34 @@ function renderTerm(type: string, td: TermCardData): React.ReactElement | null {
   return null;
 }
 
+// ══════════════ 급변동 속보 ══════════════
+function BreakingCard(d: BreakingData) {
+  return (
+    <Frame>
+      <Header right={d.time} />
+      <div style={{ display: 'flex', flexDirection: 'column', flex: 1, justifyContent: 'center', gap: 30 }}>
+        <div style={{ display: 'flex' }}>
+          <div style={{ display: 'flex', alignItems: 'center', background: 'rgba(255,77,94,0.16)', borderRadius: 999, padding: '12px 30px', fontSize: 30, fontWeight: 900, color: UP }}>● 속보</div>
+        </div>
+        <div style={{ display: 'flex', fontSize: 96, fontWeight: 900, color: TXT, letterSpacing: '-0.04em', lineHeight: 1.15 }}>{d.headline}</div>
+        <div style={{ display: 'flex', fontSize: 40, fontWeight: 700, color: SUB, letterSpacing: '-0.02em', lineHeight: 1.4 }}>{d.sub}</div>
+        <div style={{ display: 'flex', flexDirection: 'row', gap: 14, marginTop: 44 }}>
+          {d.tiles.map((t, i) => (
+            <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1, background: SURF, borderRadius: 20, padding: 28 }}>
+              <div style={{ display: 'flex', fontSize: 23, fontWeight: 700, color: SUB }}>{t.label}</div>
+              <div style={{ display: 'flex', fontSize: 34, fontWeight: 900, color: col(t.chg) }}>{t.txt ?? chipPct(t.chg)}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ display: 'flex', fontSize: 22, fontWeight: 600, color: DISC }}>참고용 지표 · 투자 권유 아님</div>
+        <div style={{ display: 'flex', alignItems: 'center', background: TEAL, borderRadius: 999, padding: '16px 32px', fontSize: 27, fontWeight: 900, color: BG }}>실시간 지표 → investk.app</div>
+      </div>
+    </Frame>
+  );
+}
+
 function renderNews(type: string, nd: NewsCardData): React.ReactElement | null {
   if (type === 'news-cover') return <NewsCover {...nd} />;
   if (type === 'news-outro') return <NewsOutro {...nd} />;
@@ -823,6 +851,7 @@ export async function GET(_req: Request, { params }: { params: { type: string } 
   if (t.startsWith('value')) return img(renderValue(t, await getValueCardData()));
   if (t.startsWith('cal')) return img(renderCalendar(t, await getCalendarCardData()));
   if (t.startsWith('term')) return img(renderTerm(t, await getTermCardData()));
+  if (t === 'breaking') { const b = await getBreakingCardData(); return img(b ? <BreakingCard {...b} /> : null); }
   const render = RENDERERS[t];
   if (!render) return new Response('unknown card type', { status: 404 });
   return img(render(await getCardData()));
