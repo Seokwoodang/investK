@@ -98,7 +98,10 @@ export async function refreshToken(): Promise<{ access_token: string; expires_in
 const kstYmd = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
 const kstDateLabel = () => new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', month: 'long', day: 'numeric' }).format(new Date());
 
-const HASHTAGS = ['#투자', '#주식', '#증시', '#코스피', '#코스닥', '#경제', '#재테크', '#주식투자', '#투자정보', '#환율', '#비트코인', '#investK'];
+// 해시태그: 대형(도달)~중형(타겟) 골고루. 인스타 최대 30개 → 28개로 구성.
+const TAGS_BASE = ['#투자', '#주식', '#증시', '#경제', '#재테크', '#주식투자', '#투자정보', '#금융', '#투자공부', '#주식초보', '#주린이', '#자산관리', '#부자되기', '#직장인재테크', '#소액투자', '#경제상식', '#재테크공부', '#돈공부'];
+const TAGS_BRAND = ['#investK', '#인베스트케이'];
+const tags = (extra: string[]) => [...TAGS_BASE, ...extra, ...TAGS_BRAND].slice(0, 30).join(' ');
 
 // 인스타가 이미지를 새로 가져가도록 매 호출 고유 쿼리를 붙여 캐시 무력화.
 export function cardImageUrl(type: string): string {
@@ -106,10 +109,6 @@ export function cardImageUrl(type: string): string {
 }
 
 const IMP_EMOJI: Record<string, string> = { 호재: '📈', 악재: '📉', 중립: '➖' };
-
-const VALUE_TAGS = ['#저평가주', '#가치투자', '#배당주', '#주식', '#투자', '#재테크', '#PER', '#우량주', '#investK'];
-const TERM_TAGS = ['#주식용어', '#투자공부', '#주식초보', '#재테크', '#경제상식', '#주식', '#투자', '#investK'];
-const CAL_TAGS = ['#경제캘린더', '#증시일정', '#FOMC', '#주식', '#투자', '#경제', '#재테크', '#investK'];
 
 export async function buildCaption(type: string): Promise<string> {
   if (type === 'news') {
@@ -123,7 +122,7 @@ export async function buildCaption(type: string): Promise<string> {
       '※ 참고용 정보이며 투자 권유가 아닙니다.',
       '👉 전체 뉴스·지표는 프로필 링크 investk.app',
       '',
-      HASHTAGS.join(' '),
+      tags(['#경제뉴스', '#증시뉴스', '#투자뉴스', '#코스피', '#나스닥', '#미국주식', '#비트코인', '#오늘의뉴스']),
     ].join('\n');
   }
   if (type === 'value') {
@@ -138,7 +137,7 @@ export async function buildCaption(type: string): Promise<string> {
       '※ 지표 기준 자동 선별이며 종목 추천이 아닙니다.',
       '👉 전체 순위·세부 지표 investk.app/value',
       '',
-      VALUE_TAGS.join(' '),
+      tags(['#저평가주', '#가치투자', '#배당주', '#우량주', '#PER', '#PBR', '#ROE', '#가치주']),
     ].join('\n');
   }
   if (type === 'calendar') {
@@ -152,7 +151,7 @@ export async function buildCaption(type: string): Promise<string> {
       '※ 참고용 정보이며 투자 권유가 아닙니다.',
       '👉 매일 아침 브리핑 investk.app',
       '',
-      CAL_TAGS.join(' '),
+      tags(['#경제캘린더', '#증시일정', '#FOMC', '#CPI', '#금리', '#경제지표', '#증시전망', '#주간전망']),
     ].join('\n');
   }
   if (type === 'breaking') {
@@ -166,7 +165,7 @@ export async function buildCaption(type: string): Promise<string> {
       '※ 참고용 지표이며 투자 권유가 아닙니다.',
       '👉 실시간 지표는 프로필 링크 investk.app',
       '',
-      ['#속보', '#증시', '#코스피', '#나스닥', '#급락', '#급등', '#주식', '#투자', '#investK'].join(' '),
+      tags(['#속보', '#증시속보', '#급락', '#급등', '#코스피', '#나스닥', '#시장급변동', '#증시']),
     ].join('\n');
   }
   if (type === 'term') {
@@ -180,12 +179,12 @@ export async function buildCaption(type: string): Promise<string> {
       '※ 참고용 정보이며 투자 권유가 아닙니다.',
       '👉 전 종목 지표 investk.app',
       '',
-      TERM_TAGS.join(' '),
+      tags(['#주식용어', '#투자용어', '#경제용어', '#주식공부', '#재테크상식', '#금융상식', '#투자기초', '#주식입문']),
     ].join('\n');
   }
   // 기본: 시장 브리핑
   const b = await getBriefing(kstYmd());
-  const facts = (b.facts ?? []).slice(0, 3).map((f) => `• [${f.k}] ${f.t}`).join('\n');
+  const facts = (b.facts ?? []).slice(0, 3).map((f) => `• ${f.t}`).join('\n');
   return [
     `📊 오늘의 시장 브리핑 · ${kstDateLabel()}`,
     '',
@@ -193,10 +192,11 @@ export async function buildCaption(type: string): Promise<string> {
     '',
     facts,
     '',
+    '📌 카드를 넘겨 지수·코인·환율까지 한눈에 확인하세요.',
     '※ 참고용 지표이며 투자 권유가 아닙니다.',
-    '👉 더 많은 지표는 프로필 링크 investk.app',
+    '👉 실시간 전체 지표는 프로필 링크에서',
     '',
-    HASHTAGS.join(' '),
+    tags(['#코스피', '#코스닥', '#나스닥', '#미국주식', '#환율', '#비트코인', '#코인', '#경제뉴스']),
   ].join('\n');
 }
 
