@@ -933,9 +933,10 @@ function renderWeek(type: string, wd: WeekReviewData): React.ReactElement | null
 
 export async function GET(_req: Request, { params }: { params: { type: string } }) {
   const t = params.type;
+  const slot = new URL(_req.url).searchParams.get('slot') === 'am' ? 'am' : 'pm';
   const img = (el: React.ReactElement | null) => (el ? new ImageResponse(el, { width: 1080, height: 1350, fonts: fontsPromise }) : new Response('no card', { status: 404 }));
   const fontsPromise = await fonts();
-  if (t.startsWith('news')) return img(renderNews(t, await getNewsCardData()));
+  if (t.startsWith('news')) return img(renderNews(t, await getNewsCardData(slot)));
   if (t.startsWith('value')) return img(renderValue(t, await getValueCardData()));
   if (t.startsWith('cal')) return img(renderCalendar(t, await getCalendarCardData()));
   if (t.startsWith('term')) return img(renderTerm(t, await getTermCardData()));

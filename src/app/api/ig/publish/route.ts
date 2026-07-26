@@ -28,9 +28,9 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 const CAPTION_TYPE: Record<string, string> = { daily: 'brief', news: 'news', value: 'value', calendar: 'calendar', term: 'term', week: 'week' };
-async function cardsFor(type: string): Promise<string[]> {
+async function cardsFor(type: string, slot?: 'am' | 'pm'): Promise<string[]> {
   if (type === 'daily') return [...DAILY_CARDS];
-  if (type === 'news') return newsCards();
+  if (type === 'news') return newsCards(slot);
   if (type === 'value') return valueCards();
   if (type === 'calendar') return calendarCards();
   if (type === 'term') return termCards();
@@ -53,6 +53,7 @@ async function run(req: Request) {
   const dry = url.searchParams.get('dry') === '1';
   const video = url.searchParams.get('video'); // 있으면 릴스(세로 영상) 게시
   const force = url.searchParams.get('force') === '1'; // 신선도 게이트 무시(수동 강제)
+  const slot: 'am' | 'pm' = url.searchParams.get('slot') === 'am' ? 'am' : 'pm'; // 뉴스 아침/저녁
   try {
     // 시장 브리핑(daily)은 새 시장 데이터가 있을 때만 — 주말·휴장일 중복 게시 방지.
     let freshKvKey = '';
@@ -65,16 +66,16 @@ async function run(req: Request) {
       }
     }
     const markFresh = async () => { if (freshKvKey && freshKeyVal) await kvSet(freshKvKey, freshKeyVal); };
-    const caption = await buildCaption(CAPTION_TYPE[type] ?? 'brief');
+    const caption = await buildCaption(CAPTION_TYPE[type] ?? 'brief', slot);
     if (video) {
       if (dry) return NextResponse.json({ ok: true, dry: true, mode: 'reel', video, caption });
       const res = await publishReel(video, caption);
       await markFresh();
       return NextResponse.json({ ok: true, id: res.id, mode: 'reel' });
     }
-    const cards = await cardsFor(type);
+    const cards = await cardsFor(type, slot);
     if (!cards.length) return NextResponse.json({ ok: false, error: '게시할 카드 없음(데이터 캐시 비어있음)' }, { status: 503 });
-    const imageUrls = cards.map(cardImageUrl);
+    const imageUrls = cards.map((c) => cardImageUrl(c, type === 'news' ? slot : undefined));
     if (dry) return NextResponse.json({ ok: true, dry: true, cards, imageUrls, caption });
     const res = imageUrls.length > 1 ? await publishCarousel(imageUrls, caption) : await publishImage(imageUrls[0], caption);
     await markFresh();

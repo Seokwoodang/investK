@@ -1,18 +1,33 @@
 name: Post to Instagram (news)
 
-# 저녁 '오늘의 투자 뉴스' 캐러셀을 인스타그램에 자동 게시(랭킹 뉴스 갱신 후).
-# KST 20:00 = 11:00 UTC.
+# 투자 뉴스 캐러셀 자동 게시(랭킹 뉴스 갱신 후). 하루 2회:
+#  · 아침(밤사이 미국·글로벌): 07:30 KST = 22:30 UTC  → slot=am
+#  · 저녁(오늘 국내·마감)     : 20:00 KST = 11:00 UTC  → slot=pm
+# 아침에 나간 뉴스는 저녁에서 자동 제외(서버 KV 중복 차단).
 on:
   schedule:
-    - cron: '0 11 * * *' # 20:00 KST — 저녁 뉴스 요약
-  workflow_dispatch: {}
+    - cron: '30 22 * * *' # 07:30 KST — 아침 뉴스(밤사이)
+    - cron: '0 11 * * *'  # 20:00 KST — 저녁 뉴스(오늘)
+  workflow_dispatch:
+    inputs:
+      slot:
+        description: '뉴스 슬롯(am|pm)'
+        default: 'pm'
 
 jobs:
   post:
     runs-on: ubuntu-latest
     steps:
+      - name: Resolve slot
+        id: s
+        run: |
+          case "${{ github.event.schedule }}" in
+            "30 22 * * *") echo "slot=am" >> "$GITHUB_OUTPUT" ;;
+            "0 11 * * *")  echo "slot=pm" >> "$GITHUB_OUTPUT" ;;
+            *)             echo "slot=${{ github.event.inputs.slot || 'pm' }}" >> "$GITHUB_OUTPUT" ;;
+          esac
       - name: Publish news carousel
         run: |
           curl -fsS --max-time 110 --retry 1 --retry-delay 20 -X GET \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
-            "https://investk.app/api/ig/publish?type=news"
+            "https://investk.app/api/ig/publish?type=news&slot=${{ steps.s.outputs.slot }}"

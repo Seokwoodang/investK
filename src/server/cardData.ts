@@ -4,6 +4,7 @@ import { getBriefing } from '@/server/briefing';
 import { getCachedRankedNews } from '@/server/aiNews';
 import { NEWS_TABS } from '@/server/news';
 import { getOrGenerateJSON } from '@/server/ai';
+import { kvGet, kvSet } from '@/server/kv';
 import { getValuePage, type Market, type ScoredStock } from '@/server/valueScreen';
 import { GLOSSARY } from '@/data';
 
@@ -158,7 +159,9 @@ function newsPrompt(cands: { title: string; summary: string; why: string; impact
 }
 
 // 전체 뉴스 탭의 랭킹 뉴스를 취합 → 상위 후보를 Claude로 카드용 요약(카테고리·팩트3·왜중요·대비 한줄)으로 가공(하루 1회 캐시).
-export async function getNewsCardData(): Promise<NewsCardData> {
+// slot: 'am'(아침·밤사이 뉴스) | 'pm'(저녁·오늘 마감). 하루 2회 게시 시 아침에 나간
+// 뉴스를 저녁에서 제외해 중복 방지(KV `news:am:{ymd}`에 아침 후보 제목 기록).
+export async function getNewsCardData(slot: 'am' | 'pm' = 'pm'): Promise<NewsCardData> {
   const lists = await Promise.all(NEWS_TABS.map((t) => getCachedRankedNews(`page:${t}`).catch(() => null)));
   const seen = new Set<string>();
   const raw = [] as { title: string; summary: string; why: string; impact: NewsImpact; tags: string[]; importance: string }[];
@@ -171,9 +174,21 @@ export async function getNewsCardData(): Promise<NewsCardData> {
     }
   }
   raw.sort((a, z) => (IMP_ORDER[a.importance] ?? 9) - (IMP_ORDER[z.importance] ?? 9));
-  const top = raw.slice(0, 6);
+  const ymd = kstYmd();
+  let pool = raw;
+  if (slot === 'pm') {
+    // 아침에 후보로 쓴 제목 제외(중복 방지). 남는 게 3건 미만이면 원래 풀 유지(빈 게시 방지).
+    const amUsed = new Set((await kvGet<string[]>(`news:am:${ymd}`).catch(() => null)) ?? []);
+    if (amUsed.size) {
+      const filtered = raw.filter((n) => !amUsed.has(n.title.trim()));
+      if (filtered.length >= 3) pool = filtered;
+    }
+  }
+  const top = pool.slice(0, 6);
   const dateLabel = kstDateLabel();
   if (!top.length) return { dateLabel, items: [], wrap: null };
+  // 아침 슬롯: 이번에 쓴 후보 제목을 기록 → 저녁이 겹치지 않게. (idempotent, 여러 번 호출돼도 동일)
+  if (slot === 'am') await kvSet(`news:am:${ymd}`, top.map((n) => n.title.trim())).catch(() => {});
 
   // AI 실패/무키 시 폴백: 원문 제목·요약을 그대로 카드화.
   const fallback: { items: NewsItem[]; wrap: { a: string; b: string } | null } = {
@@ -188,7 +203,7 @@ export async function getNewsCardData(): Promise<NewsCardData> {
   };
 
   const obj = await getOrGenerateJSON<{ items: NewsItem[]; wrap: { a: string; b: string } | null }>({
-    cacheKey: `news-cards:${kstYmd()}`,
+    cacheKey: `news-cards:${ymd}:${slot}`,
     kind: 'news-cards',
     system: NEWS_SYSTEM,
     prompt: newsPrompt(top),

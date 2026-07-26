@@ -114,18 +114,21 @@ const TAGS_BRAND = ['#investK', '#인베스트케이'];
 const tags = (extra: string[]) => [...TAGS_BASE, ...extra, ...TAGS_BRAND].slice(0, 30).join(' ');
 
 // 인스타가 이미지를 새로 가져가도록 매 호출 고유 쿼리를 붙여 캐시 무력화.
-export function cardImageUrl(type: string): string {
-  return `${SITE_URL}/api/card/${type}?t=${Date.now()}`;
+// slot: 뉴스 아침/저녁 구분(카드 데이터가 슬롯별로 달라짐).
+export function cardImageUrl(type: string, slot?: string): string {
+  const s = slot ? `&slot=${slot}` : '';
+  return `${SITE_URL}/api/card/${type}?t=${Date.now()}${s}`;
 }
 
 const IMP_EMOJI: Record<string, string> = { 호재: '📈', 악재: '📉', 중립: '➖' };
 
-export async function buildCaption(type: string): Promise<string> {
+export async function buildCaption(type: string, slot?: 'am' | 'pm'): Promise<string> {
   if (type === 'news') {
-    const nd = await getNewsCardData();
+    const nd = await getNewsCardData(slot ?? 'pm');
     const items = nd.items.slice(0, 3).map((n, i) => `${i + 1}. ${IMP_EMOJI[n.impact] ?? ''} ${n.title}`).join('\n');
+    const head = slot === 'am' ? `🌅 밤사이 투자 뉴스 · ${kstDateLabel()}` : `📰 오늘의 투자 뉴스 · ${kstDateLabel()}`;
     return [
-      `📰 오늘의 투자 뉴스 · ${kstDateLabel()}`,
+      head,
       '',
       items || '오늘의 주요 시장 뉴스',
       '',
@@ -227,8 +230,8 @@ export async function buildCaption(type: string): Promise<string> {
 }
 
 // 뉴스 캐러셀 카드 목록(커버 + 뉴스 N + 마무리). 뉴스 개수에 맞춰 동적 생성.
-export async function newsCards(): Promise<string[]> {
-  const nd = await getNewsCardData();
+export async function newsCards(slot?: 'am' | 'pm'): Promise<string[]> {
+  const nd = await getNewsCardData(slot ?? 'pm');
   const n = Math.min(nd.items.length, 3);
   if (n === 0) return [];
   return ['news-cover', ...Array.from({ length: n }, (_, i) => `news-${i}`), 'news-outro'];
