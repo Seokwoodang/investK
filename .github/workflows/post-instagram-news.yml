@@ -1,33 +1,44 @@
 name: Post to Instagram (news)
 
-# 투자 뉴스 캐러셀 자동 게시(랭킹 뉴스 갱신 후). 하루 2회:
-#  · 아침(밤사이 미국·글로벌): 07:30 KST = 22:30 UTC  → slot=am
-#  · 저녁(오늘 국내·마감)     : 20:00 KST = 11:00 UTC  → slot=pm
-# 아침에 나간 뉴스는 저녁에서 자동 제외(서버 KV 중복 차단).
+# 투자 뉴스 캐러셀 자동 게시. 국내·미국 각각 하루 2회 = 하루 4개.
+# 각 지역 아침에 나간 뉴스는 저녁에서 자동 제외(서버 KV 중복 차단). KST → UTC:
+#  · 🇺🇸 미국 아침(밤사이 마감): 07:30 KST = 22:30 UTC  → region=us slot=am
+#  · 🇰🇷 국내 오전(오전장)     : 11:30 KST = 02:30 UTC  → region=kr slot=am
+#  · 🇰🇷 국내 저녁(마감 정리)  : 18:00 KST = 09:00 UTC  → region=kr slot=pm
+#  · 🇺🇸 미국 저녁(개장 임박)  : 21:00 KST = 12:00 UTC  → region=us slot=pm
 on:
   schedule:
-    - cron: '30 22 * * *' # 07:30 KST — 아침 뉴스(밤사이)
-    - cron: '0 11 * * *'  # 20:00 KST — 저녁 뉴스(오늘)
+    - cron: '30 22 * * *' # 미국 아침
+    - cron: '30 2 * * *'  # 국내 오전
+    - cron: '0 9 * * *'   # 국내 저녁
+    - cron: '0 12 * * *'  # 미국 저녁
   workflow_dispatch:
     inputs:
+      region:
+        description: '지역(kr|us)'
+        default: 'kr'
       slot:
-        description: '뉴스 슬롯(am|pm)'
+        description: '슬롯(am|pm)'
         default: 'pm'
 
 jobs:
   post:
     runs-on: ubuntu-latest
     steps:
-      - name: Resolve slot
-        id: s
+      - name: Resolve region & slot
+        id: r
         run: |
           case "${{ github.event.schedule }}" in
-            "30 22 * * *") echo "slot=am" >> "$GITHUB_OUTPUT" ;;
-            "0 11 * * *")  echo "slot=pm" >> "$GITHUB_OUTPUT" ;;
-            *)             echo "slot=${{ github.event.inputs.slot || 'pm' }}" >> "$GITHUB_OUTPUT" ;;
+            "30 22 * * *") R=us; S=am ;;
+            "30 2 * * *")  R=kr; S=am ;;
+            "0 9 * * *")   R=kr; S=pm ;;
+            "0 12 * * *")  R=us; S=pm ;;
+            *) R="${{ github.event.inputs.region || 'kr' }}"; S="${{ github.event.inputs.slot || 'pm' }}" ;;
           esac
+          echo "region=$R" >> "$GITHUB_OUTPUT"
+          echo "slot=$S" >> "$GITHUB_OUTPUT"
       - name: Publish news carousel
         run: |
           curl -fsS --max-time 110 --retry 1 --retry-delay 20 -X GET \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
-            "https://investk.app/api/ig/publish?type=news&slot=${{ steps.s.outputs.slot }}"
+            "https://investk.app/api/ig/publish?type=news&region=${{ steps.r.outputs.region }}&slot=${{ steps.r.outputs.slot }}"

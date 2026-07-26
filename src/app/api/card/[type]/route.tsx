@@ -319,12 +319,14 @@ const impTint = (im: string) => (im === '호재' ? UP_T : im === '악재' ? DOWN
 function NewsCover(nd: NewsCardData) {
   const items = nd.items.slice(0, 3);
   const top = items[0];
+  const pill = nd.regionLabel ? `${nd.regionLabel} 투자 뉴스` : `오늘 꼭 알아야 할 뉴스 ${items.length}`;
+  const headRight = `${nd.dateLabel}${nd.slotLabel ? ` · ${nd.slotLabel}` : ''}`;
   return (
     <Frame>
-      <Header right={`${nd.dateLabel} · 저녁`} />
+      <Header right={headRight} />
       <div style={{ display: 'flex', flexDirection: 'column', flex: 1, justifyContent: 'center', gap: 36 }}>
         <div style={{ display: 'flex' }}>
-          <div style={{ display: 'flex', alignItems: 'center', background: TEAL_T2, borderRadius: 999, padding: '12px 26px', fontSize: 26, fontWeight: 800, color: TEAL }}>오늘 꼭 알아야 할 뉴스 {items.length}</div>
+          <div style={{ display: 'flex', alignItems: 'center', background: TEAL_T2, borderRadius: 999, padding: '12px 26px', fontSize: 26, fontWeight: 800, color: TEAL }}>{pill}</div>
         </div>
         <div style={{ display: 'flex', fontSize: 86, fontWeight: 900, color: TXT, letterSpacing: '-0.04em', lineHeight: 1.2 }}>{top ? top.title : '오늘의 주요 뉴스'}</div>
         <div style={{ display: 'flex', fontSize: 40, fontWeight: 700, color: SUB, letterSpacing: '-0.02em' }}>넘기면서 30초면 충분해요</div>
@@ -933,10 +935,13 @@ function renderWeek(type: string, wd: WeekReviewData): React.ReactElement | null
 
 export async function GET(_req: Request, { params }: { params: { type: string } }) {
   const t = params.type;
-  const slot = new URL(_req.url).searchParams.get('slot') === 'am' ? 'am' : 'pm';
+  const qs = new URL(_req.url).searchParams;
+  const slot = qs.get('slot') === 'am' ? 'am' : 'pm';
+  const rg = qs.get('region');
+  const region = rg === 'kr' || rg === 'us' ? rg : 'all';
   const img = (el: React.ReactElement | null) => (el ? new ImageResponse(el, { width: 1080, height: 1350, fonts: fontsPromise }) : new Response('no card', { status: 404 }));
   const fontsPromise = await fonts();
-  if (t.startsWith('news')) return img(renderNews(t, await getNewsCardData(slot)));
+  if (t.startsWith('news')) return img(renderNews(t, await getNewsCardData(slot, region)));
   if (t.startsWith('value')) return img(renderValue(t, await getValueCardData()));
   if (t.startsWith('cal')) return img(renderCalendar(t, await getCalendarCardData()));
   if (t.startsWith('term')) return img(renderTerm(t, await getTermCardData()));

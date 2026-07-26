@@ -114,19 +114,29 @@ const TAGS_BRAND = ['#investK', '#인베스트케이'];
 const tags = (extra: string[]) => [...TAGS_BASE, ...extra, ...TAGS_BRAND].slice(0, 30).join(' ');
 
 // 인스타가 이미지를 새로 가져가도록 매 호출 고유 쿼리를 붙여 캐시 무력화.
-// slot: 뉴스 아침/저녁 구분(카드 데이터가 슬롯별로 달라짐).
-export function cardImageUrl(type: string, slot?: string): string {
+// slot: 뉴스 아침/저녁, region: 국내/미국 (카드 데이터가 슬롯·지역별로 달라짐).
+export function cardImageUrl(type: string, slot?: string, region?: string): string {
   const s = slot ? `&slot=${slot}` : '';
-  return `${SITE_URL}/api/card/${type}?t=${Date.now()}${s}`;
+  const r = region && region !== 'all' ? `&region=${region}` : '';
+  return `${SITE_URL}/api/card/${type}?t=${Date.now()}${s}${r}`;
 }
 
 const IMP_EMOJI: Record<string, string> = { 호재: '📈', 악재: '📉', 중립: '➖' };
 
-export async function buildCaption(type: string, slot?: 'am' | 'pm'): Promise<string> {
+export async function buildCaption(type: string, slot?: 'am' | 'pm', region?: 'kr' | 'us' | 'all'): Promise<string> {
   if (type === 'news') {
-    const nd = await getNewsCardData(slot ?? 'pm');
+    const rg = region ?? 'all';
+    const nd = await getNewsCardData(slot ?? 'pm', rg);
     const items = nd.items.slice(0, 3).map((n, i) => `${i + 1}. ${IMP_EMOJI[n.impact] ?? ''} ${n.title}`).join('\n');
-    const head = slot === 'am' ? `🌅 밤사이 투자 뉴스 · ${kstDateLabel()}` : `📰 오늘의 투자 뉴스 · ${kstDateLabel()}`;
+    const when = slot === 'am' ? '아침' : '저녁';
+    const head =
+      rg === 'kr' ? `🇰🇷 국내 ${when} 뉴스 · ${kstDateLabel()}`
+      : rg === 'us' ? `🇺🇸 미국 ${when} 뉴스 · ${kstDateLabel()}`
+      : slot === 'am' ? `🌅 밤사이 투자 뉴스 · ${kstDateLabel()}` : `📰 오늘의 투자 뉴스 · ${kstDateLabel()}`;
+    const extraTags =
+      rg === 'kr' ? ['#국내주식', '#코스피', '#코스닥', '#국내증시', '#한국주식', '#증시뉴스', '#경제뉴스', '#오늘의뉴스']
+      : rg === 'us' ? ['#미국주식', '#나스닥', '#SP500', '#미국증시', '#해외주식', '#서학개미', '#증시뉴스', '#오늘의뉴스']
+      : ['#경제뉴스', '#증시뉴스', '#투자뉴스', '#코스피', '#나스닥', '#미국주식', '#비트코인', '#오늘의뉴스'];
     return [
       head,
       '',
@@ -135,7 +145,7 @@ export async function buildCaption(type: string, slot?: 'am' | 'pm'): Promise<st
       '💬 댓글에 「지표」 라고 남기면 실시간 링크를 DM으로 보내드려요!','','※ 참고용 정보이며 투자 권유가 아닙니다.',
       '👉 전체 뉴스·지표는 프로필 링크 investk.app',
       '',
-      tags(['#경제뉴스', '#증시뉴스', '#투자뉴스', '#코스피', '#나스닥', '#미국주식', '#비트코인', '#오늘의뉴스']),
+      tags(extraTags),
     ].join('\n');
   }
   if (type === 'value') {
@@ -230,8 +240,8 @@ export async function buildCaption(type: string, slot?: 'am' | 'pm'): Promise<st
 }
 
 // 뉴스 캐러셀 카드 목록(커버 + 뉴스 N + 마무리). 뉴스 개수에 맞춰 동적 생성.
-export async function newsCards(slot?: 'am' | 'pm'): Promise<string[]> {
-  const nd = await getNewsCardData(slot ?? 'pm');
+export async function newsCards(slot?: 'am' | 'pm', region?: 'kr' | 'us' | 'all'): Promise<string[]> {
+  const nd = await getNewsCardData(slot ?? 'pm', region ?? 'all');
   const n = Math.min(nd.items.length, 3);
   if (n === 0) return [];
   return ['news-cover', ...Array.from({ length: n }, (_, i) => `news-${i}`), 'news-outro'];

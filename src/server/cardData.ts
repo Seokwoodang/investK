@@ -137,7 +137,8 @@ export async function getCardData(): Promise<CardData> {
 // ── 뉴스 캐러셀 데이터 ──
 export type NewsImpact = '호재' | '악재' | '중립';
 export interface NewsItem { category: string; title: string; bullets: string[]; why: string; impact: NewsImpact }
-export interface NewsCardData { dateLabel: string; items: NewsItem[]; wrap: { a: string; b: string } | null }
+export interface NewsCardData { dateLabel: string; items: NewsItem[]; wrap: { a: string; b: string } | null; regionLabel?: string; slotLabel?: string }
+export type NewsRegionArg = 'kr' | 'us' | 'all';
 
 const IMP_ORDER: Record<string, number> = { 상: 0, 중: 1, 하: 2 };
 
@@ -159,46 +160,55 @@ function newsPrompt(cands: { title: string; summary: string; why: string; impact
 }
 
 // 전체 뉴스 탭의 랭킹 뉴스를 취합 → 상위 후보를 Claude로 카드용 요약(카테고리·팩트3·왜중요·대비 한줄)으로 가공(하루 1회 캐시).
-// slot: 'am'(아침·밤사이 뉴스) | 'pm'(저녁·오늘 마감). 하루 2회 게시 시 아침에 나간
-// 뉴스를 저녁에서 제외해 중복 방지(KV `news:am:{ymd}`에 아침 후보 제목 기록).
+// slot: 'am'(아침) | 'pm'(저녁). region: 'kr'(국내)·'us'(미국)·'all'(혼합).
+// 지역별로 하루 2회(아침·저녁) 게시 → 하루 국내2 + 미국2 = 4개. 같은 지역 아침에 나간 뉴스는
+// 저녁에서 제외해 중복 방지(KV `news:{region}:am:{ymd}`에 아침 후보 제목 기록).
 type NewsRegion = 'kr' | 'us' | 'coin';
 const TAB_REGION: Record<string, NewsRegion> = { kr_stock: 'kr', us_stock: 'us', global_coin: 'coin' };
-export async function getNewsCardData(slot: 'am' | 'pm' = 'pm'): Promise<NewsCardData> {
+export async function getNewsCardData(slot: 'am' | 'pm' = 'pm', region: NewsRegionArg = 'all'): Promise<NewsCardData> {
   const lists = await Promise.all(NEWS_TABS.map((t) => getCachedRankedNews(`page:${t}`).catch(() => null)));
   const seen = new Set<string>();
   const raw = [] as { title: string; summary: string; why: string; impact: NewsImpact; tags: string[]; importance: string; region: NewsRegion }[];
   lists.forEach((l, ti) => {
-    const region = TAB_REGION[NEWS_TABS[ti]] ?? 'us';
+    const rg = TAB_REGION[NEWS_TABS[ti]] ?? 'us';
     for (const n of l ?? []) {
       const key = n.title.trim();
       if (!key || seen.has(key)) continue;
       seen.add(key);
-      raw.push({ title: n.title, summary: n.summary ?? '', why: n.why ?? '', impact: n.impact, tags: n.tags ?? [], importance: n.importance, region });
+      raw.push({ title: n.title, summary: n.summary ?? '', why: n.why ?? '', impact: n.impact, tags: n.tags ?? [], importance: n.importance, region: rg });
     }
   });
   raw.sort((a, z) => (IMP_ORDER[a.importance] ?? 9) - (IMP_ORDER[z.importance] ?? 9));
   const ymd = kstYmd();
-  let pool = raw;
+  // 지역 필터(국내/미국 전용 피드). 'all'은 전체.
+  let pool = region === 'all' ? raw : raw.filter((n) => n.region === region);
   if (slot === 'pm') {
-    // 아침에 후보로 쓴 제목 제외(중복 방지). 남는 게 3건 미만이면 원래 풀 유지(빈 게시 방지).
-    const amUsed = new Set((await kvGet<string[]>(`news:am:${ymd}`).catch(() => null)) ?? []);
+    // 같은 지역 아침에 쓴 제목 제외(중복 방지). 남는 게 3건 미만이면 원래 풀 유지(빈 게시 방지).
+    const amUsed = new Set((await kvGet<string[]>(`news:${region}:am:${ymd}`).catch(() => null)) ?? []);
     if (amUsed.size) {
-      const filtered = raw.filter((n) => !amUsed.has(n.title.trim()));
+      const filtered = pool.filter((n) => !amUsed.has(n.title.trim()));
       if (filtered.length >= 3) pool = filtered;
     }
   }
-  // 지역 균형: 아침·저녁 모두 국내1 + 미국1 보장, 3번째는 남은 것 중 중요도 최상(코인 등). 빈 지역은 건너뜀.
-  const top: typeof raw = [];
-  const take = (pred: (n: (typeof raw)[number]) => boolean) => { const x = pool.find((n) => pred(n) && !top.includes(n)); if (x) top.push(x); };
-  take((n) => n.region === 'kr');
-  take((n) => n.region === 'us');
-  take(() => true); // 3번째: 남은 것 중 중요도 최상
-  for (const n of pool) { if (top.length >= 3) break; if (!top.includes(n)) top.push(n); } // 부족분 채우기
+  let top: typeof raw = [];
+  if (region === 'all') {
+    // 혼합 슬롯: 국내1 + 미국1 보장 + 3번째는 남은 것 중 중요도 최상.
+    const take = (pred: (n: (typeof raw)[number]) => boolean) => { const x = pool.find((n) => pred(n) && !top.includes(n)); if (x) top.push(x); };
+    take((n) => n.region === 'kr');
+    take((n) => n.region === 'us');
+    take(() => true);
+    for (const n of pool) { if (top.length >= 3) break; if (!top.includes(n)) top.push(n); }
+  } else {
+    // 지역 전용: 해당 지역 중요도순 top3.
+    top = pool.slice(0, 3);
+  }
   top.sort((a, z) => (IMP_ORDER[a.importance] ?? 9) - (IMP_ORDER[z.importance] ?? 9)); // 카드 순서는 중요도순
   const dateLabel = kstDateLabel();
-  if (!top.length) return { dateLabel, items: [], wrap: null };
+  const regionLabel = region === 'kr' ? '국내' : region === 'us' ? '미국' : '';
+  const slotLabel = slot === 'am' ? '아침' : '저녁';
+  if (!top.length) return { dateLabel, items: [], wrap: null, regionLabel, slotLabel };
   // 아침 슬롯: 이번에 쓴 후보 제목을 기록 → 저녁이 겹치지 않게. (idempotent, 여러 번 호출돼도 동일)
-  if (slot === 'am') await kvSet(`news:am:${ymd}`, top.map((n) => n.title.trim())).catch(() => {});
+  if (slot === 'am') await kvSet(`news:${region}:am:${ymd}`, top.map((n) => n.title.trim())).catch(() => {});
 
   // AI 실패/무키 시 폴백: 원문 제목·요약을 그대로 카드화.
   const fallback: { items: NewsItem[]; wrap: { a: string; b: string } | null } = {
@@ -213,7 +223,7 @@ export async function getNewsCardData(slot: 'am' | 'pm' = 'pm'): Promise<NewsCar
   };
 
   const obj = await getOrGenerateJSON<{ items: NewsItem[]; wrap: { a: string; b: string } | null }>({
-    cacheKey: `news-cards:${ymd}:${slot}`,
+    cacheKey: `news-cards:${ymd}:${region}:${slot}`,
     kind: 'news-cards',
     system: NEWS_SYSTEM,
     prompt: newsPrompt(top),
@@ -232,7 +242,7 @@ export async function getNewsCardData(slot: 'am' | 'pm' = 'pm'): Promise<NewsCar
   let wrap = obj.wrap ?? null;
   if (wrap && (!wrap.a || !wrap.b || [...wrap.a].length > 11 || [...wrap.b].length > 11)) wrap = null;
 
-  return { dateLabel, items: items.length ? items : fallback.items, wrap };
+  return { dateLabel, items: items.length ? items : fallback.items, wrap, regionLabel, slotLabel };
 }
 
 // ══════════════ ① 저평가 우량주 TOP5 (주간) ══════════════
