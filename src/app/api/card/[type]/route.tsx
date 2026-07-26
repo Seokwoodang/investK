@@ -950,6 +950,43 @@ function renderWeek(type: string, wd: WeekReviewData): React.ReactElement | null
   return null;
 }
 
+// ══════════════ 게시 일정 카드 (모든 캐러셀 마무리 직전에 삽입) ══════════════
+// Satori라 이모지·국기 사용 불가 → 국내=틸/미국=바이올렛 색점으로 지역 구분.
+function SchedRow({ dot, name, sub, time }: { dot?: string; name: string; sub?: string; time: string }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 22, background: SURF, borderRadius: 20, padding: '26px 34px' }}>
+      {dot ? <div style={{ display: 'flex', width: 18, height: 18, borderRadius: 6, background: dot, flexShrink: 0 }} /> : <div style={{ display: 'flex', width: 18, flexShrink: 0 }} />}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1 }}>
+        <div style={{ display: 'flex', fontSize: 33, fontWeight: 800, color: TXT, letterSpacing: '-0.01em' }}>{name}</div>
+        {sub ? <div style={{ display: 'flex', fontSize: 22, fontWeight: 600, color: SUB }}>{sub}</div> : null}
+      </div>
+      <div style={{ display: 'flex', fontSize: 31, fontWeight: 900, color: TEAL }}>{time}</div>
+    </div>
+  );
+}
+function ScheduleCard() {
+  return (
+    <Frame>
+      <Header right="" />
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 48 }}>
+        <div style={{ display: 'flex', fontSize: 26, fontWeight: 800, color: TEAL }}>POSTING SCHEDULE</div>
+        <div style={{ display: 'flex', fontSize: 68, fontWeight: 900, color: TXT, letterSpacing: '-0.04em' }}>매일 이 시간에 올려요</div>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', flex: 1, justifyContent: 'center', gap: 13 }}>
+        <SchedRow dot={TEAL} name="국내 뉴스" sub="개장 전 · 마감" time="08:00 · 15:30" />
+        <SchedRow dot={US_ACC} name="미국 뉴스" sub="마감 · 개장 전" time="05:00 · 21:30" />
+        <SchedRow name="아침 시장 브리핑" sub="평일" time="06:30" />
+        <SchedRow name="데일리 릴스" sub="평일" time="12:30" />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, background: TEAL_T, borderRadius: 20, padding: '26px 34px' }}>
+          <div style={{ display: 'flex', fontSize: 24, fontWeight: 800, color: TEAL }}>요일 특집</div>
+          <div style={{ display: 'flex', fontSize: 28, fontWeight: 700, color: TXT, letterSpacing: '-0.01em' }}>월 저평가주 · 수 투자용어 · 토 주간리뷰 · 일 경제캘린더</div>
+        </div>
+      </div>
+      <CtaBar text="알림 켜두면 안 놓쳐요 ↑" sub="팔로우하고 이 시간마다 챙기세요" />
+    </Frame>
+  );
+}
+
 export async function GET(_req: Request, { params }: { params: { type: string } }) {
   const t = params.type;
   const qs = new URL(_req.url).searchParams;
@@ -963,6 +1000,7 @@ export async function GET(_req: Request, { params }: { params: { type: string } 
   if (t.startsWith('cal')) return img(renderCalendar(t, await getCalendarCardData()));
   if (t.startsWith('term')) return img(renderTerm(t, await getTermCardData()));
   if (t.startsWith('week')) return img(renderWeek(t, await getWeekReviewData()));
+  if (t === 'sched') return img(<ScheduleCard />);
   if (t === 'breaking') { const b = await getBreakingCardData(); return img(b ? <BreakingCard {...b} /> : null); }
   const render = RENDERERS[t];
   if (!render) return new Response('unknown card type', { status: 404 });

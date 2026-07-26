@@ -28,13 +28,18 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 const CAPTION_TYPE: Record<string, string> = { daily: 'brief', news: 'news', value: 'value', calendar: 'calendar', term: 'term', week: 'week' };
+// 마무리(마지막 장) 바로 앞에 '게시 일정' 카드 삽입 — 어느 글을 봐도 편성 시간을 알게.
+function withSchedule(cards: string[]): string[] {
+  if (cards.length < 2) return cards;
+  return [...cards.slice(0, -1), 'sched', cards[cards.length - 1]];
+}
 async function cardsFor(type: string, slot?: 'am' | 'pm', region?: 'kr' | 'us' | 'all'): Promise<string[]> {
-  if (type === 'daily') return [...DAILY_CARDS];
-  if (type === 'news') return newsCards(slot, region);
-  if (type === 'value') return valueCards();
-  if (type === 'calendar') return calendarCards();
-  if (type === 'term') return termCards();
-  if (type === 'week') return weekCards();
+  if (type === 'daily') return withSchedule([...DAILY_CARDS]);
+  if (type === 'news') return withSchedule(await newsCards(slot, region));
+  if (type === 'value') return withSchedule(await valueCards());
+  if (type === 'calendar') return withSchedule(await calendarCards());
+  if (type === 'term') return withSchedule(termCards());
+  if (type === 'week') return withSchedule(weekCards());
   return [type];
 }
 

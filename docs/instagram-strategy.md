@@ -76,6 +76,7 @@
 | `daily` | cover/kr/global/crypto/outro | getCardData (브리핑 캐시) | 오늘의 지수·코인·환율 총정리 |
 | `news` | news-cover/news-N/news-outro | getNewsCardData (AI 요약) | 뉴스 3건 카테고리·팩트3·왜중요 |
 | `week` | week-cover/week-detail/week-outro | getWeekReviewData | 한 주 총정리(지수 주간등락·최고/부진·요약) |
+| `sched` | (단일) | 정적 | **게시 일정 카드** — 모든 캐러셀 마무리 직전에 자동 삽입(`withSchedule`). 어느 글을 봐도 편성 시간 노출. 이모지 불가라 국내=틸/미국=바이올렛 색점. |
 | `calendar` | cal-cover/cal-1/cal-2/cal-outro | getCalendarCardData | 이번 주 경제 일정, 고영향 강조 |
 | `value` | value-cover/value-N/value-outro | getValueCardData (국내/해외 로테이션) | PER·PBR·ROE·배당 저평가 TOP5 |
 | `term` | term-cover/def/example/tips/outro | getTermCardData (주간 로테이션) | 투자 용어 1분 교육 |
