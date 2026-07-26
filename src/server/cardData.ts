@@ -38,7 +38,7 @@ export interface CardData {
 const kstYmd = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
 const kstDateLabel = () => new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', month: 'long', day: 'numeric', weekday: 'long' }).format(new Date());
 
-async function yq(symbol: string): Promise<{ price: number; chg: number } | null> {
+async function yq(symbol: string): Promise<{ price: number; chg: number; time: number } | null> {
   try {
     const j = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=5d`, {
       headers: { 'User-Agent': 'Mozilla/5.0' },
@@ -49,11 +49,13 @@ async function yq(symbol: string): Promise<{ price: number; chg: number } | null
     const price = m.regularMarketPrice as number;
     const prev = (m.chartPreviousClose ?? m.previousClose) as number | undefined;
     const chg = prev ? ((price - prev) / prev) * 100 : 0;
-    return { price, chg };
+    return { price, chg, time: Number(m.regularMarketTime ?? 0) }; // time=마지막 체결 unix초
   } catch {
     return null;
   }
 }
+// 최근 체결(라이브)인지 — 마지막 체결이 최근 3시간 내면 장중/실시간으로 간주(스테일 주말값 배제).
+const isLive = (q: { time: number } | null): boolean => !!q && q.time > 0 && Date.now() / 1000 - q.time < 3 * 3600;
 
 const findIdx = (rows: { name: string; val: string; chg: number }[], name: string): Move => {
   const r = rows.find((x) => x.name === name);
@@ -363,9 +365,10 @@ export async function getBreakingCardData(): Promise<BreakingData | null> {
   const [kospi, kosdaq, sp, nasdaq, vix, btc] = await Promise.all([
     yq('%5EKS11'), yq('%5EKQ11'), yq('%5EGSPC'), yq('%5EIXIC'), yq('%5EVIX'), yq('BTC-USD'),
   ]);
+  // 장중 실시간(라이브)인 지수만 — 주말·휴장 스테일값으로 잘못된 속보 방지.
   const idx = [
     { name: '코스피', q: kospi }, { name: '코스닥', q: kosdaq }, { name: 'S&P 500', q: sp }, { name: '나스닥', q: nasdaq },
-  ].filter((x) => x.q) as { name: string; q: { price: number; chg: number } }[];
+  ].filter((x) => x.q && isLive(x.q)) as { name: string; q: { price: number; chg: number; time: number } }[];
 
   type Cand = { key: string; sev: number; dir: 'up' | 'down'; headline: string; sub: string };
   const cands: Cand[] = [];
@@ -379,10 +382,10 @@ export async function getBreakingCardData(): Promise<BreakingData | null> {
         sub: dir === 'down' ? '위험 회피 심리가 커지고 있어요. 지금 무슨 일인지 확인하세요.' : '강한 매수세가 유입되고 있어요.' });
     }
   }
-  if (vix && (vix.chg >= 12 || vix.price >= 30)) {
+  if (vix && isLive(vix) && (vix.chg >= 12 || vix.price >= 30)) {
     cands.push({ key: 'vix-up', sev: 4 + vix.chg / 10, dir: 'up', headline: `공포지수(VIX) ${vix.price.toFixed(1)} 급등`, sub: 'VIX가 치솟으며 시장 불안이 커지고 있어요.' });
   }
-  if (btc && Math.abs(btc.chg) >= 5) {
+  if (btc && isLive(btc) && Math.abs(btc.chg) >= 5) {
     const dir = btc.chg > 0 ? 'up' : 'down';
     cands.push({ key: `btc-${dir}`, sev: Math.abs(btc.chg) / 1.5, dir, headline: `비트코인 ${btc.chg > 0 ? '+' : ''}${btc.chg.toFixed(1)}% ${dir === 'up' ? '급등' : '급락'}`, sub: dir === 'down' ? '코인 시장에 매도세가 몰리고 있어요.' : '코인 시장에 강한 매수세가 붙었어요.' });
   }

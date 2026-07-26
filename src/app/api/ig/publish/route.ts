@@ -1,5 +1,19 @@
 import { NextResponse } from 'next/server';
 import { publishCarousel, publishImage, publishReel, buildCaption, cardImageUrl, newsCards, valueCards, calendarCards, termCards, DAILY_CARDS } from '@/server/instagram';
+import { kvGet, kvSet } from '@/server/kv';
+
+// 시장 데이터 신선도 키: 지수의 마지막 체결시각(regularMarketTime) 조합. 장이 안 열린 날
+// (주말·휴장)은 값이 그대로라 키가 안 바뀜 → 어제와 같은 데이터면 게시 스킵.
+async function marketFreshKey(): Promise<string> {
+  const q = async (s: string) => {
+    try {
+      const j = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${s}?interval=1d&range=1d`, { headers: { 'User-Agent': 'Mozilla/5.0' }, cache: 'no-store' }).then((r) => r.json());
+      return String(j?.chart?.result?.[0]?.meta?.regularMarketTime ?? '');
+    } catch { return ''; }
+  };
+  const [k, s, n] = await Promise.all([q('%5EKS11'), q('%5EGSPC'), q('%5EIXIC')]);
+  return `${k}_${s}_${n}`;
+}
 
 // 인스타그램 자동 게시 엔드포인트(GitHub Actions cron이 호출).
 //  ?type=daily    : 시장 브리핑 캐러셀 5장(기본)
@@ -37,11 +51,24 @@ async function run(req: Request) {
   const type = url.searchParams.get('type') || 'daily';
   const dry = url.searchParams.get('dry') === '1';
   const video = url.searchParams.get('video'); // 있으면 릴스(세로 영상) 게시
+  const force = url.searchParams.get('force') === '1'; // 신선도 게이트 무시(수동 강제)
   try {
+    // 시장 브리핑(daily)은 새 시장 데이터가 있을 때만 — 주말·휴장일 중복 게시 방지.
+    let freshKvKey = '';
+    let freshKeyVal = '';
+    if (type === 'daily' && !dry && !force) {
+      freshKeyVal = await marketFreshKey();
+      freshKvKey = `ig:daily:${video ? 'reel' : 'carousel'}:key`;
+      if (freshKeyVal && (await kvGet<string>(freshKvKey)) === freshKeyVal) {
+        return NextResponse.json({ ok: true, skipped: true, reason: '새 시장 데이터 없음(주말·휴장) — 중복 게시 방지', key: freshKeyVal });
+      }
+    }
+    const markFresh = async () => { if (freshKvKey && freshKeyVal) await kvSet(freshKvKey, freshKeyVal); };
     const caption = await buildCaption(CAPTION_TYPE[type] ?? 'brief');
     if (video) {
       if (dry) return NextResponse.json({ ok: true, dry: true, mode: 'reel', video, caption });
       const res = await publishReel(video, caption);
+      await markFresh();
       return NextResponse.json({ ok: true, id: res.id, mode: 'reel' });
     }
     const cards = await cardsFor(type);
@@ -49,6 +76,7 @@ async function run(req: Request) {
     const imageUrls = cards.map(cardImageUrl);
     if (dry) return NextResponse.json({ ok: true, dry: true, cards, imageUrls, caption });
     const res = imageUrls.length > 1 ? await publishCarousel(imageUrls, caption) : await publishImage(imageUrls[0], caption);
+    await markFresh();
     return NextResponse.json({ ok: true, id: res.id, cards });
   } catch (e) {
     console.error('[ig/publish] failed:', (e as Error).message);
