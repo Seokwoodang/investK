@@ -71,9 +71,18 @@ export async function publishCarousel(imageUrls: string[], caption: string): Pro
 }
 
 // 게시 직후 안내 첫 댓글 자동 작성(키워드 유도). 계정 본인 댓글이라 웹훅 owner-skip에 걸려 루프 없음.
-const FIRST_COMMENT = '💬 「지표」 라고 댓글 남기면 실시간 시장지표 링크를 DM으로 보내드려요 📩\n팔로우하면 매일 아침·저녁 시장 정리를 자동으로 받아볼 수 있어요 🙌';
+// 매번 동일 댓글은 스팸 감지에 걸리므로 여러 문구를 미디어ID로 회전(같은 글엔 항상 동일 → 재시도 안전).
+const FIRST_COMMENTS = [
+  '💬 「지표」 라고 댓글 남기면 실시간 시장지표 링크를 DM으로 보내드려요 📩\n팔로우하면 매일 아침·저녁 시장 정리를 자동으로 받아볼 수 있어요 🙌',
+  '📩 「지표」 댓글 주시면 실시간 지표 링크를 DM으로 쏴드려요!\n국내·미국 뉴스랑 아침 브리핑도 매일 올라옵니다 🙌',
+  '오늘 시장 궁금하면 「지표」 라고 남겨보세요 👀 실시간 링크 DM으로 보내드립니다 📈',
+  '💡 「지표」 댓글 = 실시간 시장지표 DM 발송. 팔로우하면 하루 국내·미국 뉴스까지 챙겨드려요 🙌',
+  '궁금한 흐름 있으면 「지표」 댓글 ✍️ 실시간 링크를 DM으로 보내드려요 📩',
+  '📊 매일 아침·저녁 시장 정리 받고 싶으면 팔로우! 「지표」 남기면 실시간 링크도 DM으로 드려요 🙌',
+];
+const pickBy = (id: string, arr: string[]) => arr[[...id].reduce((a, c) => a + c.charCodeAt(0), 0) % arr.length];
 async function postFirstComment(mediaId: string): Promise<void> {
-  try { await igPost(`${mediaId}/comments`, { message: FIRST_COMMENT }); }
+  try { await igPost(`${mediaId}/comments`, { message: pickBy(mediaId, FIRST_COMMENTS) }); }
   catch (e) { console.error('[ig] 첫 댓글 실패:', (e as Error).message); }
 }
 
