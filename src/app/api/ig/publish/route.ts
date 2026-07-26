@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { publishCarousel, publishImage, publishReel, buildCaption, cardImageUrl, newsCards, valueCards, calendarCards, termCards, DAILY_CARDS } from '@/server/instagram';
+import { publishCarousel, publishImage, publishReel, buildCaption, cardImageUrl, newsCards, valueCards, calendarCards, termCards, weekCards, DAILY_CARDS } from '@/server/instagram';
 import { kvGet, kvSet } from '@/server/kv';
 
 // 시장 데이터 신선도 키: 지수의 마지막 체결시각(regularMarketTime) 조합. 장이 안 열린 날
@@ -27,13 +27,14 @@ async function marketFreshKey(): Promise<string> {
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
-const CAPTION_TYPE: Record<string, string> = { daily: 'brief', news: 'news', value: 'value', calendar: 'calendar', term: 'term' };
+const CAPTION_TYPE: Record<string, string> = { daily: 'brief', news: 'news', value: 'value', calendar: 'calendar', term: 'term', week: 'week' };
 async function cardsFor(type: string): Promise<string[]> {
   if (type === 'daily') return [...DAILY_CARDS];
   if (type === 'news') return newsCards();
   if (type === 'value') return valueCards();
   if (type === 'calendar') return calendarCards();
   if (type === 'term') return termCards();
+  if (type === 'week') return weekCards();
   return [type];
 }
 

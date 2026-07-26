@@ -400,3 +400,62 @@ export async function getBreakingCardData(): Promise<BreakingData | null> {
   ];
   return { key: top.key, time: kstTimeLabel(), headline: top.headline, sub: top.sub, dir: top.dir, tiles };
 }
+
+// ══════════════ 주간 마켓 리뷰 (주말용) ══════════════
+// 일일 시황과 달리 '한 주 총정리'라 주말에도 데이터가 겹치지 않음(스테일 아님).
+export interface WeekIndexRow { name: string; chg: number }
+export interface WeekReviewData {
+  dateLabel: string; range: string;
+  hero: WeekIndexRow;
+  indices: WeekIndexRow[]; // 코스피·코스닥·S&P·나스닥 주간 등락
+  btc: number;
+  best: WeekIndexRow; worst: WeekIndexRow;
+  summary: string;
+}
+
+// 주간 등락 = 최근 종가 vs 5거래일(약 1주) 전 종가. range=7d는 두 주에 걸쳐 캔들이
+// 잡혀 첫 종가가 지난주 값이 되므로(수치 왜곡) 1개월 캔들에서 뒤에서 6번째를 기준으로 삼는다.
+async function yWeekly(symbol: string): Promise<number | null> {
+  try {
+    const j = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=1mo`, {
+      headers: { 'User-Agent': 'Mozilla/5.0' }, next: { revalidate: 1800 },
+    }).then((r) => r.json());
+    const closes: number[] = (j?.chart?.result?.[0]?.indicators?.quote?.[0]?.close ?? []).filter((x: number | null) => x != null);
+    if (closes.length < 2) return null;
+    const last = closes[closes.length - 1];
+    const base = closes[closes.length - 6] ?? closes[0]; // 약 5거래일(1주) 전
+    return ((last - base) / base) * 100;
+  } catch { return null; }
+}
+
+// 이번 주 월~금 날짜 라벨 (KST 기준).
+function weekRangeLabel(): string {
+  const kst = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
+  const dow = kst.getDay(); // 0=일
+  const mon = new Date(kst); mon.setDate(kst.getDate() - ((dow + 6) % 7));
+  const fri = new Date(mon); fri.setDate(mon.getDate() + 4);
+  const f = (d: Date) => `${d.getMonth() + 1}.${d.getDate()}`;
+  return `${f(mon)} – ${f(fri)}`;
+}
+
+export async function getWeekReviewData(): Promise<WeekReviewData> {
+  const [ks, kq, sp, na, bt] = await Promise.all([
+    yWeekly('%5EKS11'), yWeekly('%5EKQ11'), yWeekly('%5EGSPC'), yWeekly('%5EIXIC'), yWeekly('BTC-USD'),
+  ]);
+  const indices: WeekIndexRow[] = [
+    { name: '코스피', chg: ks ?? 0 }, { name: '코스닥', chg: kq ?? 0 },
+    { name: 'S&P 500', chg: sp ?? 0 }, { name: '나스닥', chg: na ?? 0 },
+  ];
+  const hero = [...indices].sort((a, b) => Math.abs(b.chg) - Math.abs(a.chg))[0];
+  const ranked = [...indices].sort((a, b) => b.chg - a.chg);
+  const best = ranked[0], worst = ranked[ranked.length - 1];
+  const ups = indices.filter((x) => x.chg > 0).length;
+  const avg = indices.reduce((s, x) => s + x.chg, 0) / indices.length;
+  let summary: string;
+  if (avg >= 1.5) summary = '위험자산 선호가 뚜렷했던 한 주. 주요 지수 대부분 상승 마감했어요.';
+  else if (avg <= -1.5) summary = '조정이 나온 한 주. 지수 대부분 하락하며 경계 심리가 커졌어요.';
+  else if (ups >= 3) summary = '완만한 상승 흐름 속 종목 장세가 이어진 한 주였어요.';
+  else if (ups <= 1) summary = '지수가 눌린 채 방향을 탐색한 한 주였어요.';
+  else summary = '지수별 온도차가 컸던 혼조세의 한 주였어요.';
+  return { dateLabel: kstDateLabel(), range: weekRangeLabel(), hero, indices, btc: bt ?? 0, best, worst, summary };
+}

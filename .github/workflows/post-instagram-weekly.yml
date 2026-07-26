@@ -1,18 +1,20 @@
 name: Post to Instagram (weekly series)
 
-# 주간 시리즈 3종 자동 게시. KST → UTC:
+# 주간 시리즈 자동 게시. KST → UTC:
+#  · 주간 마켓 리뷰      : 토 10:00 KST = 토 01:00 UTC (주말·휴장에 일일 브리핑 대신)
 #  · 저평가 우량주 TOP5 : 월 08:30 KST = 일 23:30 UTC
 #  · 주간 경제 캘린더    : 일 19:00 KST = 일 10:00 UTC
 #  · 투자 용어 1분       : 수 19:00 KST = 수 10:00 UTC
 on:
   schedule:
+    - cron: '0 1 * * 6'   # week (토 아침 — 한 주 총정리)
     - cron: '30 23 * * 0' # value (월 아침)
     - cron: '0 10 * * 0'  # calendar (일 저녁)
     - cron: '0 10 * * 3'  # term (수 저녁)
   workflow_dispatch:
     inputs:
       type:
-        description: '게시 종류(value|calendar|term)'
+        description: '게시 종류(week|value|calendar|term)'
         default: 'value'
 
 jobs:
@@ -23,6 +25,7 @@ jobs:
         id: t
         run: |
           case "${{ github.event.schedule }}" in
+            "0 1 * * 6")   echo "type=week" >> "$GITHUB_OUTPUT" ;;
             "30 23 * * 0") echo "type=value" >> "$GITHUB_OUTPUT" ;;
             "0 10 * * 0")  echo "type=calendar" >> "$GITHUB_OUTPUT" ;;
             "0 10 * * 3")  echo "type=term" >> "$GITHUB_OUTPUT" ;;

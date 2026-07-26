@@ -1,8 +1,9 @@
 import { ImageResponse } from 'next/og';
 import {
-  getCardData, getNewsCardData, getValueCardData, getCalendarCardData, getTermCardData, getBreakingCardData,
+  getCardData, getNewsCardData, getValueCardData, getCalendarCardData, getTermCardData, getBreakingCardData, getWeekReviewData,
   type CardData, type Move, type NewsCardData, type NewsItem,
   type ValueCardData, type ValueStock, type CalCardData, type CalEvent, type TermCardData, type BreakingData,
+  type WeekReviewData, type WeekIndexRow,
 } from '@/server/cardData';
 
 // 인스타 카드뉴스 5장(1080×1350, 4:5). 다크 테마. 디자인 핸드오프 시안을 Satori로 포팅.
@@ -841,6 +842,95 @@ function renderNews(type: string, nd: NewsCardData): React.ReactElement | null {
   return null;
 }
 
+// ══════════════ 주간 마켓 리뷰 (주말용) ══════════════
+const weekWord = (chg: number) => (Math.abs(chg) >= 3 ? (chg > 0 ? '급등' : '급락') : chg > 0 ? '상승' : chg < 0 ? '하락' : '보합');
+function WeekRow({ r, spark }: { r: WeekIndexRow; spark?: boolean }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 24, background: SURF, borderRadius: 20, padding: '30px 40px' }}>
+      <div style={{ display: 'flex', fontSize: 40, fontWeight: 800, color: TXT, letterSpacing: '-0.02em', flex: 1 }}>{r.name}</div>
+      {spark ? <Spark chg={r.chg} /> : null}
+      <Chip chg={r.chg} size={40} />
+    </div>
+  );
+}
+function WeekCover(wd: WeekReviewData) {
+  const h = wd.hero;
+  const signed = `${h.chg > 0 ? '+' : h.chg < 0 ? '−' : ''}${Math.abs(h.chg).toFixed(2)}`;
+  return (
+    <Frame>
+      <Header right={wd.range} />
+      <div style={{ display: 'flex', flexDirection: 'column', flex: 1, justifyContent: 'center', gap: 30 }}>
+        <div style={{ display: 'flex' }}>
+          <div style={{ display: 'flex', alignItems: 'center', background: TEAL_T2, borderRadius: 999, padding: '12px 26px', fontSize: 26, fontWeight: 800, color: TEAL }}>이번 주 마켓 리뷰</div>
+        </div>
+        <div style={{ display: 'flex', fontSize: 96, fontWeight: 900, color: TXT, letterSpacing: '-0.04em', lineHeight: 1.15, marginTop: 12 }}>{h.name}, 한 주 동안</div>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 20 }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', fontSize: 200, fontWeight: 900, color: col(h.chg), letterSpacing: '-0.05em', lineHeight: 1 }}>
+            {signed}<span style={{ fontSize: 106, fontWeight: 900 }}>%</span>
+          </div>
+          <div style={{ display: 'flex', fontSize: 72, fontWeight: 900, color: TXT, letterSpacing: '-0.03em' }}>{weekWord(h.chg)}</div>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'row', gap: 14, marginTop: 56 }}>
+          {wd.indices.map((t, i) => (
+            <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1, background: SURF, borderRadius: 20, padding: 26 }}>
+              <div style={{ display: 'flex', fontSize: 22, fontWeight: 700, color: SUB }}>{t.name}</div>
+              <div style={{ display: 'flex', fontSize: 33, fontWeight: 900, color: col(t.chg) }}>{chipPct(t.chg)}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+      <CoverCta text="한 주 정리 보기 →" />
+    </Frame>
+  );
+}
+function WeekDetail(wd: WeekReviewData) {
+  return (
+    <Frame>
+      <Header right="주간 등락" />
+      <Eyebrow en="WEEKLY REVIEW" ko="지수 주간 성적표" />
+      <div style={{ display: 'flex', flexDirection: 'column', flex: 1, justifyContent: 'center', gap: 16 }}>
+        {wd.indices.map((r, i) => <WeekRow key={i} r={r} spark />)}
+        <WeekRow r={{ name: '비트코인', chg: wd.btc }} spark />
+      </div>
+      <Footer right="@investk" />
+    </Frame>
+  );
+}
+function WeekOutro(wd: WeekReviewData) {
+  const b = wd.best, w = wd.worst;
+  return (
+    <Frame>
+      <Header right="" />
+      <div style={{ display: 'flex', flexDirection: 'column', flex: 1, justifyContent: 'center', gap: 40 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+          <Badge text="이번 주 한 줄 요약" />
+          <div style={{ display: 'flex', fontSize: 44, fontWeight: 700, color: TXT, letterSpacing: '-0.02em', lineHeight: 1.4 }}>{wd.summary}</div>
+        </div>
+        <div style={{ display: 'flex', gap: 14 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, flex: 1, background: SURF, borderRadius: 24, padding: '34px 38px' }}>
+            <div style={{ display: 'flex', fontSize: 24, fontWeight: 800, color: UP }}>최고 성과</div>
+            <div style={{ display: 'flex', fontSize: 40, fontWeight: 900, color: TXT }}>{b.name}</div>
+            <div style={{ display: 'flex', fontSize: 34, fontWeight: 900, color: col(b.chg) }}>{chipPct(b.chg)}</div>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, flex: 1, background: SURF, borderRadius: 24, padding: '34px 38px' }}>
+            <div style={{ display: 'flex', fontSize: 24, fontWeight: 800, color: DOWN }}>부진</div>
+            <div style={{ display: 'flex', fontSize: 40, fontWeight: 900, color: TXT }}>{w.name}</div>
+            <div style={{ display: 'flex', fontSize: 34, fontWeight: 900, color: col(w.chg) }}>{chipPct(w.chg)}</div>
+          </div>
+        </div>
+        <CtaBar text="다음 주 브리핑은 프로필 링크에서 ↑" sub="월요일 아침, 새로운 한 주도 30초로 정리해드려요" />
+      </div>
+      <Footer right="참고용 지표 · 투자 권유 아님 · @investk" />
+    </Frame>
+  );
+}
+function renderWeek(type: string, wd: WeekReviewData): React.ReactElement | null {
+  if (type === 'week-cover') return <WeekCover {...wd} />;
+  if (type === 'week-detail') return <WeekDetail {...wd} />;
+  if (type === 'week-outro') return <WeekOutro {...wd} />;
+  return null;
+}
+
 export async function GET(_req: Request, { params }: { params: { type: string } }) {
   const t = params.type;
   const img = (el: React.ReactElement | null) => (el ? new ImageResponse(el, { width: 1080, height: 1350, fonts: fontsPromise }) : new Response('no card', { status: 404 }));
@@ -849,6 +939,7 @@ export async function GET(_req: Request, { params }: { params: { type: string } 
   if (t.startsWith('value')) return img(renderValue(t, await getValueCardData()));
   if (t.startsWith('cal')) return img(renderCalendar(t, await getCalendarCardData()));
   if (t.startsWith('term')) return img(renderTerm(t, await getTermCardData()));
+  if (t.startsWith('week')) return img(renderWeek(t, await getWeekReviewData()));
   if (t === 'breaking') { const b = await getBreakingCardData(); return img(b ? <BreakingCard {...b} /> : null); }
   const render = RENDERERS[t];
   if (!render) return new Response('unknown card type', { status: 404 });

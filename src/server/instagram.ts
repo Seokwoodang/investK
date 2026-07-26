@@ -1,6 +1,6 @@
 import 'server-only';
 import { getBriefing } from '@/server/briefing';
-import { getNewsCardData, getValueCardData, getCalendarCardData, getTermCardData, getBreakingCardData } from '@/server/cardData';
+import { getNewsCardData, getValueCardData, getCalendarCardData, getTermCardData, getBreakingCardData, getWeekReviewData } from '@/server/cardData';
 import { SITE_URL } from '@/lib/site';
 
 // 인스타그램 자동 게시(Instagram 비즈니스 로그인 API, graph.instagram.com).
@@ -178,6 +178,22 @@ export async function buildCaption(type: string): Promise<string> {
       tags(['#속보', '#증시속보', '#급락', '#급등', '#코스피', '#나스닥', '#시장급변동', '#증시']),
     ].join('\n');
   }
+  if (type === 'week') {
+    const wd = await getWeekReviewData();
+    const list = wd.indices.map((r) => `• ${r.name} ${r.chg > 0 ? '+' : r.chg < 0 ? '−' : ''}${Math.abs(r.chg).toFixed(2)}%`).join('\n');
+    return [
+      `📅 이번 주 마켓 리뷰 (${wd.range})`,
+      '',
+      wd.summary,
+      '',
+      list,
+      '',
+      '💬 댓글에 「지표」 라고 남기면 실시간 링크를 DM으로 보내드려요!','','※ 참고용 지표이며 투자 권유가 아닙니다.',
+      '👉 다음 주 브리핑은 프로필 링크 investk.app',
+      '',
+      tags(['#주간증시', '#주간리뷰', '#코스피', '#코스닥', '#나스닥', '#미국주식', '#증시전망', '#주말']),
+    ].join('\n');
+  }
   if (type === 'term') {
     const td = await getTermCardData();
     return [
@@ -232,4 +248,7 @@ export async function calendarCards(): Promise<string[]> {
 }
 export function termCards(): string[] {
   return ['term-cover', 'term-def', 'term-example', 'term-tips', 'term-outro'];
+}
+export function weekCards(): string[] {
+  return ['week-cover', 'week-detail', 'week-outro'];
 }
