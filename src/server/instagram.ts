@@ -128,10 +128,10 @@ export async function buildCaption(type: string, slot?: 'am' | 'pm', region?: 'k
     const rg = region ?? 'all';
     const nd = await getNewsCardData(slot ?? 'pm', rg);
     const items = nd.items.slice(0, 3).map((n, i) => `${i + 1}. ${IMP_EMOJI[n.impact] ?? ''} ${n.title}`).join('\n');
-    const when = slot === 'am' ? '아침' : '저녁';
+    const when = nd.slotLabel || (slot === 'am' ? '아침' : '저녁'); // 개장 전 / 마감
     const head =
-      rg === 'kr' ? `🇰🇷 국내 ${when} 뉴스 · ${kstDateLabel()}`
-      : rg === 'us' ? `🇺🇸 미국 ${when} 뉴스 · ${kstDateLabel()}`
+      rg === 'kr' ? `🇰🇷 국내증시 ${when} 뉴스 · ${kstDateLabel()}`
+      : rg === 'us' ? `🇺🇸 미국증시 ${when} 뉴스 · ${kstDateLabel()}`
       : slot === 'am' ? `🌅 밤사이 투자 뉴스 · ${kstDateLabel()}` : `📰 오늘의 투자 뉴스 · ${kstDateLabel()}`;
     const extraTags =
       rg === 'kr' ? ['#국내주식', '#코스피', '#코스닥', '#국내증시', '#한국주식', '#증시뉴스', '#경제뉴스', '#오늘의뉴스']

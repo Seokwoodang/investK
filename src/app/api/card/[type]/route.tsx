@@ -30,6 +30,11 @@ async function fonts() {
 const BG = '#0A121E', SURF = '#16202E', TXT = '#FFFFFF', SUB = '#8B97A8', TEAL = '#38e0c8', DISC = '#5A6478';
 const UP = '#FF4D5E', DOWN = '#4D8DFF', FEAR = '#FFB454';
 const UP_T = 'rgba(255,77,94,0.14)', DOWN_T = 'rgba(77,141,255,0.14)', TEAL_T = 'rgba(56,224,200,0.10)', TEAL_T2 = 'rgba(56,224,200,0.12)';
+// 뉴스 지역 강조색: 국내=틸(브랜드), 미국=바이올렛. 썸네일에서 색만 봐도 국장/미장 구분.
+const US_ACC = '#9B8CFF', US_ACC_T = 'rgba(155,140,255,0.14)', US_ACC_T2 = 'rgba(155,140,255,0.16)';
+const accOf = (region?: string) => (region === '미국' ? US_ACC : TEAL);
+const accTOf = (region?: string) => (region === '미국' ? US_ACC_T : TEAL_T);
+const accT2Of = (region?: string) => (region === '미국' ? US_ACC_T2 : TEAL_T2);
 
 // 실제 브랜드 로고(상승차트 마크, /icon.svg와 동일). data-URI로 인라인.
 const LOGO_SVG = `<svg width="56" height="56" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="bg" x1="0" y1="0" x2="48" y2="48" gradientUnits="userSpaceOnUse"><stop stop-color="#101a29"/><stop offset="1" stop-color="#0a121d"/></linearGradient><linearGradient id="area" x1="24" y1="10" x2="24" y2="40" gradientUnits="userSpaceOnUse"><stop stop-color="#35e0c8" stop-opacity="0.42"/><stop offset="1" stop-color="#35e0c8" stop-opacity="0"/></linearGradient></defs><rect width="48" height="48" rx="12" fill="url(#bg)"/><rect x="0.5" y="0.5" width="47" height="47" rx="11.5" stroke="#35e0c8" stroke-opacity="0.35"/><path d="M9 31 L19 25 L27 28 L39 14 L39 39 L9 39 Z" fill="url(#area)"/><path d="M9 31 L19 25 L27 28 L39 14" stroke="#38e6cd" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M31.5 13.5 L39 14 L38.5 21.5" stroke="#38e6cd" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>`;
@@ -319,41 +324,51 @@ const impTint = (im: string) => (im === '호재' ? UP_T : im === '악재' ? DOWN
 function NewsCover(nd: NewsCardData) {
   const items = nd.items.slice(0, 3);
   const top = items[0];
-  const pill = nd.regionLabel ? `${nd.regionLabel} 투자 뉴스` : `오늘 꼭 알아야 할 뉴스 ${items.length}`;
-  const headRight = `${nd.dateLabel}${nd.slotLabel ? ` · ${nd.slotLabel}` : ''}`;
+  const acc = accOf(nd.regionLabel);
+  const region = nd.regionLabel; // '국내' | '미국' | ''
   return (
     <Frame>
-      <Header right={headRight} />
-      <div style={{ display: 'flex', flexDirection: 'column', flex: 1, justifyContent: 'center', gap: 36 }}>
-        <div style={{ display: 'flex' }}>
-          <div style={{ display: 'flex', alignItems: 'center', background: TEAL_T2, borderRadius: 999, padding: '12px 26px', fontSize: 26, fontWeight: 800, color: TEAL }}>{pill}</div>
+      <Header right="" />
+      {/* 지역 배너: 썸네일에서 색·큰 글자만으로 국장/미장 즉시 구분 */}
+      {region ? (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
+          <div style={{ display: 'flex', alignItems: 'center', background: acc, borderRadius: 18, padding: '18px 34px', fontSize: 54, fontWeight: 900, color: BG, letterSpacing: '-0.02em' }}>{region} 증시</div>
+          <div style={{ display: 'flex', alignItems: 'center', background: accT2Of(region), borderRadius: 14, padding: '14px 24px', fontSize: 30, fontWeight: 800, color: acc }}>{nd.slotLabel || '뉴스'}</div>
         </div>
-        <div style={{ display: 'flex', fontSize: 86, fontWeight: 900, color: TXT, letterSpacing: '-0.04em', lineHeight: 1.2 }}>{top ? top.title : '오늘의 주요 뉴스'}</div>
-        <div style={{ display: 'flex', fontSize: 40, fontWeight: 700, color: SUB, letterSpacing: '-0.02em' }}>넘기면서 30초면 충분해요</div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 24 }}>
+      ) : (
+        <div style={{ display: 'flex' }}>
+          <div style={{ display: 'flex', alignItems: 'center', background: TEAL_T2, borderRadius: 999, padding: '12px 26px', fontSize: 26, fontWeight: 800, color: TEAL }}>오늘 꼭 알아야 할 뉴스 {items.length}</div>
+        </div>
+      )}
+      <div style={{ display: 'flex', flexDirection: 'column', flex: 1, justifyContent: 'center', gap: 32 }}>
+        <div style={{ display: 'flex', fontSize: 84, fontWeight: 900, color: TXT, letterSpacing: '-0.04em', lineHeight: 1.2 }}>{top ? top.title : '오늘의 주요 뉴스'}</div>
+        <div style={{ display: 'flex', fontSize: 38, fontWeight: 700, color: SUB, letterSpacing: '-0.02em' }}>넘기면서 30초면 충분해요</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 20 }}>
           {items.map((it, i) => (
             <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 24, background: SURF, borderRadius: 20, padding: '28px 34px' }}>
-              <div style={{ display: 'flex', fontSize: 30, fontWeight: 900, color: TEAL, flexShrink: 0 }}>{String(i + 1).padStart(2, '0')}</div>
+              <div style={{ display: 'flex', fontSize: 30, fontWeight: 900, color: acc, flexShrink: 0 }}>{String(i + 1).padStart(2, '0')}</div>
               <div style={{ display: 'flex', fontSize: 29, fontWeight: 700, color: TXT, lineHeight: 1.3 }}>{it.title}</div>
             </div>
           ))}
         </div>
       </div>
       <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
-        <div style={{ display: 'flex', alignItems: 'center', background: TEAL, borderRadius: 999, padding: '16px 32px', fontSize: 27, fontWeight: 900, color: BG }}>넘겨서 요약 보기 →</div>
+        <div style={{ display: 'flex', alignItems: 'center', background: acc, borderRadius: 999, padding: '16px 32px', fontSize: 27, fontWeight: 900, color: BG }}>넘겨서 요약 보기 →</div>
       </div>
     </Frame>
   );
 }
 
 // 뉴스 항목 카드 — 카테고리 칩 + 제목 + 팩트 불릿 3 + '왜 중요해?'
-function NewsCard({ item, idx, total }: { item: NewsItem; idx: number; total: number }) {
+function NewsCard({ item, idx, total, region }: { item: NewsItem; idx: number; total: number; region?: string }) {
+  const acc = accOf(region);
   return (
     <Frame>
       <Header right={`${idx + 1} / ${total}`} />
       <div style={{ display: 'flex', flexDirection: 'column', flex: 1, justifyContent: 'center', gap: 38 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
           <div style={{ display: 'flex', alignItems: 'center', background: impTint(item.impact), borderRadius: 999, padding: '10px 24px', fontSize: 25, fontWeight: 800, color: impColor(item.impact) }}>{item.category}</div>
+          {region ? <div style={{ display: 'flex', alignItems: 'center', background: accT2Of(region), borderRadius: 999, padding: '10px 22px', fontSize: 24, fontWeight: 800, color: acc }}>{region}</div> : null}
           <div style={{ display: 'flex', fontSize: 25, fontWeight: 700, color: SUB }}>NEWS {String(idx + 1).padStart(2, '0')}</div>
         </div>
         <div style={{ display: 'flex', fontSize: 68, fontWeight: 900, color: TXT, letterSpacing: '-0.04em', lineHeight: 1.28 }}>{item.title}</div>
@@ -361,15 +376,15 @@ function NewsCard({ item, idx, total }: { item: NewsItem; idx: number; total: nu
           <div style={{ display: 'flex', flexDirection: 'column', gap: 24, background: SURF, borderRadius: 28, padding: '44px 48px' }}>
             {item.bullets.map((b, i) => (
               <div key={i} style={{ display: 'flex', gap: 18, alignItems: 'flex-start' }}>
-                <div style={{ display: 'flex', width: 10, height: 10, background: TEAL, borderRadius: 5, marginTop: 16, flexShrink: 0 }} />
+                <div style={{ display: 'flex', width: 10, height: 10, background: acc, borderRadius: 5, marginTop: 16, flexShrink: 0 }} />
                 <div style={{ display: 'flex', fontSize: 30, fontWeight: 600, color: '#D3DAE3', lineHeight: 1.5 }}>{b}</div>
               </div>
             ))}
           </div>
         )}
         {item.why && (
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 20, background: TEAL_T, borderRadius: 24, padding: '34px 40px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: TEAL, borderRadius: 12, padding: '10px 20px', fontSize: 24, fontWeight: 900, color: BG, flexShrink: 0 }}>왜 중요해?</div>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 20, background: accTOf(region), borderRadius: 24, padding: '34px 40px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: acc, borderRadius: 12, padding: '10px 20px', fontSize: 24, fontWeight: 900, color: BG, flexShrink: 0 }}>왜 중요해?</div>
             <div style={{ display: 'flex', fontSize: 29, fontWeight: 700, color: TXT, lineHeight: 1.45 }}>{item.why}</div>
           </div>
         )}
@@ -382,17 +397,19 @@ function NewsCard({ item, idx, total }: { item: NewsItem; idx: number; total: nu
 // 뉴스 마무리 — 대비 한 줄 + 내일 안내 + CTA
 function NewsOutro(nd: NewsCardData) {
   const w = nd.wrap;
+  const acc = accOf(nd.regionLabel);
   const line1 = w ? w.a : '오늘의 뉴스,';
   const line2 = w ? w.b : '3분이면 정리 끝';
   const c1 = w ? UP : TXT;
-  const c2 = w ? DOWN : TEAL;
+  const c2 = w ? DOWN : acc;
+  const rl = nd.regionLabel ? `${nd.regionLabel} 뉴스 한 줄 정리` : '오늘 뉴스 한 줄 정리';
   return (
     <Frame>
       <Header right="" />
       <div style={{ display: 'flex', flexDirection: 'column', flex: 1, justifyContent: 'center', gap: 44 }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
           <div style={{ display: 'flex' }}>
-            <div style={{ display: 'flex', alignItems: 'center', background: TEAL_T2, borderRadius: 999, padding: '12px 26px', fontSize: 26, fontWeight: 800, color: TEAL }}>오늘 뉴스 한 줄 정리</div>
+            <div style={{ display: 'flex', alignItems: 'center', background: accT2Of(nd.regionLabel), borderRadius: 999, padding: '12px 26px', fontSize: 26, fontWeight: 800, color: acc }}>{rl}</div>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', fontSize: 80, fontWeight: 900, letterSpacing: '-0.04em', lineHeight: 1.28 }}>
             <div style={{ display: 'flex', color: c1 }}>{line1}</div>
@@ -401,13 +418,13 @@ function NewsOutro(nd: NewsCardData) {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: SURF, borderRadius: 28, padding: '40px 48px' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div style={{ display: 'flex', fontSize: 25, fontWeight: 800, color: TEAL }}>내일 아침 6시 반</div>
-            <div style={{ display: 'flex', fontSize: 40, fontWeight: 900, color: TXT, letterSpacing: '-0.02em' }}>시장 지표 브리핑으로 돌아와요</div>
-            <div style={{ display: 'flex', fontSize: 26, fontWeight: 600, color: SUB }}>매일 아침 지표 · 저녁 뉴스</div>
+            <div style={{ display: 'flex', fontSize: 25, fontWeight: 800, color: acc }}>매일 이 시간</div>
+            <div style={{ display: 'flex', fontSize: 40, fontWeight: 900, color: TXT, letterSpacing: '-0.02em' }}>국내·미국 뉴스로 돌아와요</div>
+            <div style={{ display: 'flex', fontSize: 26, fontWeight: 600, color: SUB }}>하루 4번 · 국장/미장 개장·마감</div>
           </div>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: TEAL, borderRadius: 20, padding: 34, fontSize: 36, fontWeight: 900, color: BG }}>전체 뉴스는 프로필 링크에서 ↑</div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: acc, borderRadius: 20, padding: 34, fontSize: 36, fontWeight: 900, color: BG }}>전체 뉴스는 프로필 링크에서 ↑</div>
           <div style={{ display: 'flex', justifyContent: 'center', fontSize: 27, fontWeight: 700, color: SUB }}>놓치기 싫으면 팔로우 + 저장</div>
         </div>
       </div>
@@ -839,7 +856,7 @@ function renderNews(type: string, nd: NewsCardData): React.ReactElement | null {
     const idx = parseInt(m[1], 10);
     const item = nd.items[idx];
     if (!item) return null;
-    return <NewsCard item={item} idx={idx} total={Math.min(nd.items.length, 3)} />;
+    return <NewsCard item={item} idx={idx} total={Math.min(nd.items.length, 3)} region={nd.regionLabel} />;
   }
   return null;
 }

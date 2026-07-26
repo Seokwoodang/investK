@@ -1,17 +1,18 @@
 name: Post to Instagram (news)
 
-# 투자 뉴스 캐러셀 자동 게시. 국내·미국 각각 하루 2회 = 하루 4개.
-# 각 지역 아침에 나간 뉴스는 저녁에서 자동 제외(서버 KV 중복 차단). KST → UTC:
-#  · 🇺🇸 미국 아침(밤사이 마감): 07:30 KST = 22:30 UTC  → region=us slot=am
-#  · 🇰🇷 국내 오전(오전장)     : 11:30 KST = 02:30 UTC  → region=kr slot=am
-#  · 🇰🇷 국내 저녁(마감 정리)  : 18:00 KST = 09:00 UTC  → region=kr slot=pm
-#  · 🇺🇸 미국 저녁(개장 임박)  : 21:00 KST = 12:00 UTC  → region=us slot=pm
+# 투자 뉴스 캐러셀 자동 게시. 국내·미국 각각 "개장 1시간 전 + 마감" 2회 = 하루 4개.
+# 각 지역 먼저(am) 나간 뉴스는 나중(pm)에서 자동 제외(서버 KV 중복 차단). KST → UTC:
+#  · 🇰🇷 국내 개장 1h 전(08:00, 개장 09:00): 23:00 UTC(전일) → region=kr slot=am
+#  · 🇰🇷 국내 마감(15:30)                  : 06:30 UTC       → region=kr slot=pm
+#  · 🇺🇸 미국 마감(05:00, 밤사이 마감)      : 20:00 UTC(전일) → region=us slot=am
+#  · 🇺🇸 미국 개장 1h 전(21:30, 개장 22:30) : 12:30 UTC       → region=us slot=pm
+# ※ 미국 시각은 서머타임(EDT) 기준. 겨울(EST)엔 +1h(마감 06:00·개장 23:30 KST) 밀림.
 on:
   schedule:
-    - cron: '30 22 * * *' # 미국 아침
-    - cron: '30 2 * * *'  # 국내 오전
-    - cron: '0 9 * * *'   # 국내 저녁
-    - cron: '0 12 * * *'  # 미국 저녁
+    - cron: '0 23 * * *'  # 국내 개장 전
+    - cron: '30 6 * * *'  # 국내 마감
+    - cron: '0 20 * * *'  # 미국 마감(밤사이)
+    - cron: '30 12 * * *' # 미국 개장 전
   workflow_dispatch:
     inputs:
       region:
@@ -29,10 +30,10 @@ jobs:
         id: r
         run: |
           case "${{ github.event.schedule }}" in
-            "30 22 * * *") R=us; S=am ;;
-            "30 2 * * *")  R=kr; S=am ;;
-            "0 9 * * *")   R=kr; S=pm ;;
-            "0 12 * * *")  R=us; S=pm ;;
+            "0 23 * * *")  R=kr; S=am ;;
+            "30 6 * * *")  R=kr; S=pm ;;
+            "0 20 * * *")  R=us; S=am ;;
+            "30 12 * * *") R=us; S=pm ;;
             *) R="${{ github.event.inputs.region || 'kr' }}"; S="${{ github.event.inputs.slot || 'pm' }}" ;;
           esac
           echo "region=$R" >> "$GITHUB_OUTPUT"

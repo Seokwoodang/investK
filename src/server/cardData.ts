@@ -205,7 +205,11 @@ export async function getNewsCardData(slot: 'am' | 'pm' = 'pm', region: NewsRegi
   top.sort((a, z) => (IMP_ORDER[a.importance] ?? 9) - (IMP_ORDER[z.importance] ?? 9)); // 카드 순서는 중요도순
   const dateLabel = kstDateLabel();
   const regionLabel = region === 'kr' ? '국내' : region === 'us' ? '미국' : '';
-  const slotLabel = slot === 'am' ? '아침' : '저녁';
+  // 슬롯 라벨은 시장 세션 기준: 국내 am=개장전/pm=마감, 미국 am=마감(밤사이)/pm=개장전.
+  const slotLabel =
+    region === 'kr' ? (slot === 'am' ? '개장 전' : '마감')
+    : region === 'us' ? (slot === 'am' ? '마감' : '개장 전')
+    : (slot === 'am' ? '아침' : '저녁');
   if (!top.length) return { dateLabel, items: [], wrap: null, regionLabel, slotLabel };
   // 아침 슬롯: 이번에 쓴 후보 제목을 기록 → 저녁이 겹치지 않게. (idempotent, 여러 번 호출돼도 동일)
   if (slot === 'am') await kvSet(`news:${region}:am:${ymd}`, top.map((n) => n.title.trim())).catch(() => {});
