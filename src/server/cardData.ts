@@ -206,8 +206,12 @@ export async function getNewsCardData(slot: 'am' | 'pm' = 'pm', region: NewsRegi
   const dateLabel = kstDateLabel();
   const regionLabel = region === 'kr' ? '국내' : region === 'us' ? '미국' : '';
   // 슬롯 라벨은 시장 세션 기준: 국내 am=개장전/pm=마감, 미국 am=마감(밤사이)/pm=개장전.
-  const slotLabel =
-    region === 'kr' ? (slot === 'am' ? '개장 전' : '마감')
+  // 단, 장이 안 서는 주말(KST 토·일)엔 '개장 전/마감'이 어색하므로 중립 라벨로.
+  const kstDow = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' })).getDay(); // 0=일,6=토
+  const isWeekend = kstDow === 0 || kstDow === 6;
+  const slotLabel = isWeekend
+    ? '주말'
+    : region === 'kr' ? (slot === 'am' ? '개장 전' : '마감')
     : region === 'us' ? (slot === 'am' ? '마감' : '개장 전')
     : (slot === 'am' ? '아침' : '저녁');
   if (!top.length) return { dateLabel, items: [], wrap: null, regionLabel, slotLabel };
