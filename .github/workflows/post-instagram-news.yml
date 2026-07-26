@@ -1,18 +1,24 @@
 name: Post to Instagram (news)
 
 # 투자 뉴스 캐러셀 자동 게시. 국내·미국 각각 "개장 1시간 전 + 마감" 2회 = 하루 4개.
-# 각 지역 먼저(am) 나간 뉴스는 나중(pm)에서 자동 제외(서버 KV 중복 차단). KST → UTC:
-#  · 🇰🇷 국내 개장 1h 전(08:00, 개장 09:00): 23:00 UTC(전일) → region=kr slot=am
-#  · 🇰🇷 국내 마감(15:30)                  : 06:30 UTC       → region=kr slot=pm
-#  · 🇺🇸 미국 마감(05:00, 밤사이 마감)      : 20:00 UTC(전일) → region=us slot=am
-#  · 🇺🇸 미국 개장 1h 전(21:30, 개장 22:30) : 12:30 UTC       → region=us slot=pm
-# ※ 미국 시각은 서머타임(EDT) 기준. 겨울(EST)엔 +1h(마감 06:00·개장 23:30 KST) 밀림.
+# 각 지역 먼저(am) 나간 뉴스는 나중(pm)에서 자동 제외(서버 KV 중복 차단).
+#
+# 한국은 DST 없음 → 고정 UTC:
+#  · 🇰🇷 국내 개장 1h 전(08:00 KST): 23:00 UTC(전일) → kr am
+#  · 🇰🇷 국내 마감(15:30 KST)     : 06:30 UTC       → kr pm
+#
+# 미국은 DST(서머타임) 자동 처리: GitHub 크론은 UTC 고정이라 여름(EDT,-0400)·겨울(EST,-0500)
+# 두 UTC를 모두 걸고, 실행 시 실제 미 동부 오프셋을 확인해 "지금 유효한 것"만 게시(나머진 skip).
+# 미장 마감 16:00 ET   = 20:00 UTC(EDT) / 21:00 UTC(EST)  → us am
+# 미장 개장 1h전 08:30 ET = 12:30 UTC(EDT) / 13:30 UTC(EST) → us pm
 on:
   schedule:
-    - cron: '0 23 * * *'  # 국내 개장 전
-    - cron: '30 6 * * *'  # 국내 마감
-    - cron: '0 20 * * *'  # 미국 마감(밤사이)
-    - cron: '30 12 * * *' # 미국 개장 전
+    - cron: '0 23 * * *'  # 🇰🇷 국내 개장 전
+    - cron: '30 6 * * *'  # 🇰🇷 국내 마감
+    - cron: '0 20 * * *'  # 🇺🇸 미장 마감 (EDT·여름)
+    - cron: '0 21 * * *'  # 🇺🇸 미장 마감 (EST·겨울)
+    - cron: '30 12 * * *' # 🇺🇸 미장 개장 전 (EDT·여름)
+    - cron: '30 13 * * *' # 🇺🇸 미장 개장 전 (EST·겨울)
   workflow_dispatch:
     inputs:
       region:
@@ -26,19 +32,32 @@ jobs:
   post:
     runs-on: ubuntu-latest
     steps:
-      - name: Resolve region & slot
+      - name: Resolve region & slot (DST-aware)
         id: r
         run: |
+          # 미 동부 현재 UTC 오프셋: -0400=EDT(여름), -0500=EST(겨울)
+          OFF=$(TZ=America/New_York date +%z)
+          R=""; S=""
           case "${{ github.event.schedule }}" in
             "0 23 * * *")  R=kr; S=am ;;
             "30 6 * * *")  R=kr; S=pm ;;
-            "0 20 * * *")  R=us; S=am ;;
-            "30 12 * * *") R=us; S=pm ;;
+            "0 20 * * *")  [ "$OFF" = "-0400" ] && { R=us; S=am; } || true ;;
+            "0 21 * * *")  [ "$OFF" = "-0500" ] && { R=us; S=am; } || true ;;
+            "30 12 * * *") [ "$OFF" = "-0400" ] && { R=us; S=pm; } || true ;;
+            "30 13 * * *") [ "$OFF" = "-0500" ] && { R=us; S=pm; } || true ;;
             *) R="${{ github.event.inputs.region || 'kr' }}"; S="${{ github.event.inputs.slot || 'pm' }}" ;;
           esac
-          echo "region=$R" >> "$GITHUB_OUTPUT"
-          echo "slot=$S" >> "$GITHUB_OUTPUT"
+          if [ -z "$R" ]; then
+            echo "DST 불일치 크론(미 동부 오프셋 $OFF) — 게시 스킵"
+            echo "skip=1" >> "$GITHUB_OUTPUT"
+          else
+            echo "→ region=$R slot=$S (ET offset $OFF)"
+            echo "skip=0" >> "$GITHUB_OUTPUT"
+            echo "region=$R" >> "$GITHUB_OUTPUT"
+            echo "slot=$S" >> "$GITHUB_OUTPUT"
+          fi
       - name: Publish news carousel
+        if: steps.r.outputs.skip == '0'
         run: |
           curl -fsS --max-time 110 --retry 1 --retry-delay 20 -X GET \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
