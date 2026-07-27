@@ -15,7 +15,10 @@ export type { SectorMarket } from '../../data/sectors';
 
 const UA = { 'User-Agent': 'Mozilla/5.0' };
 
-const defsOf = (m: SectorMarket) => SECTOR_DEFS.filter((d) => d.market === m);
+// 가격 흐름은 대리 ETF가 있는 시장(kr·us)만 — 코인 테마는 etf가 없어 여기서 제외된다.
+type PricedDef = SectorDef & { etf: string; proxy: string };
+const hasEtf = (d: SectorDef): d is PricedDef => !!d.etf && !!d.proxy;
+const defsOf = (m: SectorMarket): PricedDef[] => SECTOR_DEFS.filter((d) => d.market === m && hasEtf(d)) as PricedDef[];
 const findDef = (m: SectorMarket, name: string) => defsOf(m).find((d) => d.name === name) ?? null;
 
 // 동시성 제한 map(야후 과다요청 방지).
@@ -67,7 +70,7 @@ function pctBack(cl: number[], n: number): number {
 }
 
 // 종가 배열 → 오늘·1주·1개월 등락률 + 연속 추세.
-function derive(cl: number[], d: SectorDef): SectorRow | null {
+function derive(cl: number[], d: PricedDef): SectorRow | null {
   if (cl.length < 2) return null;
   const last = cl[cl.length - 1];
   const prev = cl[cl.length - 2];

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { fetchSectors, fetchTabNews } from '../lib/fetchOnce';
 import { fmtNewsDate, fmtPct, NEWS_PILL, upColor } from '../lib/format';
-import { useInterests } from '../lib/interests';
+import { useInterests, type InterestStockRef } from '../lib/interests';
 import {
   buildMatchTerms, matchNews, tabsForInterests, POPULAR_SECTOR_KEYS,
   type MatchableNews, type MatchedNews, type InterestStock,
@@ -32,13 +32,13 @@ const MAX_STOCKS = 8;
 
 export function InterestSection({ holdings }: { holdings: Holding[] }) {
   const { state, actions, data } = useDashboard();
-  const { sectors, loaded, setSectors } = useInterests();
+  const { sectors, stocks, loaded, seedable, setSectors, setAll, seedStocks } = useInterests();
   const [picking, setPicking] = useState(false);
   const [rows, setRows] = useState<Record<string, SectorRow[]>>({});
   const [news, setNews] = useState<MatchableNews[] | null>(null);
   const [selSector, setSelSector] = useState<{ market: 'kr' | 'us'; name: string } | null>(null);
 
-  // 유니버스 전 탭을 id로 색인(보유·관심종목 가격 조회용).
+  // 유니버스 전 탭을 id로 색인(관심 종목 가격 조회용).
   const byId = useMemo(() => {
     const m = new Map<string, { s: Stock; tab: TabId }>();
     for (const [tab, arr] of Object.entries(data.stocks ?? {}) as [TabId, Stock[]][]) {
@@ -47,46 +47,53 @@ export function InterestSection({ holdings }: { holdings: Holding[] }) {
     return m;
   }, [data.stocks]);
 
-  // 관심 종목 = 보유 ∪ ☆관심종목. manual: 보유는 가격행에서 빼되 이름은 매칭에 쓴다.
-  const myStocks = useMemo<InterestStock[]>(() => {
-    const out: InterestStock[] = [];
+  // 최초 방문 1회 — 보유 ∪ ☆관심종목을 관심 종목으로 자동 시드. 이후엔 사용자가 직접 관리.
+  useEffect(() => {
+    if (!loaded || !seedable) return;
+    const cand: InterestStockRef[] = [];
     const seen = new Set<string>();
-    const add = (name?: string, ticker?: string) => {
-      const k = (name ?? ticker ?? '').trim();
-      if (!k || seen.has(k)) return;
-      seen.add(k);
-      out.push({ name: k, ticker });
+    const add = (id: string, name: string, ticker: string, tab?: string) => {
+      if (!id || seen.has(id)) return;
+      seen.add(id);
+      cand.push({ id, name, ticker, tab });
     };
-    for (const h of holdings) add(h.name, h.ticker ?? h.id);
-    for (const id of state.watchlist) {
-      const e = byId.get(id);
-      add(e?.s.name ?? id, e?.s.ticker ?? id);
-    }
-    return out;
-  }, [holdings, state.watchlist, byId]);
-
-  // 가격을 보여줄 수 있는 종목(유니버스에 있는 것만).
-  const priced = useMemo(() => {
-    const out: { s: Stock; tab: TabId }[] = [];
-    const seen = new Set<string>();
     for (const h of holdings) {
       const e = byId.get(h.id) ?? (h.ticker ? byId.get(h.ticker) : undefined);
-      if (e && !seen.has(e.s.id)) { seen.add(e.s.id); out.push(e); }
+      add(h.id, h.name, h.ticker ?? h.id, e?.tab ?? h.tab);
     }
     for (const id of state.watchlist) {
       const e = byId.get(id);
-      if (e && !seen.has(e.s.id)) { seen.add(e.s.id); out.push(e); }
+      add(id, e?.s.name ?? id, e?.s.ticker ?? id, e?.tab);
+    }
+    if (cand.length) seedStocks(cand);
+  }, [loaded, seedable, holdings, state.watchlist, byId, seedStocks]);
+
+  // 매칭용 종목 목록(저장된 관심 종목).
+  const myStocks = useMemo<InterestStock[]>(
+    () => stocks.map((s) => ({ id: s.id, name: s.name, ticker: s.ticker, tab: s.tab })),
+    [stocks],
+  );
+
+  // 가격을 보여줄 수 있는 종목(유니버스에 있는 것만 — 'ext:'·'manual:'은 시세가 없다).
+  const priced = useMemo(() => {
+    const out: { s: Stock; tab: TabId }[] = [];
+    for (const st of stocks) {
+      const e = byId.get(st.id) ?? (st.ticker ? byId.get(st.ticker) : undefined);
+      if (e) out.push(e);
     }
     return out;
-  }, [holdings, state.watchlist, byId]);
+  }, [stocks, byId]);
 
   const terms = useMemo(() => buildMatchTerms(sectors, myStocks), [sectors, myStocks]);
   const tabs = useMemo(() => tabsForInterests(sectors, myStocks), [sectors, myStocks]);
 
-  // 관심 섹터의 업종 흐름 — 필요한 시장만 호출.
+  // 관심 섹터의 업종 흐름 — 필요한 시장만 호출. 코인 테마는 대리 ETF가 없어 가격 행이 없다.
   const markets = useMemo(() => {
     const set = new Set<'kr' | 'us'>();
-    for (const k of sectors) { const p = parseSectorKey(k); if (p) set.add(p.market); }
+    for (const k of sectors) {
+      const p = parseSectorKey(k);
+      if (p && p.market !== 'coin') set.add(p.market);
+    }
     return [...set];
   }, [sectors]);
 
@@ -118,7 +125,7 @@ export function InterestSection({ holdings }: { holdings: Holding[] }) {
     const out: { row: SectorRow; market: 'kr' | 'us' }[] = [];
     for (const k of sectors) {
       const p = parseSectorKey(k);
-      if (!p) continue;
+      if (!p || p.market === 'coin') continue;
       const r = (rows[p.market] ?? []).find((x) => x.name === p.name);
       if (r) out.push({ row: r, market: p.market });
     }
@@ -126,9 +133,10 @@ export function InterestSection({ holdings }: { holdings: Holding[] }) {
   }, [sectors, rows]);
 
   // 하이드레이션 전에는 아무것도 안 그린다(SSR/CSR 불일치 방지).
-  if (!loaded && !sectors.length) return null;
+  if (!loaded && !sectors.length && !stocks.length) return null;
 
-  const hasInterests = sectors.length > 0;
+  // 분야를 안 골랐어도 관심 종목(자동 시드 포함)이 있으면 콘텐츠를 보여준다.
+  const hasInterests = sectors.length > 0 || stocks.length > 0;
   const label = (k: string) => sectorByKey(k)?.name ?? k;
 
   return (
@@ -142,6 +150,7 @@ export function InterestSection({ holdings }: { holdings: Holding[] }) {
             </span>
           ))}
           {sectors.length > 6 && <span style={{ fontSize: 11.5, color: 'var(--c-tx6)' }}>+{sectors.length - 6}</span>}
+          {stocks.length > 0 && <span style={{ fontSize: 11.5, color: 'var(--c-tx6)' }}>종목 {stocks.length}</span>}
           <button
             onClick={() => setPicking(true)}
             style={{ marginLeft: 'auto', cursor: 'pointer', fontFamily: 'inherit', fontSize: 12, fontWeight: 700, padding: '6px 13px', borderRadius: 9, background: 'var(--c-w05)', border: '1px solid var(--c-w10)', color: 'var(--c-tx3)' }}
@@ -233,7 +242,9 @@ export function InterestSection({ holdings }: { holdings: Holding[] }) {
               )}
               {news !== null && matched.length === 0 && (
                 <div style={{ padding: '10px 0', fontSize: 13, color: 'var(--c-tx6)' }}>
-                  관심 분야에 해당하는 뉴스가 아직 없어요.
+                  {sectors.length === 0
+                    ? '관심 분야를 고르면 더 많은 뉴스를 모아드려요.'
+                    : '관심사에 해당하는 뉴스가 아직 없어요.'}
                 </div>
               )}
               {matched.map((n, i) => {
@@ -273,7 +284,12 @@ export function InterestSection({ holdings }: { holdings: Holding[] }) {
       </section>
 
       {picking && (
-        <InterestPicker initial={sectors} onSave={setSectors} onClose={() => setPicking(false)} />
+        <InterestPicker
+          initialSectors={sectors}
+          initialStocks={stocks}
+          onSave={setAll}
+          onClose={() => setPicking(false)}
+        />
       )}
       {selSector && (
         <SectorModal market={selSector.market} name={selSector.name} onClose={() => setSelSector(null)} />

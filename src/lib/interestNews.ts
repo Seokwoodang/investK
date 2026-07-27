@@ -35,8 +35,10 @@ export interface MatchTerm {
 }
 
 export interface InterestStock {
+  id?: string;
   name: string;
   ticker?: string;
+  tab?: string; // TabId — 어느 뉴스 탭을 받아올지 판단용
 }
 
 // '코스피 전반'처럼 시장 전체를 가리키는 target은 개인화 신호가 아니라 제외.
@@ -163,15 +165,22 @@ export function matchNews(news: MatchableNews[], terms: MatchTerm[], limit = 5):
   return out.slice(0, limit);
 }
 
-// 관심사로부터 어떤 뉴스 탭을 받아와야 하는지(최대 2회 fetch). 코인은 섹터 체계가 없어 v1 제외.
-export function tabsForInterests(sectorKeys: string[], stocks: InterestStock[]): ('kr_stock' | 'us_stock')[] {
-  const tabs = new Set<'kr_stock' | 'us_stock'>();
+export type NewsTab = 'kr_stock' | 'us_stock' | 'global_coin';
+
+// 관심사로부터 어떤 뉴스 탭을 받아와야 하는지(최대 3회 fetch).
+// 국내/해외 코인 뉴스는 소스가 같아 global_coin 하나로 합쳐져 있다(NEWS_TABS 참고).
+export function tabsForInterests(sectorKeys: string[], stocks: InterestStock[]): NewsTab[] {
+  const tabs = new Set<NewsTab>();
   for (const k of sectorKeys) {
     if (k.startsWith('kr:')) tabs.add('kr_stock');
     else if (k.startsWith('us:')) tabs.add('us_stock');
+    else if (k.startsWith('coin:')) tabs.add('global_coin');
   }
   for (const s of stocks) {
-    if (s.ticker && /^\d{6}$/.test(s.ticker)) tabs.add('kr_stock');
+    if (s.tab === 'kr_coin' || s.tab === 'global_coin') tabs.add('global_coin');
+    else if (s.tab === 'kr_stock') tabs.add('kr_stock');
+    else if (s.tab === 'us_stock') tabs.add('us_stock');
+    else if (s.ticker && /^\d{6}$/.test(s.ticker)) tabs.add('kr_stock'); // tab 없으면 티커로 추정
     else if (s.ticker) tabs.add('us_stock');
   }
   return [...tabs];

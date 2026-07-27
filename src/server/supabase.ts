@@ -52,11 +52,13 @@ export function getSupabase(): SupabaseClient | null {
   );
   alter table user_alerts enable row level security;
 
-  -- 유저별 관심 분야(섹터). sectors = ["kr:반도체","us:반도체", ...] — market 접두사 필수
-  -- (반도체·헬스케어가 KR/US 양쪽에 있어 이름만으로는 구분 불가). 개인화 피드용.
+  -- 유저별 관심사(개인화 피드). sectors = ["kr:반도체","us:반도체","coin:비트코인", ...]
+  -- market 접두사 필수(반도체·헬스케어가 KR/US 양쪽에 있어 이름만으로는 구분 불가).
+  -- stocks = [{id,name,ticker,tab}] — 최초 1회 보유·관심종목으로 자동 시드 후 사용자가 관리.
   create table if not exists user_interests (
     username    text primary key,
     sectors     jsonb not null default '[]'::jsonb,
+    stocks      jsonb not null default '[]'::jsonb,
     updated_at  timestamptz not null default now()
   );
   alter table user_interests enable row level security;

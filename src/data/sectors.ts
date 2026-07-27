@@ -9,7 +9,7 @@
 //   영문 name만으론 매칭이 안 된다. 티커(NVDA)는 ref에서 자동 도출하므로 여기 적지 않는다.
 // keywords: 종목명에 안 나오는 업종 신호어. 오탐을 줄이려 '수주'·'금리'처럼 범용적인 말은 뺐다.
 
-export type SectorMarket = 'kr' | 'us';
+export type SectorMarket = 'kr' | 'us' | 'coin';
 
 export interface SectorLeader {
   name: string;
@@ -21,8 +21,9 @@ export interface SectorDef {
   key: string;
   market: SectorMarket;
   name: string;
-  etf: string;
-  proxy: string;
+  // 코인 테마는 대리 ETF가 없어 etf/proxy가 없다 → 업종 흐름(가격) 행 없이 뉴스 매칭에만 쓰인다.
+  etf?: string;
+  proxy?: string;
   leaders: SectorLeader[];
   keywords: string[];
 }
@@ -203,7 +204,50 @@ const US_DEFS: Omit<SectorDef, 'key' | 'market'>[] = [
   },
 ];
 
+// 코인 테마: 대리 ETF가 없어 가격 흐름은 못 보여주고 뉴스 매칭 전용.
+// leaders의 ref는 심볼(BTC 등) — 코인 유니버스 티커와 맞춘다.
+const COIN_DEFS: Omit<SectorDef, 'key' | 'market'>[] = [
+  {
+    name: '비트코인',
+    leaders: [{ name: '비트코인', ref: 'BTC', aliases: ['bitcoin'] }],
+    keywords: ['비트코인', 'BTC', '반감기', '비트코인 ETF', '현물 ETF'],
+  },
+  {
+    name: '이더리움',
+    leaders: [{ name: '이더리움', ref: 'ETH', aliases: ['ethereum'] }],
+    keywords: ['이더리움', 'ETH', '이더', '스테이킹', '레이어2'],
+  },
+  {
+    name: '알트코인',
+    leaders: [
+      { name: '솔라나', ref: 'SOL', aliases: ['solana'] },
+      { name: '리플', ref: 'XRP', aliases: ['ripple'] },
+      { name: '에이다', ref: 'ADA', aliases: ['cardano'] },
+    ],
+    keywords: ['알트코인', '솔라나', '리플', '도지코인', '레이어1'],
+  },
+  {
+    name: '디파이',
+    leaders: [{ name: '유니스왑', ref: 'UNI', aliases: ['uniswap'] }],
+    keywords: ['디파이', 'DeFi', '탈중앙화', '유동성 공급', '덱스'],
+  },
+  {
+    name: '스테이블코인',
+    leaders: [{ name: '테더', ref: 'USDT', aliases: ['tether'] }],
+    keywords: ['스테이블코인', 'USDT', 'USDC', '테더', '페깅'],
+  },
+  {
+    name: '규제·정책',
+    leaders: [],
+    keywords: ['가상자산', '코인 규제', '증권성', '거래소 인가', '자금세탁'],
+  },
+];
+
 const withKey = (market: SectorMarket, defs: Omit<SectorDef, 'key' | 'market'>[]): SectorDef[] =>
   defs.map((d) => ({ ...d, key: `${market}:${d.name}`, market }));
 
-export const SECTOR_DEFS: SectorDef[] = [...withKey('kr', KR_DEFS), ...withKey('us', US_DEFS)];
+export const SECTOR_DEFS: SectorDef[] = [
+  ...withKey('kr', KR_DEFS),
+  ...withKey('us', US_DEFS),
+  ...withKey('coin', COIN_DEFS),
+];
