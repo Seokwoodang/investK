@@ -120,7 +120,7 @@ export async function buildKanalystData(market: KMarket, code: string, name: str
   return {
     ...base, cur: '₩', revUnit: '억원',
     sector: kr?.sector ?? null, industry: null,
-    price, hi52: f?.hi52 ?? null, lo52: null, marketCapText: null,
+    price, hi52: f?.hi52 ?? null, lo52: f?.lo52 ?? null, marketCapText: null,
     per: f?.per ?? null, fwdPer: f?.fwdPer ?? null, pbr: f?.pbr ?? null,
     pegRatio: null, evToEbitda: null, divYield: f?.divYield ?? null,
     roe, netMargin, debtRatio, currentRatio: null,

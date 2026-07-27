@@ -1,6 +1,6 @@
 import 'server-only';
 import { getBriefing } from '@/server/briefing';
-import { getNewsCardData, getValueCardData, getCalendarCardData, getTermCardData, getBreakingCardData, getWeekReviewData } from '@/server/cardData';
+import { getNewsCardData, getValueCardData, getCalendarCardData, getTermCardData, getBreakingCardData, getWeekReviewData, getStockCardData } from '@/server/cardData';
 import { SITE_URL } from '@/lib/site';
 
 // 인스타그램 자동 게시(Instagram 비즈니스 로그인 API, graph.instagram.com).
@@ -200,6 +200,35 @@ export async function buildCaption(type: string, slot?: 'am' | 'pm', region?: 'k
       tags(['#속보', '#증시속보', '#급락', '#급등', '#코스피', '#나스닥', '#시장급변동', '#증시']),
     ].join('\n');
   }
+  if (type === 'stock') {
+    const d = await getStockCardData();
+    if (!d) return '';
+    const signed = `${d.pct > 0 ? '+' : '−'}${Math.abs(d.pct).toFixed(2)}%`;
+    const why = d.news.length
+      ? d.news.map((n) => `· ${n.title} (${n.src})`).join('\n')
+      : '· 뚜렷한 뉴스·공시 없이 수급으로 움직였어요.';
+    const nums = [
+      d.per != null ? `PER ${d.per.toFixed(1)}배` : null,
+      d.pbr != null ? `PBR ${d.pbr.toFixed(2)}배` : null,
+      d.roe != null ? `ROE ${d.roe.toFixed(1)}%` : null,
+    ].filter(Boolean).join(' · ');
+    return [
+      `📊 오늘 화제의 종목 · ${d.name} ${signed}`,
+      '',
+      '왜 움직였나',
+      why,
+      '',
+      nums ? `주요 지표 — ${nums}` : '',
+      '',
+      '📌 카드를 넘겨 52주 위치·실적 추이까지 확인하세요.',
+      '💬 댓글에 「지표」 라고 남기면 실시간 링크를 DM으로 보내드려요!',
+      '',
+      '※ 종목 추천이 아닙니다. 거래대금·등락률 기준으로 그날 화제가 된 종목을 사실 그대로 정리한 것이며, 투자 판단과 책임은 본인에게 있습니다.',
+      '👉 종목 상세는 프로필 링크 investk.app',
+      '',
+      tags(['#화제의종목', '#급등주', '#급락주', '#국내주식', '#코스피', '#코스닥', '#종목분석', '#주식공부']),
+    ].filter((l) => l !== '').join('\n');
+  }
   if (type === 'week') {
     const wd = await getWeekReviewData();
     const list = wd.indices.map((r) => `• ${r.name} ${r.chg > 0 ? '+' : r.chg < 0 ? '−' : ''}${Math.abs(r.chg).toFixed(2)}%`).join('\n');
@@ -273,4 +302,12 @@ export function termCards(): string[] {
 }
 export function weekCards(): string[] {
   return ['week-cover', 'week-detail', 'week-outro'];
+}
+// 화제의 종목. 선정 종목이 없으면 빈 배열(게시 스킵). 실적 데이터가 2년 미만이면
+// stock-trend는 렌더가 null이라 캐러셀에서 빼야 한다(404 이미지로 컨테이너 생성 실패 방지).
+export async function stockCards(): Promise<string[]> {
+  const d = await getStockCardData();
+  if (!d) return [];
+  const hasTrend = d.trend.filter((t) => t.revenue != null || t.profit != null).length >= 2;
+  return ['stock-cover', 'stock-why', 'stock-numbers', ...(hasTrend ? ['stock-trend'] : []), 'stock-outro'];
 }

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { publishCarousel, publishImage, publishReel, buildCaption, cardImageUrl, newsCards, valueCards, calendarCards, termCards, weekCards, DAILY_CARDS } from '@/server/instagram';
+import { publishCarousel, publishImage, publishReel, buildCaption, cardImageUrl, newsCards, valueCards, calendarCards, termCards, weekCards, stockCards, DAILY_CARDS } from '@/server/instagram';
 import { kvGet, kvSet } from '@/server/kv';
 
 // 시장 데이터 신선도 키: 지수의 마지막 체결시각(regularMarketTime) 조합. 장이 안 열린 날
@@ -21,13 +21,15 @@ async function marketFreshKey(): Promise<string> {
 //  ?type=value    : 저평가 우량주 TOP5 (주간)
 //  ?type=calendar : 주간 경제 캘린더
 //  ?type=term     : 투자 용어 1분 (주간)
+//  ?type=week     : 주간 마켓 리뷰 (토)
+//  ?type=stock    : 오늘 화제의 종목 — 왜 움직였나 (일간, 조건 미달이면 카드 0장 → 503으로 스킵)
 //  단일 카드명(cover/kr/news-0/value-0…)도 허용.
 //  ?dry=1         : 실제 게시 없이 캡션/이미지URL만 미리보기(테스트용)
 //  인증: Bearer CRON_SECRET(액션) 또는 ?t=MOCK_FILL_TOKEN(수동).
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
-const CAPTION_TYPE: Record<string, string> = { daily: 'brief', news: 'news', value: 'value', calendar: 'calendar', term: 'term', week: 'week', breaking: 'breaking' };
+const CAPTION_TYPE: Record<string, string> = { daily: 'brief', news: 'news', value: 'value', calendar: 'calendar', term: 'term', week: 'week', breaking: 'breaking', stock: 'stock' };
 // 마무리(마지막 장) 바로 앞에 '게시 일정' 카드 삽입 — 어느 글을 봐도 편성 시간을 알게.
 function withSchedule(cards: string[]): string[] {
   if (cards.length < 2) return cards;
@@ -40,6 +42,7 @@ async function cardsFor(type: string, slot?: 'am' | 'pm', region?: 'kr' | 'us' |
   if (type === 'calendar') return withSchedule(await calendarCards());
   if (type === 'term') return withSchedule(termCards());
   if (type === 'week') return withSchedule(weekCards());
+  if (type === 'stock') return withSchedule(await stockCards());
   return [type];
 }
 

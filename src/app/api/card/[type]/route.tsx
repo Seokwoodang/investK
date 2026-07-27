@@ -1,9 +1,10 @@
 import { ImageResponse } from 'next/og';
 import {
   getCardData, getNewsCardData, getValueCardData, getCalendarCardData, getTermCardData, getBreakingCardData, getWeekReviewData,
+  getStockCardData,
   type CardData, type Move, type NewsCardData, type NewsItem,
   type ValueCardData, type ValueStock, type CalCardData, type CalEvent, type TermCardData, type BreakingData,
-  type WeekReviewData, type WeekIndexRow,
+  type WeekReviewData, type WeekIndexRow, type StockPickData,
 } from '@/server/cardData';
 
 // 인스타 카드뉴스 5장(1080×1350, 4:5). 다크 테마. 디자인 핸드오프 시안을 Satori로 포팅.
@@ -987,6 +988,202 @@ function ScheduleCard() {
   );
 }
 
+// ══════════════ 화제의 종목 (일간) ══════════════
+// 추천이 아니라 '왜 움직였나' 해설. 투자의견·목표주가 강조 금지(컨센서스는 출처 명시).
+const nOrDash = (v: number | null, unit = '', digits = 1) => (v == null ? '—' : `${v.toFixed(digits)}${unit}`);
+
+function StockMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1, background: SURF, borderRadius: 20, padding: 26 }}>
+      <div style={{ display: 'flex', fontSize: 22, fontWeight: 700, color: SUB }}>{label}</div>
+      <div style={{ display: 'flex', fontSize: 34, fontWeight: 900, color: TXT }}>{value}</div>
+    </div>
+  );
+}
+
+function StockCover(d: StockPickData) {
+  const signed = `${d.pct > 0 ? '+' : d.pct < 0 ? '−' : ''}${Math.abs(d.pct).toFixed(2)}`;
+  const word = Math.abs(d.pct) >= 15 ? (d.dir === 'up' ? '급등' : '급락') : d.dir === 'up' ? '상승' : '하락';
+  return (
+    <Frame>
+      <Header right={d.dateLabel} />
+      <div style={{ display: 'flex', flexDirection: 'column', flex: 1, justifyContent: 'center', gap: 26 }}>
+        <div style={{ display: 'flex' }}>
+          <div style={{ display: 'flex', alignItems: 'center', background: TEAL_T2, borderRadius: 999, padding: '12px 26px', fontSize: 26, fontWeight: 800, color: TEAL }}>오늘 화제의 종목</div>
+        </div>
+        <div style={{ display: 'flex', fontSize: 92, fontWeight: 900, color: TXT, letterSpacing: '-0.04em', lineHeight: 1.15 }}>{d.name}</div>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 20 }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', fontSize: 190, fontWeight: 900, color: col(d.pct), letterSpacing: '-0.05em', lineHeight: 1 }}>
+            {signed}<span style={{ fontSize: 100, fontWeight: 900 }}>%</span>
+          </div>
+          <div style={{ display: 'flex', fontSize: 68, fontWeight: 900, color: TXT, letterSpacing: '-0.03em' }}>{word}</div>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'row', gap: 14, marginTop: 40 }}>
+          <StockMetric label="현재가" value={d.priceText} />
+          <StockMetric label="거래대금" value={d.volText} />
+          {/* 시총은 종목에 따라 안 잡힐 수 있어 '—' 대신 칸 자체를 뺀다. */}
+          {d.marketCapText ? <StockMetric label="시가총액" value={d.marketCapText} /> : null}
+        </div>
+      </div>
+      <CoverCta text="왜 움직였는지 보기 →" />
+    </Frame>
+  );
+}
+
+// 왜 움직였나 — 지어내지 않고 실제 기사 헤드라인·공시로만.
+function StockWhy(d: StockPickData) {
+  const has = d.news.length > 0 || d.disc.length > 0;
+  return (
+    <Frame>
+      <Header right={d.name} />
+      <Eyebrow en="WHY IT MOVED" ko="왜 움직였나" />
+      <div style={{ display: 'flex', flexDirection: 'column', flex: 1, justifyContent: 'center', gap: 14 }}>
+        {d.disc.map((x, i) => (
+          <div key={`d${i}`} style={{ display: 'flex', alignItems: 'flex-start', gap: 18, background: TEAL_T, borderRadius: 22, padding: '28px 32px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: TEAL, borderRadius: 10, padding: '8px 16px', fontSize: 21, fontWeight: 900, color: BG, flexShrink: 0 }}>{x.kind}</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 }}>
+              <div style={{ display: 'flex', fontSize: 28, fontWeight: 700, color: TXT, lineHeight: 1.4 }}>{x.title}</div>
+              <div style={{ display: 'flex', fontSize: 21, fontWeight: 600, color: SUB }}>공시 · {x.date}</div>
+            </div>
+          </div>
+        ))}
+        {d.news.map((n, i) => (
+          <div key={`n${i}`} style={{ display: 'flex', flexDirection: 'column', gap: 8, background: SURF, borderRadius: 22, padding: '28px 32px' }}>
+            <div style={{ display: 'flex', fontSize: 29, fontWeight: 700, color: TXT, lineHeight: 1.4 }}>{n.title}</div>
+            <div style={{ display: 'flex', fontSize: 21, fontWeight: 600, color: SUB }}>{n.src}{n.date ? ` · ${n.date}` : ''}</div>
+          </div>
+        ))}
+        {!has && (
+          <div style={{ display: 'flex', fontSize: 30, fontWeight: 600, color: SUB, lineHeight: 1.5 }}>
+            뚜렷한 뉴스·공시 없이 수급으로 움직였어요. 이런 날일수록 이유 없는 추격은 위험해요.
+          </div>
+        )}
+      </div>
+      <Footer right="출처 표기 · 기사 원문 확인 권장" />
+    </Frame>
+  );
+}
+
+// 52주 밴드 내 현재 위치 바.
+function Band52({ d }: { d: StockPickData }) {
+  if (d.pos52 == null) return null;
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14, background: SURF, borderRadius: 24, padding: '32px 36px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+        <div style={{ display: 'flex', fontSize: 24, fontWeight: 800, color: SUB }}>52주 최저</div>
+        <div style={{ display: 'flex', fontSize: 24, fontWeight: 800, color: TEAL }}>지금 {Math.round(d.pos52)}% 지점</div>
+        <div style={{ display: 'flex', fontSize: 24, fontWeight: 800, color: SUB }}>52주 최고</div>
+      </div>
+      <div style={{ display: 'flex', width: '100%', height: 16, background: 'rgba(255,255,255,0.10)', borderRadius: 8 }}>
+        <div style={{ display: 'flex', width: `${Math.max(2, Math.min(100, d.pos52))}%`, height: 16, background: TEAL, borderRadius: 8 }} />
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', fontSize: 27, fontWeight: 900, color: TXT }}>{d.lo52 != null ? Math.round(d.lo52).toLocaleString('ko-KR') : '—'}</div>
+        <div style={{ display: 'flex', fontSize: 27, fontWeight: 900, color: TXT }}>{d.hi52 != null ? Math.round(d.hi52).toLocaleString('ko-KR') : '—'}</div>
+      </div>
+    </div>
+  );
+}
+
+function StockNumbers(d: StockPickData) {
+  return (
+    <Frame>
+      <Header right={d.name} />
+      <Eyebrow en="KEY NUMBERS" ko="숫자로 보면" />
+      <div style={{ display: 'flex', flexDirection: 'column', flex: 1, justifyContent: 'center', gap: 16 }}>
+        <div style={{ display: 'flex', gap: 14 }}>
+          <StockMetric label="PER" value={nOrDash(d.per, '배')} />
+          <StockMetric label="PBR" value={nOrDash(d.pbr, '배', 2)} />
+          <StockMetric label="ROE" value={nOrDash(d.roe, '%')} />
+        </div>
+        <div style={{ display: 'flex', gap: 14 }}>
+          <StockMetric label="영업이익률" value={nOrDash(d.netMargin, '%')} />
+          <StockMetric label="부채비율" value={nOrDash(d.debtRatio, '%', 0)} />
+          <StockMetric label="배당수익률" value={nOrDash(d.divYield, '%', 2)} />
+        </div>
+        <Band52 d={d} />
+      </div>
+      <Footer right="지표 — 네이버 금융 · 참고용" />
+    </Frame>
+  );
+}
+
+// 연도별 매출·이익 막대. 값이 2년 미만이면 이 카드는 건너뛴다(렌더 null).
+function StockTrend(d: StockPickData) {
+  const rows = d.trend.filter((t) => t.revenue != null || t.profit != null);
+  if (rows.length < 2) return null;
+  const max = Math.max(...rows.map((t) => Math.abs(t.revenue ?? 0)), 1);
+  return (
+    <Frame>
+      <Header right={d.name} />
+      <Eyebrow en="TRACK RECORD" ko="실적은 어땠나" />
+      <div style={{ display: 'flex', flexDirection: 'column', flex: 1, justifyContent: 'center', gap: 20 }}>
+        {rows.map((t, i) => {
+          const w = Math.max(3, (Math.abs(t.revenue ?? 0) / max) * 100);
+          const profitPos = (t.profit ?? 0) >= 0;
+          return (
+            <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 10, background: SURF, borderRadius: 20, padding: '24px 30px' }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', fontSize: 30, fontWeight: 900, color: TXT }}>{t.year}</div>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 16 }}>
+                  <div style={{ display: 'flex', fontSize: 24, fontWeight: 700, color: SUB }}>매출 {t.revenue != null ? Math.round(t.revenue).toLocaleString('ko-KR') : '—'}</div>
+                  <div style={{ display: 'flex', fontSize: 26, fontWeight: 900, color: t.profit == null ? SUB : profitPos ? UP : DOWN }}>
+                    이익 {t.profit != null ? Math.round(t.profit).toLocaleString('ko-KR') : '—'}
+                  </div>
+                </div>
+              </div>
+              <div style={{ display: 'flex', width: '100%', height: 12, background: 'rgba(255,255,255,0.08)', borderRadius: 6 }}>
+                <div style={{ display: 'flex', width: `${w}%`, height: 12, background: TEAL, borderRadius: 6 }} />
+              </div>
+            </div>
+          );
+        })}
+        <div style={{ display: 'flex', fontSize: 22, fontWeight: 600, color: DISC }}>단위: {d.revUnit} · 막대는 매출 상대 크기</div>
+      </div>
+      <Footer right="재무 — 네이버 금융 · 연간 기준" />
+    </Frame>
+  );
+}
+
+function StockOutro(d: StockPickData) {
+  // 목표주가는 '증권사 컨센서스'로 출처를 분명히 하고, 없으면 아예 표시하지 않는다.
+  const hasCons = d.target != null && d.numAnalysts != null && d.numAnalysts > 0;
+  return (
+    <Frame>
+      <Header right="" />
+      <div style={{ display: 'flex', flexDirection: 'column', flex: 1, justifyContent: 'center', gap: 36 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
+          <Badge text="정리" />
+          <div style={{ display: 'flex', flexDirection: 'column', fontSize: 78, fontWeight: 900, color: TXT, letterSpacing: '-0.04em', lineHeight: 1.25 }}>
+            <div style={{ display: 'flex' }}>{d.name},</div>
+            <div style={{ display: 'flex' }}>오늘 <span style={{ color: col(d.pct) }}>&nbsp;{d.pct > 0 ? '+' : '−'}{Math.abs(d.pct).toFixed(2)}%</span></div>
+          </div>
+        </div>
+        {hasCons && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, background: SURF, borderRadius: 24, padding: '30px 36px' }}>
+            <div style={{ display: 'flex', fontSize: 23, fontWeight: 800, color: SUB }}>증권사 컨센서스 (애널리스트 {d.numAnalysts}명 평균)</div>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 14 }}>
+              <div style={{ display: 'flex', fontSize: 40, fontWeight: 900, color: TXT }}>목표주가 {Math.round(d.target!).toLocaleString('ko-KR')}원</div>
+            </div>
+            <div style={{ display: 'flex', fontSize: 22, fontWeight: 600, color: DISC }}>예측이 아니라 증권사 전망치의 평균입니다.</div>
+          </div>
+        )}
+        <CtaBar text="종목 상세는 프로필 링크에서 ↑" sub="매일 시장 브리핑 · 국내·미국 뉴스도 함께" />
+      </div>
+      <Footer right="종목 추천 아님 · 투자 판단은 본인 책임 · @investk" />
+    </Frame>
+  );
+}
+
+function renderStock(type: string, d: StockPickData): React.ReactElement | null {
+  if (type === 'stock-cover') return <StockCover {...d} />;
+  if (type === 'stock-why') return <StockWhy {...d} />;
+  if (type === 'stock-numbers') return <StockNumbers {...d} />;
+  if (type === 'stock-trend') return <StockTrend {...d} />;
+  if (type === 'stock-outro') return <StockOutro {...d} />;
+  return null;
+}
+
 export async function GET(_req: Request, { params }: { params: { type: string } }) {
   const t = params.type;
   const qs = new URL(_req.url).searchParams;
@@ -1000,6 +1197,7 @@ export async function GET(_req: Request, { params }: { params: { type: string } 
   if (t.startsWith('cal')) return img(renderCalendar(t, await getCalendarCardData()));
   if (t.startsWith('term')) return img(renderTerm(t, await getTermCardData()));
   if (t.startsWith('week')) return img(renderWeek(t, await getWeekReviewData()));
+  if (t.startsWith('stock-')) { const s = await getStockCardData(); return img(s ? renderStock(t, s) : null); }
   if (t === 'sched') return img(<ScheduleCard />);
   if (t === 'breaking') { const b = await getBreakingCardData(); return img(b ? <BreakingCard {...b} /> : null); }
   const render = RENDERERS[t];

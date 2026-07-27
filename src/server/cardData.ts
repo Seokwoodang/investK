@@ -6,6 +6,10 @@ import { NEWS_TABS } from '@/server/news';
 import { getOrGenerateJSON } from '@/server/ai';
 import { kvGet, kvSet } from '@/server/kv';
 import { getValuePage, type Market, type ScoredStock } from '@/server/valueScreen';
+import { getUniverse } from '@/server/data';
+import { buildKanalystData } from '@/server/kanalyst';
+import { getKrStockNews } from '@/server/providers/naverNews';
+import { getDisclosures } from '@/server/providers/dart';
 import { GLOSSARY } from '@/data';
 
 // KST 기준 연-주차 키(주간 시리즈 캐시·로테이션용).
@@ -35,6 +39,9 @@ export interface CardData {
   heroOther: { name: string; chg: number } | null;
   event: { name: string; sub: string; month: string; day: string } | null;
 }
+
+// Satori(Pretendard)에 없는 글자 제거 — 이모지·국기·한자는 카드에서 두부(□)로 렌더된다.
+const stripTofu = (s: string) => s.replace(/[\u{1F000}-\u{1FAFF}\u{1F1E6}-\u{1F1FF}\u{2600}-\u{27BF}\u{3400}-\u{9FFF}️‍]/gu, '').replace(/\s{2,}/g, ' ').trim();
 
 const kstYmd = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
 const kstDateLabel = () => new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', month: 'long', day: 'numeric', weekday: 'long' }).format(new Date());
@@ -110,7 +117,7 @@ export async function getCardData(): Promise<CardData> {
   const upcoming = (data.macro.events ?? []).filter((e) => e.date >= today).sort((a, z) => a.date.localeCompare(z.date));
   const ev = upcoming.find((e) => e.tag === '고영향') ?? upcoming[0];
   // Pretendard에 없는 글리프(두부 방지) 제거: 이모지·국기·한자(CJK). 화살표(↑↓→)는 유지.
-  const clean = (s: string) => s.replace(/[\u{1F000}-\u{1FAFF}\u{1F1E6}-\u{1F1FF}\u{2600}-\u{27BF}\u{3400}-\u{9FFF}️‍]/gu, '').replace(/\s{2,}/g, ' ').trim();
+  const clean = stripTofu;
   const event = ev
     ? {
         name: clean(ev.name),
@@ -312,7 +319,7 @@ export interface CalCardData { dateLabel: string; range: string; highCount: numb
 
 export async function getCalendarCardData(): Promise<CalCardData> {
   const data = await getDashboardData({ withMacroExtras: true });
-  const clean = (s: string) => s.replace(/[\u{1F000}-\u{1FAFF}\u{1F1E6}-\u{1F1FF}\u{2600}-\u{27BF}\u{3400}-\u{9FFF}️‍]/gu, '').replace(/\s{2,}/g, ' ').trim();
+  const clean = stripTofu;
   const dateLabel = kstDateLabel();
 
   // 이번 주(월~일) 범위 계산(KST).
@@ -501,4 +508,142 @@ export async function getWeekReviewData(): Promise<WeekReviewData> {
   else if (ups <= 1) summary = '지수가 눌린 채 방향을 탐색한 한 주였어요.';
   else summary = '지수별 온도차가 컸던 혼조세의 한 주였어요.';
   return { dateLabel: kstDateLabel(), range: weekRangeLabel(), hero, indices, btc: bt ?? 0, best, worst, summary };
+}
+
+// ══════════════ 화제의 종목 (일간) ══════════════
+// "오늘의 추천주"가 아니라 "오늘 많이 움직인 종목 — 왜?"다. 선정은 규칙 기반이고
+// 이유는 실제 뉴스·공시로만 설명한다(AI 서술·투자의견 미사용). 급등·급락 모두 대상.
+export interface StockTrendYear { year: number; revenue: number | null; profit: number | null }
+export interface StockNewsRef { title: string; src: string; date: string }
+export interface StockPickData {
+  dateLabel: string;
+  code: string; name: string;
+  priceText: string; pct: number; dir: 'up' | 'down';
+  volText: string;                 // 거래대금
+  marketCapText: string | null;
+  hi52: number | null; lo52: number | null; pos52: number | null; // 52주 밴드 내 위치(%)
+  per: number | null; pbr: number | null; roe: number | null; divYield: number | null;
+  netMargin: number | null; debtRatio: number | null;
+  target: number | null; upside: number | null; numAnalysts: number | null;
+  revUnit: string;
+  trend: StockTrendYear[];
+  news: StockNewsRef[];
+  disc: { title: string; date: string; kind: string }[];
+}
+
+// ETF·ETN·스팩·우선주 제외 — '종목 이야기'가 아니라 상품이거나 유동성이 얕다.
+const NOT_A_STORY = /(KODEX|TIGER|RISE|PLUS|ARIRANG|HANARO|KOSEF|KBSTAR|ACE\s|SOL\s|TIMEFOLIO|히어로즈|마이티|파워|레버리지|인버스|선물|ETN|스팩)/i;
+const IS_PREF = /\d?우B?$/; // 우선주(삼성전자우, 현대차2우B …)
+// 보통주만 — 숫자 6자리. 신주인수권·ELW 등은 '0218L0'처럼 영문이 섞여 여기서 걸러진다.
+const IS_COMMON = /^\d{6}$/;
+const MIN_VALUE = 3_000_000_000; // 거래대금 하한 30억 — 잡주·품절주 배제
+const RECENT_KEY = 'ig:stock:recent';
+const RECENT_KEEP = 7; // 최근 N개 종목은 다시 고르지 않음
+
+const won = (n: number): string => {
+  if (n >= 1e12) return `${(n / 1e12).toFixed(1)}조원`;
+  if (n >= 1e8) return `${Math.round(n / 1e8).toLocaleString('ko-KR')}억원`;
+  return `${Math.round(n).toLocaleString('ko-KR')}원`;
+};
+
+// 오늘 화제의 종목 1개. 조건 맞는 종목이 없으면 null(게시 스킵).
+// 주의: 카드 5장이 각각 이 함수를 호출하므로 **하루 안에서는 같은 종목이 나와야 한다**.
+// 그래서 선정 결과를 당일 키에 고정하고, 이후 호출은 그 종목을 그대로 쓴다.
+export async function getStockCardData(): Promise<StockPickData | null> {
+  const uni = await getUniverse().catch(() => null);
+  const kr = uni?.kr_stock ?? [];
+  if (!kr.length) return null;
+
+  const ymd = kstYmd();
+  const fixed = await kvGet<string>(`ig:stock:pick:${ymd}`).catch(() => null);
+  let pick = fixed ? kr.find((s) => (s.ticker || s.id) === fixed) ?? null : null;
+
+  if (!pick) {
+    const recent = (await kvGet<string[]>(RECENT_KEY).catch(() => null)) ?? [];
+    // 거래대금 상위(=화제성) 안에서 고른다. 유동성을 먼저 걸러 잡주를 피한다.
+    const pool = kr
+      .filter((s) => (s.vol ?? 0) >= MIN_VALUE
+        && IS_COMMON.test(s.ticker || s.id)
+        && !NOT_A_STORY.test(s.name) && !IS_PREF.test(s.name))
+      .sort((a, z) => (z.vol ?? 0) - (a.vol ?? 0))
+      .slice(0, 60)
+      .filter((s) => !recent.includes(s.id));
+    if (!pool.length) return null;
+    // 화제성 = 얼마나 움직였나 × 얼마나 거래됐나. |등락|만 보면 거래대금 수백억짜리 소형주
+    // 상한가가 매번 뽑혀 '테마주 소개'가 된다. log를 씌워 거래대금은 완만하게만 반영.
+    const buzz = (s: { pct: number; vol?: number }) => Math.abs(s.pct) * Math.log10(Math.max((s.vol ?? 0) / 1e8, 1.01));
+    const best = pool.reduce((m, x) => (buzz(x) > buzz(m) ? x : m), pool[0]);
+    if (Math.abs(best.pct) < 2) return null; // 이 정도도 안 움직였으면 '화제'가 아니다
+    pick = best;
+    // 당일 고정 + 최근 목록에 1회만 기록(카드마다 바뀌는 것 방지).
+    await kvSet(`ig:stock:pick:${ymd}`, pick.ticker || pick.id).catch(() => {});
+    await kvSet(RECENT_KEY, [pick.id, ...recent.filter((r) => r !== pick!.id)].slice(0, RECENT_KEEP)).catch(() => {});
+  }
+
+  const code = pick.ticker || pick.id;
+  const [k, naverNews, ranked, disc] = await Promise.all([
+    buildKanalystData('kr', code, pick.name, code, pick.price).catch(() => null),
+    getKrStockNews(code, pick.name, 8).catch(() => []),
+    // 네이버 종목뉴스는 전용 기사가 없으면 '마감시황'류를 섞어 준다. 우리 RSS 랭킹 풀에서도
+    // 종목명이 실제로 박힌 기사를 찾아 합친다(여기에 '하한가 폭락한 OO' 같은 본편이 있다).
+    getCachedRankedNews('page:kr_stock').then((r) => r ?? []).catch(() => []),
+    getDisclosures([code], 7, 3).catch(() => []),
+  ]);
+
+  const hi52 = k?.hi52 ?? null;
+  const lo52 = k?.lo52 ?? null;
+  const pos52 = hi52 != null && lo52 != null && hi52 > lo52
+    ? Math.max(0, Math.min(100, ((pick.price - lo52) / (hi52 - lo52)) * 100))
+    : null;
+
+  // '오늘 왜 움직였나'니까 (1) 최근 3일 (2) 종목명이 실제로 들어간 기사만 쓴다.
+  // 이 두 조건을 안 걸면 3주 전 기사나 '마감시황'이 이유인 척 붙어 거짓 설명이 된다.
+  // 남는 게 없으면 '뉴스 없이 수급으로 움직였다'고 솔직히 적는다(카드에서 처리).
+  const FRESH_DAYS = 3;
+  const cutoff = new Date(Date.now() - FRESH_DAYS * 86400000);
+  const cutYmd = `${cutoff.getFullYear()}${String(cutoff.getMonth() + 1).padStart(2, '0')}${String(cutoff.getDate()).padStart(2, '0')}`;
+  const isFresh = (dt?: string) => {
+    const digits = String(dt ?? '').replace(/\D/g, '');
+    return digits.length >= 8 && digits.slice(0, 8) >= cutYmd;
+  };
+  const nm = pick.name.replace(/\s/g, '');
+  const mentions = (s: string) => s.replace(/\s/g, '').includes(nm);
+
+  const merged = [
+    ...naverNews.filter((n) => isFresh(n.datetime) && mentions(n.title)),
+    // 랭킹 풀은 datetime 형식이 ISO라 isFresh가 같이 처리한다. target에도 종목명이 올 수 있다.
+    ...ranked
+      .filter((n) => isFresh(n.datetime) && (mentions(n.title) || mentions(n.target ?? '')))
+      .map((n) => ({ title: n.title, src: n.src, datetime: n.datetime })),
+  ];
+  const seenT = new Set<string>();
+  const freshNews = merged.filter((n) => {
+    const key = stripTofu(n.title).replace(/\s/g, '').slice(0, 30);
+    if (!key || seenT.has(key)) return false;
+    seenT.add(key);
+    return true;
+  });
+
+  return {
+    dateLabel: kstDateLabel(),
+    code, name: stripTofu(pick.name),
+    priceText: `${Math.round(pick.price).toLocaleString('ko-KR')}원`,
+    pct: pick.pct,
+    dir: pick.pct >= 0 ? 'up' : 'down',
+    volText: won(pick.vol ?? 0),
+    marketCapText: k?.marketCapText ?? null,
+    hi52, lo52, pos52,
+    per: k?.per ?? null, pbr: k?.pbr ?? null, roe: k?.roe ?? null,
+    divYield: k?.divYield ?? null, netMargin: k?.netMargin ?? null, debtRatio: k?.debtRatio ?? null,
+    target: k?.target ?? null, upside: k?.upside ?? null, numAnalysts: k?.numAnalysts ?? null,
+    revUnit: k?.revUnit ?? '억원',
+    trend: (k?.trend ?? []).slice(-4).map((t) => ({ year: t.year, revenue: t.revenue, profit: t.netIncome })),
+    news: freshNews.slice(0, 3).map((n) => ({
+      title: stripTofu(n.title).slice(0, 60),
+      src: stripTofu(n.src),
+      // 네이버는 'YYYYMMDDHHmmss', RSS 랭킹 풀은 ISO — 숫자만 뽑아 앞 8자리로 통일.
+      date: ((d) => (d.length >= 8 ? `${+d.slice(4, 6)}/${+d.slice(6, 8)}` : ''))(String(n.datetime ?? '').replace(/\D/g, '')),
+    })).filter((n) => n.title),
+    disc: disc.slice(0, 2).map((d) => ({ title: stripTofu(d.title).slice(0, 44), date: d.date.slice(5), kind: d.kind })),
+  };
 }

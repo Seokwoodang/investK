@@ -233,6 +233,7 @@ export interface Fundamentals {
   targetPrice: number | null; // 컨센서스 목표주가
   recommMean: number | null; // 투자의견 — 주의: 네이버는 야후와 반대 스케일(높을수록 매수, 4≈매수). 표준(1=매수)으로 쓰려면 6-x 변환.
   hi52: number | null; // 52주 최고가
+  lo52: number | null; // 52주 최저가
 }
 
 interface TotalInfo {
@@ -268,6 +269,7 @@ export async function getFundamentals(code: string): Promise<Fundamentals | null
       targetPrice: pnum(j.consensusInfo?.priceTargetMean),
       recommMean: pnum(j.consensusInfo?.recommMean),
       hi52: get('52주 최고'),
+      lo52: get('52주 최저'),
     };
   } catch {
     return null;
