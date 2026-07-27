@@ -2,20 +2,15 @@ name: Post to Instagram (reel)
 
 # 카드 캐러셀을 9:16 세로 릴스로 합성해 자동 게시(도달 확대용).
 #  흐름: ffmpeg 렌더 → Vercel이 발급한 Supabase 서명 URL로 업로드 → 릴스 게시.
-#  도달용 릴스: 데일리 브리핑(평일 점심) · 용어 1분(수) · 주간 리뷰(토). 속보는 별도 워크플로.
-#  KST → UTC:
-#   · 데일리 브리핑 릴스 : 평일 12:30 KST = 03:30 UTC (Mon-Fri)
-#   · 용어 1분 릴스      : 수 19:00 KST = 10:00 UTC
-#   · 주간 리뷰 릴스      : 토 10:00 KST = 01:00 UTC
+#  영상 릴스: 데일리 브리핑(평일 점심)만. 용어·주간리뷰는 카러셀(스와이프)로 복귀.
+#  KST → UTC: 데일리 브리핑 릴스 = 평일 12:30 KST = 03:30 UTC (Mon-Fri)
 on:
   schedule:
     - cron: '30 3 * * 1-5' # 데일리 브리핑 릴스(평일)
-    - cron: '0 10 * * 3'   # 용어 1분 릴스(수)
-    - cron: '0 1 * * 6'    # 주간 리뷰 릴스(토)
   workflow_dispatch:
     inputs:
       type:
-        description: '릴스 종류(daily|news|value|term|week)'
+        description: '릴스 종류(daily|news|value)'
         default: 'daily'
 
 jobs:
@@ -32,17 +27,10 @@ jobs:
       - name: Resolve type & cards
         id: cfg
         run: |
-          case "${{ github.event.schedule }}" in
-            "30 3 * * 1-5") TYPE=daily ;;
-            "0 10 * * 3")   TYPE=term ;;
-            "0 1 * * 6")    TYPE=week ;;
-            *)              TYPE="${{ github.event.inputs.type || 'daily' }}" ;;
-          esac
+          TYPE="${{ github.event.inputs.type || 'daily' }}"
           case "$TYPE" in
             news)  CARDS="news-cover,news-0,news-1,news-2,news-outro" ;;
             value) CARDS="value-cover,value-0,value-1,value-2,value-3,value-4,value-outro" ;;
-            term)  CARDS="term-cover,term-def,term-example,term-tips,term-outro" ;;
-            week)  CARDS="week-cover,week-detail,week-outro" ;;
             *)     TYPE="daily"; CARDS="cover,kr,global,crypto,outro" ;;
           esac
           echo "type=$TYPE" >> "$GITHUB_OUTPUT"
