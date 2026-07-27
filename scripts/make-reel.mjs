@@ -3,7 +3,7 @@
 //  각 카드는 1080×1350 → 1080×1920 캔버스 중앙 배치 + 완만한 줌 + 페이드 전환. 배경음은
 //  assets/reel-bgm.mp3 있으면 사용, 없으면 잔잔한 앰비언트 패드를 생성(완전 자동).
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, writeFileSync, existsSync, rmSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, existsSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -82,8 +82,8 @@ try {
       '-map', '0:v', '-map', '[a]', '-t', dur, '-c:v', 'copy', '-c:a', 'aac', '-b:a', '128k', '-movflags', '+faststart', OUT]);
   }
 
-  const size = execFileSync('stat', ['-f', '%z', OUT]).toString().trim();
-  console.log(`reel ok: ${OUT} (${(+size / 1e6).toFixed(2)}MB, ${dur}s, ${imgs.length} cards)`);
+  const size = statSync(OUT).size; // node fs로 크기 확인(리눅스/macOS 공통, stat -f는 macOS 전용이라 GA에서 실패)
+  console.log(`reel ok: ${OUT} (${(size / 1e6).toFixed(2)}MB, ${dur}s, ${imgs.length} cards)`);
 } finally {
   rmSync(dir, { recursive: true, force: true });
 }
