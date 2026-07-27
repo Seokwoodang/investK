@@ -27,7 +27,7 @@ async function marketFreshKey(): Promise<string> {
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
-const CAPTION_TYPE: Record<string, string> = { daily: 'brief', news: 'news', value: 'value', calendar: 'calendar', term: 'term', week: 'week' };
+const CAPTION_TYPE: Record<string, string> = { daily: 'brief', news: 'news', value: 'value', calendar: 'calendar', term: 'term', week: 'week', breaking: 'breaking' };
 // 마무리(마지막 장) 바로 앞에 '게시 일정' 카드 삽입 — 어느 글을 봐도 편성 시간을 알게.
 function withSchedule(cards: string[]): string[] {
   if (cards.length < 2) return cards;
