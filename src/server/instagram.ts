@@ -201,7 +201,8 @@ export async function buildCaption(type: string, slot?: 'am' | 'pm', region?: 'k
     ].join('\n');
   }
   if (type === 'stock') {
-    const d = await getStockCardData();
+    const mkt = region === 'us' ? 'us' : 'kr';
+    const d = await getStockCardData(mkt);
     if (!d) return '';
     const signed = `${d.pct > 0 ? '+' : '−'}${Math.abs(d.pct).toFixed(2)}%`;
     const why = d.news.length
@@ -213,7 +214,7 @@ export async function buildCaption(type: string, slot?: 'am' | 'pm', region?: 'k
       d.roe != null ? `ROE ${d.roe.toFixed(1)}%` : null,
     ].filter(Boolean).join(' · ');
     return [
-      `📊 오늘 화제의 종목 · ${d.name} ${signed}`,
+      `📊 ${d.market === 'us' ? '미국' : '국내'} 화제의 종목 · ${d.name} ${signed}`,
       '',
       '왜 움직였나',
       why,
@@ -223,10 +224,14 @@ export async function buildCaption(type: string, slot?: 'am' | 'pm', region?: 'k
       '📌 카드를 넘겨 52주 위치·실적 추이까지 확인하세요.',
       '💬 댓글에 「지표」 라고 남기면 실시간 링크를 DM으로 보내드려요!',
       '',
-      '※ 종목 추천이 아닙니다. 거래대금·등락률 기준으로 그날 화제가 된 종목을 사실 그대로 정리한 것이며, 투자 판단과 책임은 본인에게 있습니다.',
+      d.market === 'us'
+        ? '※ 종목 추천이 아닙니다. 대형주·인기주 중 그날 등락이 가장 컸던 종목을 사실 그대로 정리한 것이며, 투자 판단과 책임은 본인에게 있습니다.'
+        : '※ 종목 추천이 아닙니다. 거래대금·등락률 기준으로 그날 화제가 된 종목을 사실 그대로 정리한 것이며, 투자 판단과 책임은 본인에게 있습니다.',
       '👉 종목 상세는 프로필 링크 investk.app',
       '',
-      tags(['#화제의종목', '#급등주', '#급락주', '#국내주식', '#코스피', '#코스닥', '#종목분석', '#주식공부']),
+      tags(d.market === 'us'
+        ? ['#화제의종목', '#미국주식', '#해외주식', '#서학개미', '#나스닥', '#SP500', '#종목분석', '#미국증시']
+        : ['#화제의종목', '#급등주', '#급락주', '#국내주식', '#코스피', '#코스닥', '#종목분석', '#주식공부']),
     ].filter((l) => l !== '').join('\n');
   }
   if (type === 'week') {
@@ -305,8 +310,8 @@ export function weekCards(): string[] {
 }
 // 화제의 종목. 선정 종목이 없으면 빈 배열(게시 스킵). 실적 데이터가 2년 미만이면
 // stock-trend는 렌더가 null이라 캐러셀에서 빼야 한다(404 이미지로 컨테이너 생성 실패 방지).
-export async function stockCards(): Promise<string[]> {
-  const d = await getStockCardData();
+export async function stockCards(market: 'kr' | 'us' = 'kr'): Promise<string[]> {
+  const d = await getStockCardData(market);
   if (!d) return [];
   const hasTrend = d.trend.filter((t) => t.revenue != null || t.profit != null).length >= 2;
   return ['stock-cover', 'stock-why', 'stock-numbers', ...(hasTrend ? ['stock-trend'] : []), 'stock-outro'];

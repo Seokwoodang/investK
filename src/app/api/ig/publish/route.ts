@@ -22,7 +22,7 @@ async function marketFreshKey(): Promise<string> {
 //  ?type=calendar : 주간 경제 캘린더
 //  ?type=term     : 투자 용어 1분 (주간)
 //  ?type=week     : 주간 마켓 리뷰 (토)
-//  ?type=stock    : 오늘 화제의 종목 — 왜 움직였나 (일간, 조건 미달이면 카드 0장 → 503으로 스킵)
+//  ?type=stock&region=kr|us : 오늘 화제의 종목 — 왜 움직였나 (일간, 조건 미달이면 카드 0장 → 503 스킵)
 //  단일 카드명(cover/kr/news-0/value-0…)도 허용.
 //  ?dry=1         : 실제 게시 없이 캡션/이미지URL만 미리보기(테스트용)
 //  인증: Bearer CRON_SECRET(액션) 또는 ?t=MOCK_FILL_TOKEN(수동).
@@ -42,7 +42,7 @@ async function cardsFor(type: string, slot?: 'am' | 'pm', region?: 'kr' | 'us' |
   if (type === 'calendar') return withSchedule(await calendarCards());
   if (type === 'term') return withSchedule(termCards());
   if (type === 'week') return withSchedule(weekCards());
-  if (type === 'stock') return withSchedule(await stockCards());
+  if (type === 'stock') return withSchedule(await stockCards(region === 'us' ? 'us' : 'kr'));
   return [type];
 }
 
@@ -85,7 +85,9 @@ async function run(req: Request) {
     }
     const cards = await cardsFor(type, slot, region);
     if (!cards.length) return NextResponse.json({ ok: false, error: '게시할 카드 없음(데이터 캐시 비어있음)' }, { status: 503 });
-    const imageUrls = cards.map((c) => cardImageUrl(c, type === 'news' ? slot : undefined, type === 'news' ? region : undefined));
+    // 뉴스는 slot+region, 화제의 종목은 region(=시장)만 카드 URL에 실어야 같은 데이터가 렌더된다.
+    const needsRegion = type === 'news' || type === 'stock';
+    const imageUrls = cards.map((c) => cardImageUrl(c, type === 'news' ? slot : undefined, needsRegion ? region : undefined));
     if (dry) return NextResponse.json({ ok: true, dry: true, cards, imageUrls, caption });
     const res = imageUrls.length > 1 ? await publishCarousel(imageUrls, caption) : await publishImage(imageUrls[0], caption);
     await markFresh();

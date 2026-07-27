@@ -1018,10 +1018,10 @@ function StockCover(d: StockPickData) {
           </div>
           <div style={{ display: 'flex', fontSize: 68, fontWeight: 900, color: TXT, letterSpacing: '-0.03em' }}>{word}</div>
         </div>
+        {/* 없는 값은 '—' 대신 칸 자체를 뺀다. KR=거래대금, US=시가총액이 채워진다. */}
         <div style={{ display: 'flex', flexDirection: 'row', gap: 14, marginTop: 40 }}>
           <StockMetric label="현재가" value={d.priceText} />
-          <StockMetric label="거래대금" value={d.volText} />
-          {/* 시총은 종목에 따라 안 잡힐 수 있어 '—' 대신 칸 자체를 뺀다. */}
+          {d.volText ? <StockMetric label="거래대금" value={d.volText} /> : null}
           {d.marketCapText ? <StockMetric label="시가총액" value={d.marketCapText} /> : null}
         </div>
       </div>
@@ -1197,7 +1197,8 @@ export async function GET(_req: Request, { params }: { params: { type: string } 
   if (t.startsWith('cal')) return img(renderCalendar(t, await getCalendarCardData()));
   if (t.startsWith('term')) return img(renderTerm(t, await getTermCardData()));
   if (t.startsWith('week')) return img(renderWeek(t, await getWeekReviewData()));
-  if (t.startsWith('stock-')) { const s = await getStockCardData(); return img(s ? renderStock(t, s) : null); }
+  // 화제의 종목 — ?region=us 면 미국, 없으면 국내.
+  if (t.startsWith('stock-')) { const s = await getStockCardData(region === 'us' ? 'us' : 'kr'); return img(s ? renderStock(t, s) : null); }
   if (t === 'sched') return img(<ScheduleCard />);
   if (t === 'breaking') { const b = await getBreakingCardData(); return img(b ? <BreakingCard {...b} /> : null); }
   const render = RENDERERS[t];

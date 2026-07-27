@@ -8,8 +8,9 @@ import { kvGet, kvSet } from '@/server/kv';
 import { getValuePage, type Market, type ScoredStock } from '@/server/valueScreen';
 import { getUniverse } from '@/server/data';
 import { buildKanalystData } from '@/server/kanalyst';
-import { getKrStockNews } from '@/server/providers/naverNews';
+import { getKrStockNews, getWorldStockNews } from '@/server/providers/naverNews';
 import { getDisclosures } from '@/server/providers/dart';
+import { US_MOVER_CANDIDATES } from '@/data/usLargeCaps';
 import { GLOSSARY } from '@/data';
 
 // KST 기준 연-주차 키(주간 시리즈 캐시·로테이션용).
@@ -515,11 +516,13 @@ export async function getWeekReviewData(): Promise<WeekReviewData> {
 // 이유는 실제 뉴스·공시로만 설명한다(AI 서술·투자의견 미사용). 급등·급락 모두 대상.
 export interface StockTrendYear { year: number; revenue: number | null; profit: number | null }
 export interface StockNewsRef { title: string; src: string; date: string }
+export type StockMarket = 'kr' | 'us';
 export interface StockPickData {
   dateLabel: string;
+  market: StockMarket;
   code: string; name: string;
   priceText: string; pct: number; dir: 'up' | 'down';
-  volText: string;                 // 거래대금
+  volText: string | null;          // 거래대금 — US는 신뢰할 값이 없어 null
   marketCapText: string | null;
   hi52: number | null; lo52: number | null; pos52: number | null; // 52주 밴드 내 위치(%)
   per: number | null; pbr: number | null; roe: number | null; divYield: number | null;
@@ -546,54 +549,127 @@ const won = (n: number): string => {
   return `${Math.round(n).toLocaleString('ko-KR')}원`;
 };
 
+// ── 미국: 후보 대형주의 일간 등락률을 Yahoo spark로 배치 조회 ──
+// 네이버 US 유니버스는 pct가 사실상 비어 있어(메가캡도 0.00%) 등락률만 여기서 받는다.
+// spark는 심볼 20개 남짓부터 응답이 잘려 15개씩 나눠 던진다.
+const SPARK_BATCH = 15;
+async function usDailyMoves(tickers: string[]): Promise<Map<string, { pct: number; close: number }>> {
+  const out = new Map<string, { pct: number; close: number }>();
+  const batches: string[][] = [];
+  for (let i = 0; i < tickers.length; i += SPARK_BATCH) batches.push(tickers.slice(i, i + SPARK_BATCH));
+  await Promise.all(
+    batches.map(async (b) => {
+      try {
+        const j = await fetch(
+          `https://query1.finance.yahoo.com/v8/finance/spark?symbols=${b.join(',')}&range=1d&interval=1d`,
+          { headers: { 'User-Agent': 'Mozilla/5.0' }, next: { revalidate: 900 } },
+        ).then((r) => r.json());
+        for (const [sym, v] of Object.entries(j as Record<string, { close?: (number | null)[]; chartPreviousClose?: number }>)) {
+          const closes = (v?.close ?? []).filter((x): x is number => x != null);
+          const cl = closes[closes.length - 1];
+          const pc = v?.chartPreviousClose;
+          if (cl && pc) out.set(sym, { pct: ((cl - pc) / pc) * 100, close: cl });
+        }
+      } catch {
+        /* 배치 하나 실패해도 나머지로 진행 */
+      }
+    }),
+  );
+  return out;
+}
+
 // 오늘 화제의 종목 1개. 조건 맞는 종목이 없으면 null(게시 스킵).
 // 주의: 카드 5장이 각각 이 함수를 호출하므로 **하루 안에서는 같은 종목이 나와야 한다**.
 // 그래서 선정 결과를 당일 키에 고정하고, 이후 호출은 그 종목을 그대로 쓴다.
-export async function getStockCardData(): Promise<StockPickData | null> {
+export async function getStockCardData(market: StockMarket = 'kr'): Promise<StockPickData | null> {
   const uni = await getUniverse().catch(() => null);
-  const kr = uni?.kr_stock ?? [];
-  if (!kr.length) return null;
+  const rows = (market === 'kr' ? uni?.kr_stock : uni?.us_stock) ?? [];
+  if (!rows.length) return null;
 
   const ymd = kstYmd();
-  const fixed = await kvGet<string>(`ig:stock:pick:${ymd}`).catch(() => null);
-  let pick = fixed ? kr.find((s) => (s.ticker || s.id) === fixed) ?? null : null;
+  const pickKey = `ig:stock:pick:${market}:${ymd}`;
+  const recentKey = `${RECENT_KEY}:${market}`;
+  const fixed = await kvGet<string>(pickKey).catch(() => null);
 
-  if (!pick) {
-    const recent = (await kvGet<string[]>(RECENT_KEY).catch(() => null)) ?? [];
-    // 거래대금 상위(=화제성) 안에서 고른다. 유동성을 먼저 걸러 잡주를 피한다.
-    const pool = kr
-      .filter((s) => (s.vol ?? 0) >= MIN_VALUE
-        && IS_COMMON.test(s.ticker || s.id)
-        && !NOT_A_STORY.test(s.name) && !IS_PREF.test(s.name))
-      .sort((a, z) => (z.vol ?? 0) - (a.vol ?? 0))
-      .slice(0, 60)
-      .filter((s) => !recent.includes(s.id));
-    if (!pool.length) return null;
-    // 화제성 = 얼마나 움직였나 × 얼마나 거래됐나. |등락|만 보면 거래대금 수백억짜리 소형주
-    // 상한가가 매번 뽑혀 '테마주 소개'가 된다. log를 씌워 거래대금은 완만하게만 반영.
-    const buzz = (s: { pct: number; vol?: number }) => Math.abs(s.pct) * Math.log10(Math.max((s.vol ?? 0) / 1e8, 1.01));
-    const best = pool.reduce((m, x) => (buzz(x) > buzz(m) ? x : m), pool[0]);
-    if (Math.abs(best.pct) < 2) return null; // 이 정도도 안 움직였으면 '화제'가 아니다
-    pick = best;
-    // 당일 고정 + 최근 목록에 1회만 기록(카드마다 바뀌는 것 방지).
-    await kvSet(`ig:stock:pick:${ymd}`, pick.ticker || pick.id).catch(() => {});
-    await kvSet(RECENT_KEY, [pick.id, ...recent.filter((r) => r !== pick!.id)].slice(0, RECENT_KEEP)).catch(() => {});
+  // 등락률: KR은 유니버스 값을 쓰고, US는 유니버스 pct가 비어 있어 Yahoo에서 따로 받는다.
+  let pick: (typeof rows)[number] | null = null;
+  let pct = 0;
+  let price = 0;
+
+  if (market === 'kr') {
+    pick = fixed ? rows.find((s) => (s.ticker || s.id) === fixed) ?? null : null;
+    if (!pick) {
+      const recent = (await kvGet<string[]>(recentKey).catch(() => null)) ?? [];
+      // 거래대금 상위(=화제성) 안에서 고른다. 유동성을 먼저 걸러 잡주를 피한다.
+      const pool = rows
+        .filter((s) => (s.vol ?? 0) >= MIN_VALUE
+          && IS_COMMON.test(s.ticker || s.id)
+          && !NOT_A_STORY.test(s.name) && !IS_PREF.test(s.name))
+        .sort((a, z) => (z.vol ?? 0) - (a.vol ?? 0))
+        .slice(0, 60)
+        .filter((s) => !recent.includes(s.id));
+      if (!pool.length) return null;
+      // 화제성 = 얼마나 움직였나 × 얼마나 거래됐나. |등락|만 보면 거래대금 수백억짜리 소형주
+      // 상한가가 매번 뽑혀 '테마주 소개'가 된다. log를 씌워 거래대금은 완만하게만 반영.
+      const buzz = (s: { pct: number; vol?: number }) => Math.abs(s.pct) * Math.log10(Math.max((s.vol ?? 0) / 1e8, 1.01));
+      const best = pool.reduce((m, x) => (buzz(x) > buzz(m) ? x : m), pool[0]);
+      if (Math.abs(best.pct) < 2) return null; // 이 정도도 안 움직였으면 '화제'가 아니다
+      pick = best;
+      await kvSet(pickKey, pick.ticker || pick.id).catch(() => {});
+      await kvSet(recentKey, [pick.id, ...recent.filter((r) => r !== pick!.id)].slice(0, RECENT_KEEP)).catch(() => {});
+    }
+    pct = pick.pct;
+    price = pick.price;
+  } else {
+    // 미국: 고정 후보(대형주·인기주)만 등락률 조회 → 잡주·신주인수권이 구조적으로 못 들어온다.
+    // 신뢰할 거래대금이 없어 화제성은 |등락률|만으로 본다(후보 자체가 이미 유동성 검증됨).
+    const byTicker = new Map(rows.map((s) => [s.ticker || s.id, s]));
+    const moves = await usDailyMoves(US_MOVER_CANDIDATES);
+    if (!moves.size) return null;
+
+    if (fixed && moves.has(fixed)) {
+      pick = byTicker.get(fixed) ?? null;
+      const mv = moves.get(fixed)!;
+      pct = mv.pct; price = mv.close;
+      if (!pick) pick = { id: fixed, name: fixed, ticker: fixed, price: mv.close, cur: '$', pct: mv.pct } as (typeof rows)[number];
+    } else {
+      const recent = (await kvGet<string[]>(recentKey).catch(() => null)) ?? [];
+      const cands = [...moves.entries()]
+        .filter(([t]) => !recent.includes(t))
+        .sort((a, z) => Math.abs(z[1].pct) - Math.abs(a[1].pct));
+      if (!cands.length) return null;
+      const [t, mv] = cands[0];
+      if (Math.abs(mv.pct) < 2) return null;
+      pct = mv.pct; price = mv.close;
+      pick = byTicker.get(t) ?? ({ id: t, name: t, ticker: t, price: mv.close, cur: '$', pct: mv.pct } as (typeof rows)[number]);
+      await kvSet(pickKey, t).catch(() => {});
+      await kvSet(recentKey, [t, ...recent.filter((r) => r !== t)].slice(0, RECENT_KEEP)).catch(() => {});
+    }
   }
+  if (!pick) return null;
 
   const code = pick.ticker || pick.id;
-  const [k, naverNews, ranked, disc] = await Promise.all([
-    buildKanalystData('kr', code, pick.name, code, pick.price).catch(() => null),
-    getKrStockNews(code, pick.name, 8).catch(() => []),
-    // 네이버 종목뉴스는 전용 기사가 없으면 '마감시황'류를 섞어 준다. 우리 RSS 랭킹 풀에서도
+  const [k, siteNews, ranked, disc] = await Promise.all([
+    buildKanalystData(market, code, pick.name, code, price).catch(() => null),
+    // US는 거래소 접미사(.O 나스닥 / .N 뉴욕)를 알 수 없어 둘 다 시도해 합친다.
+    // (기본값 .O만 쓰면 SLB 같은 NYSE 종목은 뉴스가 0건이 된다)
+    market === 'kr'
+      ? getKrStockNews(code, pick.name, 8).catch(() => [])
+      : Promise.all([
+          getWorldStockNews(`${code}.O`, pick.name, 6).catch(() => []),
+          getWorldStockNews(`${code}.N`, pick.name, 6).catch(() => []),
+        ]).then((r) => r.flat()),
+    // 종목 전용 기사가 없으면 네이버는 '마감시황'류를 섞어 준다. 우리 RSS 랭킹 풀에서도
     // 종목명이 실제로 박힌 기사를 찾아 합친다(여기에 '하한가 폭락한 OO' 같은 본편이 있다).
-    getCachedRankedNews('page:kr_stock').then((r) => r ?? []).catch(() => []),
-    getDisclosures([code], 7, 3).catch(() => []),
+    getCachedRankedNews(market === 'kr' ? 'page:kr_stock' : 'page:us_stock').then((r) => r ?? []).catch(() => []),
+    // 공시(DART)는 국내 전용.
+    market === 'kr' ? getDisclosures([code], 7, 3).catch(() => []) : Promise.resolve([]),
   ]);
 
   const hi52 = k?.hi52 ?? null;
   const lo52 = k?.lo52 ?? null;
   const pos52 = hi52 != null && lo52 != null && hi52 > lo52
-    ? Math.max(0, Math.min(100, ((pick.price - lo52) / (hi52 - lo52)) * 100))
+    ? Math.max(0, Math.min(100, ((price - lo52) / (hi52 - lo52)) * 100))
     : null;
 
   // '오늘 왜 움직였나'니까 (1) 최근 3일 (2) 종목명이 실제로 들어간 기사만 쓴다.
@@ -606,11 +682,17 @@ export async function getStockCardData(): Promise<StockPickData | null> {
     const digits = String(dt ?? '').replace(/\D/g, '');
     return digits.length >= 8 && digits.slice(0, 8) >= cutYmd;
   };
-  const nm = pick.name.replace(/\s/g, '');
-  const mentions = (s: string) => s.replace(/\s/g, '').includes(nm);
+  // 매칭 키: 종목명 + (US) 티커. US 유니버스 이름은 'Slb NV'처럼 엉성해 이름만으론 못 잡는다.
+  const keys = [pick.name, ...(market === 'us' ? [code] : [])]
+    .map((x) => x.replace(/\s/g, '').toLowerCase())
+    .filter((x) => x.length >= 2);
+  const mentions = (s: string) => {
+    const hay = s.replace(/\s/g, '').toLowerCase();
+    return keys.some((k) => (/^[a-z]+$/.test(k) ? new RegExp(`\\b${k}\\b`).test(s.toLowerCase()) : hay.includes(k)));
+  };
 
   const merged = [
-    ...naverNews.filter((n) => isFresh(n.datetime) && mentions(n.title)),
+    ...siteNews.filter((n) => isFresh(n.datetime) && mentions(n.title)),
     // 랭킹 풀은 datetime 형식이 ISO라 isFresh가 같이 처리한다. target에도 종목명이 올 수 있다.
     ...ranked
       .filter((n) => isFresh(n.datetime) && (mentions(n.title) || mentions(n.target ?? '')))
@@ -626,11 +708,18 @@ export async function getStockCardData(): Promise<StockPickData | null> {
 
   return {
     dateLabel: kstDateLabel(),
-    code, name: stripTofu(pick.name),
-    priceText: `${Math.round(pick.price).toLocaleString('ko-KR')}원`,
-    pct: pick.pct,
-    dir: pick.pct >= 0 ? 'up' : 'down',
-    volText: won(pick.vol ?? 0),
+    market,
+    // US 유니버스 이름은 한글('엔비디아')이 정상이지만 'Slb NV'처럼 엉성한 것도 있어,
+    // 한글이 없으면 티커를 표시명으로 쓴다.
+    code,
+    name: market === 'us' && !/[가-힣]/.test(pick.name) ? code : stripTofu(pick.name),
+    priceText: market === 'kr'
+      ? `${Math.round(price).toLocaleString('ko-KR')}원`
+      : `$${price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+    pct,
+    dir: pct >= 0 ? 'up' : 'down',
+    // US는 유니버스 거래대금이 신뢰불가(메가캡도 0) → 표시하지 않는다.
+    volText: market === 'kr' ? won(pick.vol ?? 0) : null,
     marketCapText: k?.marketCapText ?? null,
     hi52, lo52, pos52,
     per: k?.per ?? null, pbr: k?.pbr ?? null, roe: k?.roe ?? null,
