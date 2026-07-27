@@ -11,7 +11,7 @@ const arg = (k, d) => { const i = process.argv.indexOf(`--${k}`); return i >= 0 
 const BASE = arg('base', 'https://investk.app');
 const CARDS = arg('cards', 'cover,kr,global,crypto,outro').split(',').filter(Boolean);
 const OUT = arg('out', join(tmpdir(), 'reel.mp4'));
-const PER = parseFloat(arg('per', '2.8')); // 카드당 노출 초
+const PER = parseFloat(arg('per', '3.2')); // 카드당 노출 초(크로스페이드 겹침 포함)
 const BG = '0x0A121E';
 const FPS = 30;
 
@@ -41,33 +41,33 @@ try {
     imgs.push(p);
   }
 
-  // 2) 카드별 세그먼트(줌+페이드)
-  const frames = Math.round(PER * FPS);
-  const segs = [];
-  for (let i = 0; i < imgs.length; i++) {
-    const seg = join(dir, `seg${i}.mp4`);
-    const vf = [
-      `scale=1080:1350:force_original_aspect_ratio=decrease`,
-      `pad=1080:1920:(ow-iw)/2:(oh-ih)/2:${BG}`,
-      `zoompan=z='min(zoom+0.0007,1.12)':d=${frames}:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s=1080x1920:fps=${FPS}`,
-      `fade=t=in:d=0.3`,
-      `fade=t=out:st=${(PER - 0.3).toFixed(2)}:d=0.3`,
-      `format=yuv420p`,
-    ].join(',');
-    ff(['-loop', '1', '-i', imgs[i], '-t', String(PER), '-r', String(FPS), '-vf', vf, '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-preset', 'medium', '-crf', '20', seg]);
-    segs.push(seg);
+  // 2) 정적 카드 → 크로스페이드(디졸브) 체인. 줌·검은 페이드 없이 사진끼리 부드럽게 교차(모던·깔끔).
+  const D = 0.45; // 카드 전환(디졸브) 길이 초
+  const inputs = [];
+  for (const p of imgs) inputs.push('-loop', '1', '-t', String(PER), '-i', p);
+  // 각 카드: 세로 캔버스 중앙 배치(줌 없음)
+  const pre = imgs.map((_, i) =>
+    `[${i}:v]scale=1080:1350:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:${BG},fps=${FPS},format=yuv420p,setsar=1[v${i}]`
+  ).join(';');
+  // 크로스페이드로 연결(검은 화면 없이 A→B 디졸브)
+  let chain = '', prev = 'v0';
+  for (let i = 1; i < imgs.length; i++) {
+    const out = i === imgs.length - 1 ? 'vout' : `x${i}`;
+    const off = (i * (PER - D)).toFixed(3);
+    chain += `;[${prev}][v${i}]xfade=transition=fade:duration=${D}:offset=${off}[${out}]`;
+    prev = out;
   }
-
-  // 3) 세그먼트 이어붙이기
-  const listFile = join(dir, 'list.txt');
-  writeFileSync(listFile, segs.map((s) => `file '${s}'`).join('\n'));
-  const concat = join(dir, 'concat.mp4');
-  ff(['-f', 'concat', '-safe', '0', '-i', listFile, '-c', 'copy', concat]);
+  const vlabel = imgs.length > 1 ? 'vout' : 'v0';
+  const concat = join(dir, 'visual.mp4');
+  ff([...inputs, '-filter_complex', pre + chain, '-map', `[${vlabel}]`, '-r', String(FPS),
+    '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-preset', 'medium', '-crf', '20', concat]);
+  // 크로스페이드로 겹친 만큼 총 길이가 줄어든다.
+  const total = PER * imgs.length - (imgs.length - 1) * D;
 
   // 4) 오디오 믹스
-  const dur = (PER * imgs.length).toFixed(2);
+  const dur = total.toFixed(2);
   const bgm = join(process.cwd(), 'assets', 'reel-bgm.mp3');
-  const outFadeStart = Math.max(0, PER * imgs.length - 1.5).toFixed(2);
+  const outFadeStart = Math.max(0, total - 1.5).toFixed(2);
   if (existsSync(bgm)) {
     ff(['-i', concat, '-stream_loop', '-1', '-i', bgm, '-filter_complex',
       `[1:a]afade=t=in:d=1,afade=t=out:st=${outFadeStart}:d=1.5,volume=0.6[a]`,
