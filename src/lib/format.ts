@@ -56,6 +56,27 @@ export function fmtTradeValue(n: number, cur: Currency): string {
   return '₩' + Math.round(n).toLocaleString('ko-KR');
 }
 
+// 뉴스 날짜 → KST 'M/D'. 뉴스 목록은 날짜순이 아니라 중요도순이라(밤사이 대형 뉴스 포함)
+// 며칠 전 기사도 올 수 있어 날짜를 명시한다.
+export function fmtNewsDate(dt?: string): string {
+  if (!dt) return '';
+  const s = dt.trim();
+  // 네이버식 순수 숫자 'YYYYMMDDHHmmss'(이미 KST)만 이 분기 — ISO는 특수문자가 있어 걸리지 않음.
+  const m = /^(\d{4})(\d{2})(\d{2})(\d{2})?(\d{2})?/.exec(s);
+  const d = /^\d{8,14}$/.test(s) && m
+    ? new Date(`${m[1]}-${m[2]}-${m[3]}T${m[4] ?? '00'}:${m[5] ?? '00'}:00+09:00`)
+    : new Date(s); // ISO 등 — Date가 시간대까지 해석
+  if (isNaN(d.getTime())) return '';
+  return d.toLocaleDateString('en-US', { timeZone: 'Asia/Seoul', month: 'numeric', day: 'numeric' });
+}
+
+// 뉴스 호재/악재 pill 색상.
+export const NEWS_PILL: Record<string, { bg: string; color: string }> = {
+  호재: { bg: 'var(--c-gn22)', color: 'var(--c-upbr)' },
+  악재: { bg: 'var(--c-rd22)', color: 'var(--c-downbr)' },
+  중립: { bg: 'var(--c-gy18)', color: 'var(--c-tx4b)' },
+};
+
 // Impact-tag pill colors (고영향 / 중간 / 실적).
 export function tagColors(tag: string): { bg: string; color: string } {
   if (tag === '고영향') return { bg: 'var(--c-rd14)', color: 'var(--c-down)' };

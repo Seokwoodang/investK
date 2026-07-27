@@ -4,15 +4,18 @@ import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { buildCalendar } from '../../lib/calendar';
 import { WEEKDAYS } from '../../lib/constants';
-import { fmtPct, upColor } from '../../lib/format';
+import { fetchSectors, fetchTabNews } from '../../lib/fetchOnce';
+import { fmtNewsDate, fmtPct, NEWS_PILL, upColor } from '../../lib/format';
 import { glossDef } from '../../lib/glossary';
 import { usePortfolio, usdKrwFromFx, useResolvedPrices, valuePortfolio } from '../../lib/portfolio';
+import { PHASE_META } from '../../lib/sectors';
 import { SRC } from '../../lib/sources';
 import { useDashboard } from '../../store/DashboardContext';
 import { useAuthed, useViewportLayout } from '../DashboardChrome';
-import { type Impact, type SectorRow, type SectorPhase, type Direction, type BriefingDay } from '../../types';
+import { type Impact, type SectorRow, type Direction, type BriefingDay } from '../../types';
 import { GlossaryTip, ImpactTag, Popover } from '../GlossaryTip';
 import { IndexModal } from '../IndexModal';
+import { InterestSection } from '../InterestSection';
 import { SectorModal } from '../SectorModal';
 import { AdSlot } from '../AdSlot';
 import { EventResult } from '../EventResult';
@@ -320,35 +323,13 @@ function ValueTopCard() {
 // ⑤ 오늘의 주요 뉴스 Top 3 (국내주식, AI 중요도순 — 캐시 즉시).
 interface NewsTopItem { title: string; url?: string; src: string; impact?: '호재' | '악재' | '중립'; target?: string; datetime?: string }
 
-// 뉴스 날짜 → KST 'M/D'. TOP 3는 날짜순이 아니라 중요도순이라(밤사이 대형 뉴스 포함) 며칠 전 기사도 올 수 있어 날짜를 명시.
-function fmtNewsDate(dt?: string): string {
-  if (!dt) return '';
-  const s = dt.trim();
-  // 네이버식 순수 숫자 'YYYYMMDDHHmmss'(이미 KST)만 이 분기 — ISO는 특수문자가 있어 걸리지 않음.
-  const m = /^(\d{4})(\d{2})(\d{2})(\d{2})?(\d{2})?/.exec(s);
-  const d = /^\d{8,14}$/.test(s) && m
-    ? new Date(`${m[1]}-${m[2]}-${m[3]}T${m[4] ?? '00'}:${m[5] ?? '00'}:00+09:00`)
-    : new Date(s); // ISO 등 — Date가 시간대까지 해석
-  if (isNaN(d.getTime())) return '';
-  return d.toLocaleDateString('en-US', { timeZone: 'Asia/Seoul', month: 'numeric', day: 'numeric' });
-}
-const NEWS_PILL: Record<string, { bg: string; color: string }> = {
-  호재: { bg: 'var(--c-gn22)', color: 'var(--c-upbr)' },
-  악재: { bg: 'var(--c-rd22)', color: 'var(--c-downbr)' },
-  중립: { bg: 'var(--c-gy18)', color: 'var(--c-tx4b)' },
-};
 function NewsTopCard() {
   const [items, setItems] = useState<NewsTopItem[] | null>(null);
   useEffect(() => {
     let cancelled = false;
-    fetch('/api/news', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ tab: 'kr_stock' }) })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((j) => {
-        if (!cancelled) setItems(((j?.news as NewsTopItem[]) ?? []).slice(0, 3));
-      })
-      .catch(() => {
-        if (!cancelled) setItems([]);
-      });
+    fetchTabNews<NewsTopItem>('kr_stock')
+      .then((news) => { if (!cancelled) setItems(news.slice(0, 3)); })
+      .catch(() => { if (!cancelled) setItems([]); });
     return () => {
       cancelled = true;
     };
@@ -454,15 +435,6 @@ function DisclosureCard() {
   );
 }
 
-// 섹터 상태 칩 스타일 — 추세 확정(올라/내려)은 초록/빨강, 전환(반등/꺾임)은 주황, 횡보는 회색.
-const PHASE_META: Record<SectorPhase, { label: string; arrow: string; c: string; bg: string }> = {
-  up: { label: '올라가는중', arrow: '↗', c: 'var(--c-upbr)', bg: 'var(--c-gn22)' },
-  down: { label: '내려가는중', arrow: '↘', c: 'var(--c-downbr)', bg: 'var(--c-rd22)' },
-  rebound: { label: '반등중', arrow: '↗', c: 'var(--c-warnchip)', bg: 'var(--c-am16)' },
-  rollover: { label: '꺾이는중', arrow: '↘', c: 'var(--c-warnchip)', bg: 'var(--c-am16)' },
-  flat: { label: '횡보중', arrow: '→', c: 'var(--c-tx4b)', bg: 'var(--c-gy18)' },
-};
-
 // 업종(섹터) 흐름 — 대표 ETF 종가 기준 오늘/1주/1개월 등락 + 상태(올라·내려·반등·꺾임). 국내/해외 토글.
 function SectorFlowCard() {
   const { vw } = useViewportLayout();
@@ -472,9 +444,8 @@ function SectorFlowCard() {
   useEffect(() => {
     let cancelled = false;
     setRows(null);
-    fetch(`/api/sectors?market=${market}`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((j) => { if (!cancelled) setRows((j?.rows as SectorRow[]) ?? []); })
+    fetchSectors<SectorRow>(market)
+      .then((r) => { if (!cancelled) setRows(r); })
       .catch(() => { if (!cancelled) setRows([]); });
     return () => { cancelled = true; };
   }, [market]);
@@ -626,6 +597,9 @@ export function Dashboard() {
         <p style={{ margin: '8px 0 0', fontSize: 14, color: 'var(--c-tx5)' }}>시장 상태 · 내 자산 · 오늘의 기회와 리스크를 한 화면에서 확인하세요.</p>
         <UpdateNote text="실시간 시세(국내주식·코인) · 해외주식 약 15분 지연 · 환율·지수·시장지표 수 분~1시간 캐시" style={{ marginTop: 8 }} />
       </div>
+
+      {/* ⓪ 내 관심 — 관심 분야(선택) + 보유·관심 종목(자동) 기준으로 모아보기 */}
+      <InterestSection holdings={myHoldings} />
 
       {/* ① 오늘의 한 줄 (데일리 헤드라인) */}
       <HeadlineBanner headline={brief?.headline ?? null} loading={briefLoading} slot={slotText} />

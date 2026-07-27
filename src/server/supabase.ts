@@ -43,4 +43,24 @@ export function getSupabase(): SupabaseClient | null {
     updated_at  timestamptz not null default now()
   );
   alter table portfolios enable row level security;
+
+  -- 유저별 알림 설정. alerts = { "_cats": ["brief","news",...], "<종목id>": ["swing",...] }.
+  create table if not exists user_alerts (
+    username    text primary key,
+    alerts      jsonb not null default '{}'::jsonb,
+    updated_at  timestamptz not null default now()
+  );
+  alter table user_alerts enable row level security;
+
+  -- 유저별 관심 분야(섹터). sectors = ["kr:반도체","us:반도체", ...] — market 접두사 필수
+  -- (반도체·헬스케어가 KR/US 양쪽에 있어 이름만으로는 구분 불가). 개인화 피드용.
+  create table if not exists user_interests (
+    username    text primary key,
+    sectors     jsonb not null default '[]'::jsonb,
+    updated_at  timestamptz not null default now()
+  );
+  alter table user_interests enable row level security;
+
+  주의: 위 목록은 전체가 아니다. 실제로는 kv_store · ai_usage · push_subs · push_sent ·
+  mock_*(accounts/holdings/orders/trades/snapshots/season_records)도 사용 중.
 */

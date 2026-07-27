@@ -1,6 +1,11 @@
 import 'server-only';
 import type { Candle, SectorPhase, SectorRow } from '../../types';
+import { SECTOR_DEFS, type SectorDef, type SectorMarket } from '../../data/sectors';
 import { getKrStockNews, getWorldStockNews, type NewsArticle } from './naverNews';
+
+// 섹터 정의(대표 ETF·대표 종목)는 src/data/sectors.ts 로 이전 — 관심 분야 피커 등
+// 클라이언트에서도 같은 목록을 써야 하기 때문. 이 파일은 server-only 로직만 유지.
+export type { SectorMarket } from '../../data/sectors';
 
 // 업종(섹터) 흐름 + 상세. 각 섹터를 '실제 매매되는 대표 ETF'의 일봉 종가로 대리(推測 없음).
 //  - 오늘 등락률: 최근 종가 vs 전일 종가
@@ -8,47 +13,9 @@ import { getKrStockNews, getWorldStockNews, type NewsArticle } from './naverNews
 //  - 상세(클릭): 섹터 ETF 캔들 + '대표 종목'들의 실제 뉴스(왜 움직이나 — 지어내지 않고 기사로)
 // 소스: Yahoo Finance(차트, 키 불필요) · 네이버 금융(대표 종목 뉴스).
 
-export type SectorMarket = 'kr' | 'us';
-
-// 대표 종목: KR은 6자리 코드, US는 네이버 worldStock RIC(나스닥 .O / 뉴욕 .N).
-interface Leader { name: string; ref: string }
-interface Def { name: string; etf: string; proxy: string; leaders: Leader[] }
-
-// 한국: 대표 섹터 ETF(KODEX·TIGER) + 대표 종목. 종가는 실제 펀드 가격.
-const KR: Def[] = [
-  { name: '반도체', etf: '091160.KS', proxy: 'KODEX 반도체', leaders: [{ name: '삼성전자', ref: '005930' }, { name: 'SK하이닉스', ref: '000660' }, { name: '한미반도체', ref: '042700' }] },
-  { name: 'IT·전기전자', etf: '139260.KS', proxy: 'TIGER 200 IT', leaders: [{ name: '삼성전자', ref: '005930' }, { name: 'LG전자', ref: '066570' }, { name: '삼성전기', ref: '009150' }] },
-  { name: '2차전지', etf: '305720.KS', proxy: 'KODEX 2차전지산업', leaders: [{ name: 'LG에너지솔루션', ref: '373220' }, { name: '삼성SDI', ref: '006400' }, { name: 'POSCO퓨처엠', ref: '003670' }] },
-  { name: '자동차', etf: '091180.KS', proxy: 'KODEX 자동차', leaders: [{ name: '현대차', ref: '005380' }, { name: '기아', ref: '000270' }, { name: '현대모비스', ref: '012330' }] },
-  { name: '바이오', etf: '244580.KS', proxy: 'KODEX 바이오', leaders: [{ name: '삼성바이오로직스', ref: '207940' }, { name: '셀트리온', ref: '068270' }, { name: '유한양행', ref: '000100' }] },
-  { name: '헬스케어', etf: '266420.KS', proxy: 'KODEX 헬스케어', leaders: [{ name: '삼성바이오로직스', ref: '207940' }, { name: '셀트리온', ref: '068270' }, { name: 'SK바이오팜', ref: '326030' }] },
-  { name: '은행', etf: '091170.KS', proxy: 'KODEX 은행', leaders: [{ name: 'KB금융', ref: '105560' }, { name: '신한지주', ref: '055550' }, { name: '하나금융지주', ref: '086790' }] },
-  { name: '증권', etf: '102970.KS', proxy: 'KODEX 증권', leaders: [{ name: '미래에셋증권', ref: '006800' }, { name: '삼성증권', ref: '016360' }, { name: '키움증권', ref: '039490' }] },
-  { name: '철강', etf: '117680.KS', proxy: 'KODEX 철강', leaders: [{ name: 'POSCO홀딩스', ref: '005490' }, { name: '현대제철', ref: '004020' }, { name: '고려아연', ref: '010130' }] },
-  { name: '건설', etf: '117700.KS', proxy: 'KODEX 건설', leaders: [{ name: '현대건설', ref: '000720' }, { name: 'GS건설', ref: '006360' }, { name: 'DL이앤씨', ref: '375500' }] },
-  { name: '조선', etf: '466920.KS', proxy: 'SOL 조선TOP3플러스', leaders: [{ name: 'HD한국조선해양', ref: '009540' }, { name: '한화오션', ref: '042660' }, { name: '삼성중공업', ref: '010140' }] },
-  { name: '방산', etf: '449450.KS', proxy: 'PLUS K방산', leaders: [{ name: '한화에어로스페이스', ref: '012450' }, { name: '한국항공우주', ref: '047810' }, { name: 'LIG넥스원', ref: '079550' }] },
-];
-
-// 미국: SPDR 섹터 ETF + 반도체(SMH) + 대표 종목. 종가는 실제 펀드 가격.
-const US: Def[] = [
-  { name: '반도체', etf: 'SMH', proxy: 'VanEck 반도체', leaders: [{ name: 'NVIDIA', ref: 'NVDA.O' }, { name: 'TSMC', ref: 'TSM.N' }, { name: 'Broadcom', ref: 'AVGO.O' }] },
-  { name: '기술', etf: 'XLK', proxy: 'Tech Select', leaders: [{ name: 'Apple', ref: 'AAPL.O' }, { name: 'Microsoft', ref: 'MSFT.O' }, { name: 'Oracle', ref: 'ORCL.N' }] },
-  { name: '커뮤니케이션', etf: 'XLC', proxy: 'Comm. Services', leaders: [{ name: 'Alphabet', ref: 'GOOGL.O' }, { name: 'Meta', ref: 'META.O' }, { name: 'Netflix', ref: 'NFLX.O' }] },
-  { name: '임의소비재', etf: 'XLY', proxy: 'Consumer Disc.', leaders: [{ name: 'Amazon', ref: 'AMZN.O' }, { name: 'Tesla', ref: 'TSLA.O' }, { name: 'Home Depot', ref: 'HD.N' }] },
-  { name: '필수소비재', etf: 'XLP', proxy: 'Consumer Staples', leaders: [{ name: 'Procter & Gamble', ref: 'PG.N' }, { name: 'Coca-Cola', ref: 'KO.N' }, { name: 'Costco', ref: 'COST.O' }] },
-  { name: '에너지', etf: 'XLE', proxy: 'Energy Select', leaders: [{ name: 'Exxon Mobil', ref: 'XOM.N' }, { name: 'Chevron', ref: 'CVX.N' }, { name: 'ConocoPhillips', ref: 'COP.N' }] },
-  { name: '금융', etf: 'XLF', proxy: 'Financials', leaders: [{ name: 'JPMorgan', ref: 'JPM.N' }, { name: 'Bank of America', ref: 'BAC.N' }, { name: 'Wells Fargo', ref: 'WFC.N' }] },
-  { name: '헬스케어', etf: 'XLV', proxy: 'Health Care', leaders: [{ name: 'Eli Lilly', ref: 'LLY.N' }, { name: 'UnitedHealth', ref: 'UNH.N' }, { name: 'J&J', ref: 'JNJ.N' }] },
-  { name: '산업재', etf: 'XLI', proxy: 'Industrials', leaders: [{ name: 'Caterpillar', ref: 'CAT.N' }, { name: 'GE Aerospace', ref: 'GE.N' }, { name: 'RTX', ref: 'RTX.N' }] },
-  { name: '소재', etf: 'XLB', proxy: 'Materials', leaders: [{ name: 'Linde', ref: 'LIN.O' }, { name: 'Sherwin-Williams', ref: 'SHW.N' }, { name: 'Freeport-McMoRan', ref: 'FCX.N' }] },
-  { name: '부동산', etf: 'XLRE', proxy: 'Real Estate', leaders: [{ name: 'Prologis', ref: 'PLD.N' }, { name: 'American Tower', ref: 'AMT.N' }, { name: 'Equinix', ref: 'EQIX.O' }] },
-  { name: '유틸리티', etf: 'XLU', proxy: 'Utilities', leaders: [{ name: 'NextEra', ref: 'NEE.N' }, { name: 'Duke Energy', ref: 'DUK.N' }, { name: 'Southern Co', ref: 'SO.N' }] },
-];
-
 const UA = { 'User-Agent': 'Mozilla/5.0' };
 
-const defsOf = (m: SectorMarket) => (m === 'kr' ? KR : US);
+const defsOf = (m: SectorMarket) => SECTOR_DEFS.filter((d) => d.market === m);
 const findDef = (m: SectorMarket, name: string) => defsOf(m).find((d) => d.name === name) ?? null;
 
 // 동시성 제한 map(야후 과다요청 방지).
@@ -100,7 +67,7 @@ function pctBack(cl: number[], n: number): number {
 }
 
 // 종가 배열 → 오늘·1주·1개월 등락률 + 연속 추세.
-function derive(cl: number[], d: Def): SectorRow | null {
+function derive(cl: number[], d: SectorDef): SectorRow | null {
   if (cl.length < 2) return null;
   const last = cl[cl.length - 1];
   const prev = cl[cl.length - 2];
