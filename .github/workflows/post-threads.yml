@@ -29,15 +29,22 @@ jobs:
             "30 1 * * 6")   T=review ;;
             *) T="${{ github.event.inputs.type || 'today' }}" ;;
           esac
+          # 텍스트형 vs 이미지형 중 무엇이 유입에 유리한지 실측으로 정한다.
+          # 현재: 화제의 종목=텍스트+링크카드 / 용어·주간=커버 카드 이미지.
+          case "$T" in
+            today) IMG=0 ;;
+            *)     IMG=1 ;;
+          esac
           echo "type=$T" >> "$GITHUB_OUTPUT"
-          echo "→ type=$T"
+          echo "image=$IMG" >> "$GITHUB_OUTPUT"
+          echo "→ type=$T image=$IMG"
       - name: Publish thread
         run: |
           # 재시도를 걸지 않는다. 서버에 멱등 잠금이 있어 안전하긴 하지만,
           # 왕복이 2회뿐이라 타임아웃으로 끊길 이유가 없다(인스타와 다른 점).
           code=$(curl -s -o /tmp/out.json -w '%{http_code}' --max-time 90 \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
-            "https://investk.app/api/threads/publish?type=${{ steps.t.outputs.type }}")
+            "https://investk.app/api/threads/publish?type=${{ steps.t.outputs.type }}&image=${{ steps.t.outputs.image }}")
           cat /tmp/out.json; echo
           # 503 = 올릴 내용 없음(아카이브 비어있음) → 실패로 보지 않는다.
           if [ "$code" = "503" ]; then echo "게시할 내용 없음 — 스킵"; exit 0; fi

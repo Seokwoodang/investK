@@ -10,7 +10,19 @@ import { TERMS, termSlug, definitionOf } from '@/lib/glossaryPages';
 // 링크는 본문에 넣지 않고 link_attachment로 붙인다(카드로 렌더되고 본문이 깔끔해진다).
 
 export type ThreadType = 'today' | 'review' | 'term';
-export interface ThreadPost { text: string; link: string; key: string }
+export interface ThreadPost { text: string; link: string; key: string; image?: string }
+
+// 인스타용으로 이미 렌더되는 카드(1080×1350)를 그대로 재사용한다 — 새로 만들 자산이 없다.
+// t= 는 스레드가 이미지를 새로 받아가게 하는 캐시 무력화용(인스타 cardImageUrl과 같은 이유).
+function cardUrl(card: string, region?: string): string {
+  const r = region ? `&region=${region}` : '';
+  return `${SITE_URL}/api/card/${card}?t=${Date.now()}${r}`;
+}
+const CARD_FOR: Record<ThreadType, () => string> = {
+  today: () => cardUrl('stock-cover', 'kr'),
+  review: () => cardUrl('week-cover'),
+  term: () => cardUrl('term-cover'),
+};
 
 const kstYmd = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
 
@@ -81,8 +93,13 @@ async function termPost(): Promise<ThreadPost | null> {
   return { text: lines.join('\n'), link: `${SITE_URL}/glossary/${encodeURIComponent(termSlug(term))}`, key: `term:${ymd}` };
 }
 
-export async function buildThreadPost(type: ThreadType): Promise<ThreadPost | null> {
-  if (type === 'today') return todayPost();
-  if (type === 'review') return reviewPost();
-  return termPost();
+/**
+ * withImage=true면 해당 편성의 커버 카드를 함께 싣는다.
+ * 텍스트형과 이미지형 중 무엇이 유입에 유리한지는 계정 상황마다 달라서 단정하기 어렵다.
+ * 편성별로 켜고 끌 수 있게 두고 실측으로 결정한다.
+ */
+export async function buildThreadPost(type: ThreadType, withImage = false): Promise<ThreadPost | null> {
+  const p = type === 'today' ? await todayPost() : type === 'review' ? await reviewPost() : await termPost();
+  if (!p) return null;
+  return withImage ? { ...p, image: CARD_FOR[type]() } : p;
 }

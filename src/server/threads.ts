@@ -46,17 +46,23 @@ async function post(path: string, body: Record<string, string>): Promise<any> {
 const MAX_TEXT = 480;
 
 /**
- * 텍스트 스레드 게시. link는 본문 아래 클릭 가능한 링크 카드로 붙는다.
- * 컨테이너 생성 → 게시 2단계라 인스타 캐러셀처럼 오래 걸리지 않는다(왕복 2회).
+ * 스레드 게시. 컨테이너 생성 → 게시 2단계(왕복 2회)라 인스타 캐러셀처럼 오래 걸리지 않는다.
+ *  · imageUrl 없음: TEXT 게시 + link_attachment(본문 아래 클릭 가능한 링크 카드)
+ *  · imageUrl 있음: IMAGE 게시. link_attachment도 같이 넣지만, 스레드가 이미지 게시물에서
+ *    이를 무시할 수 있어 본문에도 URL을 남겨 클릭 경로를 반드시 확보한다
+ *    (스레드는 본문 URL을 자동으로 링크로 만든다).
  */
-export async function publishThread(text: string, link?: string): Promise<{ id: string }> {
+export async function publishThread(text: string, link?: string, imageUrl?: string): Promise<{ id: string }> {
   const uid = await userId();
-  const body: Record<string, string> = {
-    media_type: 'TEXT',
-    text: text.length > MAX_TEXT ? `${text.slice(0, MAX_TEXT - 1)}…` : text,
+  let body: string = text;
+  if (imageUrl && link && !text.includes(link)) body = `${text}\n${link}`;
+  const params: Record<string, string> = {
+    media_type: imageUrl ? 'IMAGE' : 'TEXT',
+    text: body.length > MAX_TEXT ? `${body.slice(0, MAX_TEXT - 1)}…` : body,
   };
-  if (link) body.link_attachment = link;
-  const c = await post(`${uid}/threads`, body);
+  if (imageUrl) params.image_url = imageUrl;
+  if (link) params.link_attachment = link;
+  const c = await post(`${uid}/threads`, params);
   const pub = await post(`${uid}/threads_publish`, { creation_id: String(c.id) });
   return { id: String(pub.id) };
 }

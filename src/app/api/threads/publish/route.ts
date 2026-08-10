@@ -7,6 +7,7 @@ import { kvGet, kvSet, kvDel } from '@/server/kv';
 //  ?type=today  : 오늘 화제의 종목 → /today/{날짜} 링크
 //  ?type=review : 주간 마켓 리뷰   → /review/{주차} 링크
 //  ?type=term   : 오늘의 투자 용어 → /glossary/{용어} 링크
+//  ?image=1     : 커버 카드 이미지를 함께 게시(기본은 텍스트+링크카드)
 //  ?dry=1       : 실제 게시 없이 문구/링크만 미리보기
 //  인증: Bearer CRON_SECRET 또는 ?t=MOCK_FILL_TOKEN.
 //
@@ -36,10 +37,11 @@ async function run(req: Request) {
   }
   const type = t as ThreadType;
   const dry = url.searchParams.get('dry') === '1';
+  const withImage = url.searchParams.get('image') === '1';
   const force = url.searchParams.get('force') === '1';
 
   try {
-    const postData = await buildThreadPost(type);
+    const postData = await buildThreadPost(type, withImage);
     if (!postData) {
       return NextResponse.json({ ok: false, error: '게시할 내용 없음(아카이브 비어있음)' }, { status: 503 });
     }
@@ -56,9 +58,9 @@ async function run(req: Request) {
     }
 
     try {
-      const res = await publishThread(postData.text, postData.link);
+      const res = await publishThread(postData.text, postData.link, postData.image);
       if (lockKey) await kvSet(lockKey, { at: new Date().toISOString(), id: res.id });
-      return NextResponse.json({ ok: true, id: res.id, type, link: postData.link });
+      return NextResponse.json({ ok: true, id: res.id, type, link: postData.link, image: postData.image ?? null });
     } catch (e) {
       // 게시가 명시적으로 실패하면 잠금을 풀어 정상 재시도를 막지 않는다.
       if (lockKey) await kvDel(lockKey).catch(() => {});
