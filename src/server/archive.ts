@@ -23,12 +23,13 @@ function pushIndex(list: string[], key: string, keep: number): string[] {
 }
 
 export async function saveStockSnapshot(market: StockMarket, ymd: string, data: StockPickData): Promise<void> {
-  await kvSet(stockDataKey(market, ymd), { ...data, ymd });
+  // savedAt: RSS의 pubDate로 쓴다(ymd만으론 시각이 없어 피드 정렬·신선도 판단이 흐려진다).
+  await kvSet(stockDataKey(market, ymd), { ...data, ymd, savedAt: new Date().toISOString() });
   const days = (await kvGet<string[]>(stockDaysKey(market))) ?? [];
   if (days[0] !== ymd) await kvSet(stockDaysKey(market), pushIndex(days, ymd, DAYS_KEEP));
 }
 
-export type StockSnapshot = StockPickData & { ymd: string };
+export type StockSnapshot = StockPickData & { ymd: string; savedAt?: string };
 
 export async function getStockSnapshot(market: StockMarket, ymd: string): Promise<StockSnapshot | null> {
   return kvGet<StockSnapshot>(stockDataKey(market, ymd));
@@ -40,12 +41,12 @@ export async function listStockDays(market: StockMarket): Promise<string[]> {
 }
 
 export async function saveWeekSnapshot(key: string, data: WeekReviewData): Promise<void> {
-  await kvSet(weekDataKey(key), { ...data, key });
+  await kvSet(weekDataKey(key), { ...data, key, savedAt: new Date().toISOString() });
   const list = (await kvGet<string[]>(WEEK_LIST_KEY)) ?? [];
   if (list[0] !== key) await kvSet(WEEK_LIST_KEY, pushIndex(list, key, WEEKS_KEEP));
 }
 
-export type WeekSnapshot = WeekReviewData & { key: string };
+export type WeekSnapshot = WeekReviewData & { key: string; savedAt?: string };
 
 export async function getWeekSnapshot(key: string): Promise<WeekSnapshot | null> {
   return kvGet<WeekSnapshot>(weekDataKey(key));

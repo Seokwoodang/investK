@@ -26,7 +26,11 @@ export const metadata: Metadata = {
   // iOS Safari에서 '홈 화면에 추가' 시 standalone 앱으로 동작(주소창 없는 전체화면).
   appleWebApp: { capable: true, statusBarStyle: 'black-translucent', title: 'InvestK' },
   keywords: ['투자', '주식', '대시보드', '코스피', '코스닥', '업종', '저평가 우량주', '경제 캘린더'],
-  alternates: { canonical: '/' },
+  alternates: {
+    canonical: '/',
+    // RSS 자동 발견(네이버 서치어드바이저·피드 리더)
+    types: { 'application/rss+xml': [{ url: '/rss.xml', title: 'InvestK — 투자 대시보드' }] },
+  },
   openGraph: {
     type: 'website',
     siteName: 'InvestK',
