@@ -5,6 +5,7 @@ import { getCachedRankedNews } from '@/server/aiNews';
 import { NEWS_TABS } from '@/server/news';
 import { getOrGenerateJSON } from '@/server/ai';
 import { kvGet, kvSet } from '@/server/kv';
+import { saveStockSnapshot, saveWeekSnapshot } from '@/server/archive';
 import { getValuePage, type Market, type ScoredStock } from '@/server/valueScreen';
 import { getUniverse } from '@/server/data';
 import { buildKanalystData } from '@/server/kanalyst';
@@ -508,7 +509,10 @@ export async function getWeekReviewData(): Promise<WeekReviewData> {
   else if (ups >= 3) summary = '완만한 상승 흐름 속 종목 장세가 이어진 한 주였어요.';
   else if (ups <= 1) summary = '지수가 눌린 채 방향을 탐색한 한 주였어요.';
   else summary = '지수별 온도차가 컸던 혼조세의 한 주였어요.';
-  return { dateLabel: kstDateLabel(), range: weekRangeLabel(), hero, indices, btc: bt ?? 0, best, worst, summary };
+  const data: WeekReviewData = { dateLabel: kstDateLabel(), range: weekRangeLabel(), hero, indices, btc: bt ?? 0, best, worst, summary };
+  // 주간 리뷰를 주차 키로 남긴다 → /review/{주차} 페이지로 재발행(색인 대상 누적).
+  await saveWeekSnapshot(kstWeek().key, data).catch(() => {});
+  return data;
 }
 
 // ══════════════ 화제의 종목 (일간) ══════════════
@@ -706,7 +710,7 @@ export async function getStockCardData(market: StockMarket = 'kr'): Promise<Stoc
     return true;
   });
 
-  return {
+  const data: StockPickData = {
     dateLabel: kstDateLabel(),
     market,
     // US 유니버스 이름은 한글('엔비디아')이 정상이지만 'Slb NV'처럼 엉성한 것도 있어,
@@ -735,4 +739,8 @@ export async function getStockCardData(market: StockMarket = 'kr'): Promise<Stoc
     })).filter((n) => n.title),
     disc: disc.slice(0, 2).map((d) => ({ title: stripTofu(d.title).slice(0, 44), date: d.date.slice(5), kind: d.kind })),
   };
+  // 오늘의 선정 결과를 날짜별로 남긴다 → /today/{날짜} 페이지로 재발행(색인 대상 누적).
+  // 실패해도 게시 파이프라인에는 영향 없도록 삼킨다.
+  await saveStockSnapshot(market, ymd, data).catch(() => {});
+  return data;
 }

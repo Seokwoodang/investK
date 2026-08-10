@@ -11,6 +11,10 @@ export function getSupabase(): SupabaseClient | null {
   if (!client) {
     client = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_KEY, {
       auth: { persistSession: false },
+      // DB 응답은 절대 Next의 fetch 캐시에 담기면 안 된다. 담기면 같은 쿼리가 최초 결과를
+      // 계속 되돌려준다 — 실제로 sitemap.ts에서 아카이브 목록이 영영 0건으로 굳었다
+      // (라우트가 dynamic이 아닌 컨텍스트에선 fetch 기본 캐시가 적용된다).
+      global: { fetch: (input, init) => fetch(input as RequestInfo, { ...init, cache: 'no-store' }) },
     });
   }
   return client;
