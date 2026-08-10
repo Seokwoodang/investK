@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { EtfDetail } from '@/components/screens/EtfDetail';
 import { getEtfProfile } from '@/server/providers/yahoo';
 import { getNaverEtfProfile } from '@/server/providers/naver';
+import { OG_IMAGE } from '@/lib/og';
 
 // ETF별 실명 기반 메타데이터 + 색인 허용(SEO — 'KODEX 200 구성종목' 같은 검색 유입).
 export async function generateMetadata(
@@ -30,7 +31,7 @@ export async function generateMetadata(
     title,
     description,
     alternates: { canonical: `/etf/${encodeURIComponent(symbol)}` },
-    openGraph: { title: `${title} · InvestK`, description, url: `/etf/${encodeURIComponent(symbol)}` },
+    openGraph: { title: `${title} · InvestK`, description, url: `/etf/${encodeURIComponent(symbol)}`, images: OG_IMAGE },
   };
 }
 

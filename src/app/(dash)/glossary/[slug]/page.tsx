@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { termFromSlug, definitionOf, relatedTerms, usedOn, termSlug, groupOf, TERMS } from '@/lib/glossaryPages';
 import { SITE_URL } from '@/lib/site';
+import { OG_IMAGE } from '@/lib/og';
 
 // 용어 상세 — "PER 뜻" 같은 롱테일 검색의 진입점.
 // 정적 데이터라 빌드 시 전 용어를 프리렌더한다.
@@ -24,7 +25,7 @@ export function generateMetadata({ params }: { params: { slug: string } }): Meta
     title: `${term} 뜻 — 쉽게 정리한 투자 용어`,
     description: def.length > 155 ? `${def.slice(0, 152)}…` : def,
     alternates: { canonical: path },
-    openGraph: { title: `${term} 뜻 · InvestK`, description: def, url: path },
+    openGraph: { title: `${term} 뜻 · InvestK`, description: def, url: path, images: OG_IMAGE },
   };
 }
 

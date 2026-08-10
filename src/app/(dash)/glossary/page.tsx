@@ -2,13 +2,14 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { GROUPS, TERMS, termSlug, definitionOf } from '@/lib/glossaryPages';
 import { SITE_URL } from '@/lib/site';
+import { OG_IMAGE } from '@/lib/og';
 
 // 투자 용어 사전 허브 — 용어 상세 40여 개로 가는 크롤 가능한 <a href> 경로.
 export const metadata: Metadata = {
   title: '투자 용어 사전 — PER·PBR·ROE부터 VIX·김치프리미엄까지',
   description: '주식·경제 용어를 초보자 눈높이로 한 줄에 정리. PER·PBR·ROE·EPS 같은 재무 지표부터 CPI·FOMC·VIX·김치프리미엄 같은 시장 지표까지 뜻과 보는 법을 확인하세요.',
   alternates: { canonical: '/glossary' },
-  openGraph: { title: '투자 용어 사전 · InvestK', url: '/glossary' },
+  openGraph: { title: '투자 용어 사전 · InvestK', url: '/glossary', images: OG_IMAGE },
 };
 
 export default function Page() {

@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { SubNav } from '@/components/SubNav';
 import { ETFS } from '@/lib/etfs';
 import { SITE_URL } from '@/lib/site';
+import { OG_IMAGE } from '@/lib/og';
 
 // ETF 허브 — /etf/{symbol} 상세 12개로 가는 크롤 가능한 <a href> 경로를 만든다.
 // 서버 컴포넌트라 링크가 초기 HTML에 그대로 들어간다(크롤러가 JS 실행 없이 따라갈 수 있음).
@@ -10,7 +11,7 @@ export const metadata: Metadata = {
   title: 'ETF 목록 — 국내·미국 대표 ETF 구성종목·수익률·보수',
   description: 'KODEX 200·TIGER 미국S&P500·SPY·QQQ·VOO·SCHD 등 국내외 대표 ETF의 구성종목·섹터 비중·기간 수익률·연 보수를 한눈에 비교. 실데이터 기반(참고 정보, 투자 자문 아님).',
   alternates: { canonical: '/etf' },
-  openGraph: { title: 'ETF 목록 · InvestK', url: '/etf' },
+  openGraph: { title: 'ETF 목록 · InvestK', url: '/etf', images: OG_IMAGE },
 };
 
 const SECTIONS: { key: 'kr' | 'us'; title: string; note: string }[] = [

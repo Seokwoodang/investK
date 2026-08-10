@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import { getWeekSnapshot, weekLabel } from '@/server/archive';
 import { WeekReviewView } from '@/components/archive/WeekReviewView';
 import { SITE_URL } from '@/lib/site';
+import { OG_IMAGE } from '@/lib/og';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,7 +19,7 @@ export async function generateMetadata({ params }: { params: { week: string } })
     title: `${label} 마켓 리뷰 (${d.range}) — 코스피·나스닥 주간 등락`,
     description: `${d.range} 한 주 정리: ${d.summary} 코스피·코스닥·S&P500·나스닥·비트코인의 주간 등락을 확인하세요.`,
     alternates: { canonical: `/review/${params.week}` },
-    openGraph: { title: `${label} 마켓 리뷰 · InvestK`, url: `/review/${params.week}` },
+    openGraph: { title: `${label} 마켓 리뷰 · InvestK`, url: `/review/${params.week}`, images: OG_IMAGE },
   };
 }
 

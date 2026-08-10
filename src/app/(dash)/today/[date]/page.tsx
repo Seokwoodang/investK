@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import { getStockSnapshot, ymdLabel } from '@/server/archive';
 import { StockDayView } from '@/components/archive/StockDayView';
 import { SITE_URL } from '@/lib/site';
+import { OG_IMAGE } from '@/lib/og';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,7 +26,7 @@ export async function generateMetadata({ params }: { params: { date: string } })
     title: `${label} 화제의 종목 — ${names}`,
     description: `${label} 크게 움직인 종목: ${names}. 왜 움직였는지 실제 뉴스·공시와 PER·PBR·ROE 등 주요 지표로 확인하세요.`,
     alternates: { canonical: `/today/${params.date}` },
-    openGraph: { title: `${label} 화제의 종목 · InvestK`, url: `/today/${params.date}` },
+    openGraph: { title: `${label} 화제의 종목 · InvestK`, url: `/today/${params.date}`, images: OG_IMAGE },
   };
 }
 

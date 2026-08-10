@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { GoogleAnalytics } from '@next/third-parties/google';
 import { SITE_URL } from '@/lib/site';
+import { OG_IMAGE } from '@/lib/og';
 import './globals.css';
 
 // GA4 측정 ID. env로 덮어쓸 수 있고(없으면 기본값), 측정 ID는 공개 정보라 노출돼도 무방.
@@ -38,11 +39,13 @@ export const metadata: Metadata = {
     url: SITE_URL,
     title: 'InvestK — 투자 대시보드',
     description: DESC,
+    images: OG_IMAGE,
   },
   twitter: {
     card: 'summary_large_image',
     title: 'InvestK — 투자 대시보드',
     description: DESC,
+    images: OG_IMAGE.map((i) => i.url),
   },
   // 검색엔진 소유권 확인(코드가 채워졌을 때만 meta 태그 렌더).
   verification: {

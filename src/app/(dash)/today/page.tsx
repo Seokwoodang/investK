@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { listStockDays, getStockSnapshot, ymdLabel } from '@/server/archive';
 import { SITE_URL } from '@/lib/site';
+import { OG_IMAGE } from '@/lib/og';
 
 // 화제의 종목 아카이브 허브 — 날짜별 상세로 가는 크롤 경로.
 export const dynamic = 'force-dynamic';
@@ -10,7 +11,7 @@ export const metadata: Metadata = {
   title: '오늘 화제의 종목 — 왜 움직였나 (기록)',
   description: '국내·미국 증시에서 크게 움직인 종목과 그 이유를 날짜별로 정리했습니다. 실제 뉴스·공시와 주요 재무 지표를 함께 확인하세요.',
   alternates: { canonical: '/today' },
-  openGraph: { title: '화제의 종목 기록 · InvestK', url: '/today' },
+  openGraph: { title: '화제의 종목 기록 · InvestK', url: '/today', images: OG_IMAGE },
 };
 
 export default async function Page() {

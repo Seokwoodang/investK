@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { listWeeks, getWeekSnapshot, weekLabel } from '@/server/archive';
 import { SITE_URL } from '@/lib/site';
+import { OG_IMAGE } from '@/lib/og';
 
 // 주간 마켓 리뷰 아카이브 허브.
 export const dynamic = 'force-dynamic';
@@ -10,7 +11,7 @@ export const metadata: Metadata = {
   title: '주간 마켓 리뷰 — 코스피·나스닥 한 주 정리',
   description: '코스피·코스닥·S&P500·나스닥·비트코인의 주간 등락을 한 주씩 기록으로 정리했습니다. 어떤 지수가 오르고 내렸는지 주차별로 확인하세요.',
   alternates: { canonical: '/review' },
-  openGraph: { title: '주간 마켓 리뷰 · InvestK', url: '/review' },
+  openGraph: { title: '주간 마켓 리뷰 · InvestK', url: '/review', images: OG_IMAGE },
 };
 
 export default async function Page() {
