@@ -1,0 +1,19 @@
+name: Refresh Instagram token (weekly)
+
+# 인스타 장기 토큰은 60일짜리다. 갱신을 안 하면 만료와 동시에 모든 자동 게시가 401로 죽는다.
+# 주 1회 갱신하면 만료까지 여유가 항상 50일 이상 남는다(한두 번 실패해도 안전).
+# 갱신본은 서버가 KV에 저장하고, 이후 게시는 그 토큰을 쓴다.
+on:
+  schedule:
+    - cron: '17 3 * * 1' # 매주 월요일 12:17 KST (게시 편성과 겹치지 않는 시간)
+  workflow_dispatch:
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Refresh long-lived token
+        run: |
+          curl -fsS --max-time 60 --retry 2 --retry-delay 30 -X GET \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "https://investk.app/api/cron/ig-token"

@@ -2,15 +2,29 @@ import 'server-only';
 import { getBriefing } from '@/server/briefing';
 import { getNewsCardData, getValueCardData, getCalendarCardData, getTermCardData, getBreakingCardData, getWeekReviewData, getStockCardData } from '@/server/cardData';
 import { SITE_URL } from '@/lib/site';
+import { kvGet, kvSet } from '@/server/kv';
 
 // 인스타그램 자동 게시(Instagram 비즈니스 로그인 API, graph.instagram.com).
 //  흐름: 미디어 컨테이너 생성 → 처리 완료 대기 → 게시.
 //  토큰(INSTA_TOKEN)은 서버 전용 비밀. 60일짜리 장기 토큰이며 만료 전 갱신 필요(refreshToken).
 const IG_API = 'https://graph.instagram.com/v21.0';
 
-function token(): string {
-  const t = process.env.INSTA_TOKEN;
+// 토큰 조회 — KV에 갱신 저장된 값이 있으면 그걸, 없으면 환경변수를 쓴다.
+//
+// 왜 KV인가: INSTA_TOKEN은 60일짜리 장기 토큰이라 주기적으로 refresh_access_token으로
+// 갱신해야 하는데, 갱신하면 '새 토큰 문자열'이 나온다. 코드는 Vercel 환경변수를 고쳐 쓸 수
+// 없으므로 갱신본을 KV에 두고 여기서 우선 읽는다(KIS 토큰과 같은 방식).
+// 갱신을 아무도 호출하지 않으면 60일 뒤 인스타 게시가 통째로 401로 죽는다.
+export const IG_TOKEN_KEY = 'ig:token';
+interface StoredToken { access_token: string; refreshed_at: string; expires_at: string }
+
+let _tokenCache: string | null = null;
+async function token(): Promise<string> {
+  if (_tokenCache) return _tokenCache;
+  const stored = await kvGet<StoredToken>(IG_TOKEN_KEY).catch(() => null);
+  const t = stored?.access_token || process.env.INSTA_TOKEN;
   if (!t) throw new Error('INSTA_TOKEN 미설정(Vercel 환경변수에 추가 필요)');
+  _tokenCache = t;
   return t;
 }
 
@@ -18,14 +32,14 @@ function token(): string {
 let _igId: string | null = null;
 async function igUserId(): Promise<string> {
   if (_igId) return _igId;
-  const j = await fetch(`${IG_API}/me?fields=id&access_token=${token()}`).then((r) => r.json());
+  const j = await fetch(`${IG_API}/me?fields=id&access_token=${await token()}`).then((r) => r.json());
   if (!j?.id) throw new Error('IG 사용자 ID 조회 실패: ' + JSON.stringify(j));
   _igId = String(j.id);
   return _igId;
 }
 
 async function igPost(path: string, body: Record<string, string>): Promise<any> {
-  const form = new URLSearchParams({ ...body, access_token: token() });
+  const form = new URLSearchParams({ ...body, access_token: await token() });
   const r = await fetch(`${IG_API}/${path}`, { method: 'POST', body: form });
   const j = await r.json();
   if (!r.ok || j?.error) throw new Error(`IG ${path} 실패: ${JSON.stringify(j?.error ?? j)}`);
@@ -35,7 +49,7 @@ async function igPost(path: string, body: Record<string, string>): Promise<any> 
 // 컨테이너 처리 완료 대기(이미지는 대개 즉시, 영상은 인코딩 시간 필요).
 async function waitFinished(creationId: string, tries = 12): Promise<void> {
   for (let i = 0; i < tries; i++) {
-    const s = await fetch(`${IG_API}/${creationId}?fields=status_code&access_token=${token()}`).then((r) => r.json());
+    const s = await fetch(`${IG_API}/${creationId}?fields=status_code&access_token=${await token()}`).then((r) => r.json());
     if (s?.status_code === 'FINISHED') return;
     if (s?.status_code === 'ERROR') throw new Error('미디어 처리 실패(status ERROR)');
     await new Promise((res) => setTimeout(res, 2000));
@@ -57,12 +71,22 @@ export async function publishImage(imageUrl: string, caption: string): Promise<{
 export async function publishCarousel(imageUrls: string[], caption: string): Promise<{ id: string }> {
   if (imageUrls.length < 2) return publishImage(imageUrls[0], caption);
   const ig = await igUserId();
-  const children: string[] = [];
-  for (const url of imageUrls) {
-    const c = await igPost(`${ig}/media`, { image_url: url, is_carousel_item: 'true' });
-    await waitFinished(String(c.id));
-    children.push(String(c.id));
-  }
+  // 자식 컨테이너는 병렬 생성한다.
+  //
+  // 왜: 예전엔 for 루프로 한 장씩 만들고 각각 waitFinished를 기다렸다. 카드 수만큼
+  // 왕복(인스타가 우리 서버에서 이미지를 받아가는 시간 포함)이 쌓여 6장 캐러셀이
+  // 약 70초가 됐고, 이 라우트의 상한 60초(Vercel Hobby)를 매번 넘겼다. 그 결과
+  //  · 호출자 curl은 항상 실패로 받고 재시도 → 같은 글이 두 번 게시(7/30~8/9 21건)
+  //  · 재시도까지 실패하면 그날 게시 누락(브리핑 실패율 50%, 화제의 종목 47%)
+  // 병렬로 바꾸면 총 소요가 '가장 느린 한 장' 수준으로 줄어 상한 안에 들어온다.
+  // Promise.all은 입력 순서대로 결과를 돌려주므로 슬라이드 순서는 그대로 유지된다.
+  const children = await Promise.all(
+    imageUrls.map(async (url) => {
+      const c = await igPost(`${ig}/media`, { image_url: url, is_carousel_item: 'true' });
+      await waitFinished(String(c.id));
+      return String(c.id);
+    }),
+  );
   const parent = await igPost(`${ig}/media`, { media_type: 'CAROUSEL', children: children.join(','), caption });
   await waitFinished(String(parent.id));
   const pub = await igPost(`${ig}/media_publish`, { creation_id: String(parent.id) });
@@ -105,12 +129,24 @@ export const REEL_CARDS: Record<string, string[]> = {
   value: ['value-cover', 'value-0', 'value-1', 'value-2', 'value-3', 'value-4', 'value-outro'],
 };
 
-// 장기 토큰 갱신(24h~60일 사이에 호출). 갱신된 새 토큰 문자열을 반환한다.
-// 주: Vercel 환경변수는 코드에서 못 바꾸므로, 반환값을 별도 저장소/수동 갱신에 사용.
-export async function refreshToken(): Promise<{ access_token: string; expires_in: number }> {
-  const j = await fetch(`${IG_API}/refresh_access_token?grant_type=ig_refresh_token&access_token=${token()}`).then((r) => r.json());
+// 장기 토큰 갱신(발급 24h 경과 후 ~ 만료 전에 호출). 갱신본을 KV에 저장하고 이후 요청이 그걸 쓴다.
+// Vercel 환경변수는 코드에서 못 바꾸므로 KV가 사실상의 저장소다(env는 최초 부트스트랩용).
+export async function refreshToken(): Promise<{ expires_in: number; expires_at: string }> {
+  const j = await fetch(`${IG_API}/refresh_access_token?grant_type=ig_refresh_token&access_token=${await token()}`).then((r) => r.json());
   if (!j?.access_token) throw new Error('토큰 갱신 실패: ' + JSON.stringify(j));
-  return { access_token: j.access_token, expires_in: j.expires_in };
+  const expiresIn = Number(j.expires_in) || 60 * 86400;
+  const expiresAt = new Date(Date.now() + expiresIn * 1000).toISOString();
+  await kvSet(IG_TOKEN_KEY, { access_token: j.access_token, refreshed_at: new Date().toISOString(), expires_at: expiresAt });
+  _tokenCache = j.access_token; // 같은 인스턴스의 후속 호출이 옛 토큰을 쓰지 않도록
+  return { expires_in: expiresIn, expires_at: expiresAt };
+}
+
+/** 저장된 토큰의 만료 시각(없으면 null) — 상태 점검용. */
+export async function tokenStatus(): Promise<{ source: 'kv' | 'env'; expires_at: string | null; days_left: number | null }> {
+  const stored = await kvGet<StoredToken>(IG_TOKEN_KEY).catch(() => null);
+  if (!stored?.access_token) return { source: 'env', expires_at: null, days_left: null };
+  const left = Math.floor((new Date(stored.expires_at).getTime() - Date.now()) / 86400000);
+  return { source: 'kv', expires_at: stored.expires_at, days_left: left };
 }
 
 // ── 캡션/이미지 ────────────────────────────────────────────────
