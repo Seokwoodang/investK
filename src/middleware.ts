@@ -34,6 +34,14 @@ const PROTECTED: RegExp[] = [
   /^\/api\/sell-check(\/|$)/,
 ];
 
+// 폐지된 경로 → 후속 페이지 영구 리디렉션(301).
+// 구글은 한 번 색인한 URL을 오래 기억해 계속 크롤하므로, 그냥 없애면 서치콘솔에
+// '찾을 수 없음(404)'으로 남는다. 후속 페이지가 있으면 301이 정석.
+//  · /daily : v0.15.0에서 대시보드(/)로 흡수됨.
+const RETIRED: Record<string, string> = {
+  '/daily': '/',
+};
+
 export async function middleware(req: NextRequest) {
   // www → apex 301 리다이렉트(중복 도메인 방지, canonical 일원화).
   const host = req.headers.get('host') || '';
@@ -44,6 +52,15 @@ export async function middleware(req: NextRequest) {
   }
 
   const { pathname } = req.nextUrl;
+
+  // 폐지 경로는 후속 페이지로 영구 이동.
+  const movedTo = RETIRED[pathname.replace(/\/$/, '')];
+  if (movedTo) {
+    const url = req.nextUrl.clone();
+    url.pathname = movedTo;
+    url.search = '';
+    return NextResponse.redirect(url, 301);
+  }
   const token = req.cookies.get(COOKIE)?.value;
   const info = await sessionInfo(token); // {user, exp} | null (유효 세션)
 
