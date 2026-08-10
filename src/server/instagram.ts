@@ -94,20 +94,16 @@ export async function publishCarousel(imageUrls: string[], caption: string): Pro
   return { id: String(pub.id) };
 }
 
-// 게시 직후 안내 첫 댓글 자동 작성(키워드 유도). 계정 본인 댓글이라 웹훅 owner-skip에 걸려 루프 없음.
-// 매번 동일 댓글은 스팸 감지에 걸리므로 여러 문구를 미디어ID로 회전(같은 글엔 항상 동일 → 재시도 안전).
-const FIRST_COMMENTS = [
-  '💬 「지표」 라고 댓글 남기면 실시간 시장지표 링크를 DM으로 보내드려요 📩\n팔로우하면 매일 아침·저녁 시장 정리를 자동으로 받아볼 수 있어요 🙌',
-  '📩 「지표」 댓글 주시면 실시간 지표 링크를 DM으로 쏴드려요!\n국내·미국 뉴스랑 아침 브리핑도 매일 올라옵니다 🙌',
-  '오늘 시장 궁금하면 「지표」 라고 남겨보세요 👀 실시간 링크 DM으로 보내드립니다 📈',
-  '💡 「지표」 댓글 = 실시간 시장지표 DM 발송. 팔로우하면 하루 국내·미국 뉴스까지 챙겨드려요 🙌',
-  '궁금한 흐름 있으면 「지표」 댓글 ✍️ 실시간 링크를 DM으로 보내드려요 📩',
-  '📊 매일 아침·저녁 시장 정리 받고 싶으면 팔로우! 「지표」 남기면 실시간 링크도 DM으로 드려요 🙌',
-];
-const pickBy = (id: string, arr: string[]) => arr[[...id].reduce((a, c) => a + c.charCodeAt(0), 0) % arr.length];
-async function postFirstComment(mediaId: string): Promise<void> {
-  try { await igPost(`${mediaId}/comments`, { message: pickBy(mediaId, FIRST_COMMENTS) }); }
-  catch (e) { console.error('[ig] 첫 댓글 실패:', (e as Error).message); }
+// [2026-08-10 중단] 게시 직후 자동 첫 댓글 — 영구 비활성화.
+//
+// 원래 "「지표」 라고 댓글 남기면 링크를 DM으로 보내드려요" 문구를 모든 게시물에 자동으로
+// 달았다. 이건 메타가 engagement bait(참여 유도 미끼) + 자동 링크 배포로 분류하는 패턴이고,
+// 2026-08-10 계정에 '사기·스캠 및 기만적 행위' 사유로 30일 링크 공유 제한이 걸렸다.
+// 문구 회전·지연으로 탐지를 피하려 한 흔적 자체가 위험 신호이기도 하다.
+//
+// 되살리지 말 것. 계정을 잃는 것보다 유입 깔때기 하나를 포기하는 편이 낫다.
+async function postFirstComment(_mediaId: string): Promise<void> {
+  return;
 }
 
 // 릴스(세로 영상) 게시. video_url은 공개 접근 가능한 mp4여야 한다.
@@ -186,9 +182,7 @@ export async function buildCaption(type: string, slot?: 'am' | 'pm', region?: 'k
       head,
       '',
       items || '오늘의 주요 시장 뉴스',
-      '',
-      '💬 댓글에 「지표」 라고 남기면 실시간 링크를 DM으로 보내드려요!','','※ 참고용 정보이며 투자 권유가 아닙니다.',
-      '👉 전체 뉴스·지표는 프로필 링크 investk.app',
+      '','','※ 참고용 정보이며 투자 권유가 아닙니다.',
       '',
       tags(extraTags),
     ].join('\n');
@@ -203,7 +197,6 @@ export async function buildCaption(type: string, slot?: 'am' | 'pm', region?: 'k
       list || 'PER·PBR·ROE·배당 지표로 자동 선별',
       '',
       '※ 지표 기준 자동 선별이며 종목 추천이 아닙니다.',
-      '👉 전체 순위·세부 지표 investk.app/value',
       '',
       tags(['#저평가주', '#가치투자', '#배당주', '#우량주', '#PER', '#PBR', '#ROE', '#가치주']),
     ].join('\n');
@@ -215,9 +208,7 @@ export async function buildCaption(type: string, slot?: 'am' | 'pm', region?: 'k
       `🗓 이번 주 시장 캘린더 (${cd.range})`,
       '',
       highs || '이번 주 주요 경제 일정',
-      '',
-      '💬 댓글에 「지표」 라고 남기면 실시간 링크를 DM으로 보내드려요!','','※ 참고용 정보이며 투자 권유가 아닙니다.',
-      '👉 매일 아침 브리핑 investk.app',
+      '','','※ 참고용 정보이며 투자 권유가 아닙니다.',
       '',
       tags(['#경제캘린더', '#증시일정', '#FOMC', '#CPI', '#금리', '#경제지표', '#증시전망', '#주간전망']),
     ].join('\n');
@@ -229,9 +220,7 @@ export async function buildCaption(type: string, slot?: 'am' | 'pm', region?: 'k
       '',
       b ? b.headline : '시장 급변동',
       b ? b.sub : '',
-      '',
-      '💬 댓글에 「지표」 라고 남기면 실시간 링크를 DM으로 보내드려요!','','※ 참고용 지표이며 투자 권유가 아닙니다.',
-      '👉 실시간 지표는 프로필 링크 investk.app',
+      '','','※ 참고용 지표이며 투자 권유가 아닙니다.',
       '',
       tags(['#속보', '#증시속보', '#급락', '#급등', '#코스피', '#나스닥', '#시장급변동', '#증시']),
     ].join('\n');
@@ -258,12 +247,10 @@ export async function buildCaption(type: string, slot?: 'am' | 'pm', region?: 'k
       nums ? `주요 지표 — ${nums}` : '',
       '',
       '📌 카드를 넘겨 52주 위치·실적 추이까지 확인하세요.',
-      '💬 댓글에 「지표」 라고 남기면 실시간 링크를 DM으로 보내드려요!',
       '',
       d.market === 'us'
         ? '※ 종목 추천이 아닙니다. 대형주·인기주 중 그날 등락이 가장 컸던 종목을 사실 그대로 정리한 것이며, 투자 판단과 책임은 본인에게 있습니다.'
         : '※ 종목 추천이 아닙니다. 거래대금·등락률 기준으로 그날 화제가 된 종목을 사실 그대로 정리한 것이며, 투자 판단과 책임은 본인에게 있습니다.',
-      '👉 종목 상세는 프로필 링크 investk.app',
       '',
       tags(d.market === 'us'
         ? ['#화제의종목', '#미국주식', '#해외주식', '#서학개미', '#나스닥', '#SP500', '#종목분석', '#미국증시']
@@ -279,9 +266,7 @@ export async function buildCaption(type: string, slot?: 'am' | 'pm', region?: 'k
       wd.summary,
       '',
       list,
-      '',
-      '💬 댓글에 「지표」 라고 남기면 실시간 링크를 DM으로 보내드려요!','','※ 참고용 지표이며 투자 권유가 아닙니다.',
-      '👉 다음 주 브리핑은 프로필 링크 investk.app',
+      '','','※ 참고용 지표이며 투자 권유가 아닙니다.',
       '',
       tags(['#주간증시', '#주간리뷰', '#코스피', '#코스닥', '#나스닥', '#미국주식', '#증시전망', '#주말']),
     ].join('\n');
@@ -293,9 +278,7 @@ export async function buildCaption(type: string, slot?: 'am' | 'pm', region?: 'k
       '',
       `${td.fullName}`,
       '뉴스에 매일 나오는 그 용어, 오늘 확실히 정리해요.',
-      '',
-      '💬 댓글에 「지표」 라고 남기면 실시간 링크를 DM으로 보내드려요!','','※ 참고용 정보이며 투자 권유가 아닙니다.',
-      '👉 전 종목 지표 investk.app',
+      '','','※ 참고용 정보이며 투자 권유가 아닙니다.',
       '',
       tags(['#주식용어', '#투자용어', '#경제용어', '#주식공부', '#재테크상식', '#금융상식', '#투자기초', '#주식입문']),
     ].join('\n');
@@ -310,8 +293,7 @@ export async function buildCaption(type: string, slot?: 'am' | 'pm', region?: 'k
     '',
     facts,
     '',
-    '📌 카드를 넘겨 지수·코인·환율까지 한눈에 확인하세요.',
-    '💬 댓글에 「지표」 라고 남기면 실시간 링크를 DM으로 보내드려요!','','※ 참고용 지표이며 투자 권유가 아닙니다.',
+    '📌 카드를 넘겨 지수·코인·환율까지 한눈에 확인하세요.','','※ 참고용 지표이며 투자 권유가 아닙니다.',
     '👉 실시간 전체 지표는 프로필 링크에서',
     '',
     tags(['#코스피', '#코스닥', '#나스닥', '#미국주식', '#환율', '#비트코인', '#코인', '#경제뉴스']),

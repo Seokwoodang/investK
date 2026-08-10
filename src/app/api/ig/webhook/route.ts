@@ -47,6 +47,19 @@ export async function GET(req: Request) {
 
 // 이벤트 수신: 댓글에 키워드 있으면 프라이빗 리플라이(DM) 발송.
 export async function POST(req: Request) {
+  // [2026-08-10 중단] 댓글 → 자동 DM(링크) 발송을 영구 비활성화한다.
+  //
+  // 이 자동화는 키워드 댓글에 반응해 모르는 사용자에게 링크가 담긴 DM을 자동 발송했다.
+  // 게시물마다 "「지표」 댓글 남기면 링크 DM" 미끼를 붙인 것과 합쳐져, 메타가
+  // '사기·스캠 및 기만적 행위'로 분류했고 2026-08-10 계정에 30일 링크 공유 제한이 걸렸다.
+  //
+  // 웹훅 구독 자체는 유지하되(구독 해지는 별도 작업) 아무 동작도 하지 않고 200만 돌려준다.
+  // 200을 돌려주는 이유: 실패를 반복하면 메타가 웹훅을 비정상으로 표시한다.
+  // 되살리지 말 것.
+  return NextResponse.json({ ok: true, disabled: true });
+}
+
+async function _disabledPOST(req: Request) {
   try {
     const body = await req.json();
     const me = await igId();
