@@ -12,7 +12,8 @@ const DESC = '코스피·코스닥 지수, VIX·미 국채금리, 김치프리�
 //  · 구글 서치콘솔: HTML 태그 방식의 content 값
 //  · 네이버 서치어드바이저: naver-site-verification content 값
 const GOOGLE_VERIFY = process.env.NEXT_PUBLIC_GOOGLE_VERIFY || '';
-const NAVER_VERIFY = process.env.NEXT_PUBLIC_NAVER_VERIFY || '';
+// 네이버 서치어드바이저: public/naver5e9bfaf80a378bbdfbdf5597d706b892.html 파일 방식과 병행(둘 중 하나만 통과해도 됨).
+const NAVER_VERIFY = process.env.NEXT_PUBLIC_NAVER_VERIFY || 'c8f68b5ac5feacf30d79f6de2b6bd6efc42df0b4';
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),

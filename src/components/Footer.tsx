@@ -16,7 +16,11 @@ export function Footer() {
       <div style={{ marginBottom: 8, color: 'var(--c-tx6)' }}>
         운영: 트루 · 문의 <a href="mailto:chazloofficial@gmail.com" style={{ color: 'var(--c-tx5)', textDecoration: 'none' }}>chazloofficial@gmail.com</a>
       </div>
-      <div style={{ display: 'flex', gap: 12, justifyContent: 'center', marginBottom: 8 }}>
+      {/* 사이트 전역 크롤 경로 — 헤더 메뉴는 열렸을 때만 DOM에 있어 크롤러가 못 따라간다.
+          색인 대상 허브(용어 사전·ETF)는 모든 페이지에 있는 이 푸터 링크로 연결한다. */}
+      <div style={{ display: 'flex', gap: 12, justifyContent: 'center', marginBottom: 8, flexWrap: 'wrap' }}>
+        <a href="/glossary" style={{ color: 'var(--c-tx5)', textDecoration: 'none' }}>투자 용어 사전</a>
+        <a href="/etf" style={{ color: 'var(--c-tx5)', textDecoration: 'none' }}>ETF</a>
         <a href="/privacy" style={{ color: 'var(--c-tx5)', textDecoration: 'none' }}>개인정보처리방침</a>
         <a href="/terms" style={{ color: 'var(--c-tx5)', textDecoration: 'none' }}>이용약관</a>
       </div>
