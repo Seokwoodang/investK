@@ -9,8 +9,9 @@ name: Post to Instagram (today's stock)
 # 조건(|등락| 2% 이상 등)에 맞는 종목이 없으면 카드가 0장이라 503으로 조용히 스킵된다.
 on:
   schedule:
+    # [2026-08-10] 게시 빈도 축소 — 미국편 중단, 국내만 유지(국장 마감 직후가 반응이 가장 좋다).
     - cron: '30 7 * * 1-5' # 🇰🇷 국내 16:30 KST
-    - cron: '30 3 * * 2-6' # 🇺🇸 미국 12:30 KST
+    # - cron: '30 3 * * 2-6' # 🇺🇸 미국 12:30 KST (축소로 중단)
   workflow_dispatch:
     inputs:
       region:
