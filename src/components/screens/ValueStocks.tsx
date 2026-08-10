@@ -209,7 +209,7 @@ export function ValueStocks() {
   return (
     <div>
       {/* 종목 찾기 섹션 탭 — 전체 목록 ↔ 저평가 스크리너 ↔ ETF 허브 */}
-      <SubNav items={[{ href: '/stocks', label: '전체 종목' }, { href: '/value', label: '저평가 우량주' }, { href: '/etf', label: 'ETF' }]} />
+      <SubNav items={[{ href: '/stocks', label: '전체 종목' }, { href: '/stock', label: '종목 지표' }, { href: '/value', label: '저평가 우량주' }, { href: '/etf', label: 'ETF' }]} />
       <div style={{ marginBottom: 18 }}>
         <h1 style={{ margin: 0, fontSize: 28, fontWeight: 800, letterSpacing: '-0.02em' }}>저평가 우량주</h1>
         <p style={{ margin: '8px 0 0', fontSize: 14, color: 'var(--c-tx5)' }}>

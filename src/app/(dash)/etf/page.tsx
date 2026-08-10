@@ -26,6 +26,7 @@ export default function Page() {
       <SubNav
         items={[
           { href: '/stocks', label: '전체 종목' },
+          { href: '/stock', label: '종목 지표' },
           { href: '/value', label: '저평가 우량주' },
           { href: '/etf', label: 'ETF' },
         ]}

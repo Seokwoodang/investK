@@ -18,7 +18,7 @@ const NAV: { href: string; label: string }[] = [
 ];
 const NAV_GROUPS: { title: string; items: { href: string; label: string }[] }[] = [
   { title: '시장', items: [{ href: '/', label: '대시보드' }, { href: '/news', label: '뉴스' }, { href: '/today', label: '화제의 종목' }, { href: '/review', label: '주간 리뷰' }, { href: '/glossary', label: '투자 용어 사전' }] },
-  { title: '종목 찾기', items: [{ href: '/stocks', label: '종목' }, { href: '/value', label: '저평가 우량주' }, { href: '/etf', label: 'ETF' }] },
+  { title: '종목 찾기', items: [{ href: '/stocks', label: '종목' }, { href: '/stock', label: '종목 지표' }, { href: '/value', label: '저평가 우량주' }, { href: '/etf', label: 'ETF' }] },
   { title: '내 투자', items: [{ href: '/portfolio', label: '내 자산' }] },
 ];
 

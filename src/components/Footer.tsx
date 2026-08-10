@@ -19,6 +19,7 @@ export function Footer() {
       {/* 사이트 전역 크롤 경로 — 헤더 메뉴는 열렸을 때만 DOM에 있어 크롤러가 못 따라간다.
           색인 대상 허브(용어 사전·ETF)는 모든 페이지에 있는 이 푸터 링크로 연결한다. */}
       <div style={{ display: 'flex', gap: 12, justifyContent: 'center', marginBottom: 8, flexWrap: 'wrap' }}>
+        <a href="/stock" style={{ color: 'var(--c-tx5)', textDecoration: 'none' }}>종목 지표</a>
         <a href="/today" style={{ color: 'var(--c-tx5)', textDecoration: 'none' }}>화제의 종목</a>
         <a href="/review" style={{ color: 'var(--c-tx5)', textDecoration: 'none' }}>주간 리뷰</a>
         <a href="/glossary" style={{ color: 'var(--c-tx5)', textDecoration: 'none' }}>투자 용어 사전</a>
