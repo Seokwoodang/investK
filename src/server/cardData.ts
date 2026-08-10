@@ -174,6 +174,24 @@ function newsPrompt(cands: { title: string; summary: string; why: string; impact
 // 저녁에서 제외해 중복 방지(KV `news:{region}:am:{ymd}`에 아침 후보 제목 기록).
 type NewsRegion = 'kr' | 'us' | 'coin';
 const TAB_REGION: Record<string, NewsRegion> = { kr_stock: 'kr', us_stock: 'us', global_coin: 'coin' };
+
+// 국내 매체가 쓴 '미국 기사'를 국내 편에서 걷어낸다.
+//
+// 왜: 지역을 기사 내용이 아니라 '어느 탭에서 왔는지'로만 정하면, 한국 증권 매체가 상시
+// 쏟아내는 美 고용지표·연준·뉴욕증시 기사가 kr_stock 피드에 섞여 들어와 그대로
+// 🇰🇷 국내 편에 실린다. 실제로 2026-08-08 '美 7월 고용 예상밖 2만3천명 감소'가
+// [국내] 배지를 달고 국내 주말 뉴스로 게시됐고, 같은 내용이 미국 편에도 실렸다.
+//
+// 판별은 '제목이 미국 주체로 시작하는가'만 본다(선두 마커). 본문·요약까지 훑으면
+// "코스피, 연준 발언에 하락"처럼 주체가 국내인 기사까지 미국으로 끌려가 국내 풀이 마른다.
+// 놓치는 경우(예: '엔비디아 시총 1위')는 남지만, 국내 기사를 잘못 밀어내지 않는 쪽을 택한다.
+const US_LEAD = /^[\s\[(【<]*(美|미국|뉴욕증시|월가|연준|Fed|FOMC|파월|나스닥|다우)/i;
+
+/** 탭 기준 지역을 제목으로 보정. kr 탭에 섞인 미국 주체 기사만 'us'로 넘긴다. */
+function resolveRegion(tabRegion: NewsRegion, title: string): NewsRegion {
+  if (tabRegion !== 'kr') return tabRegion;
+  return US_LEAD.test(title.trim()) ? 'us' : 'kr';
+}
 export async function getNewsCardData(slot: 'am' | 'pm' = 'pm', region: NewsRegionArg = 'all'): Promise<NewsCardData> {
   const lists = await Promise.all(NEWS_TABS.map((t) => getCachedRankedNews(`page:${t}`).catch(() => null)));
   const seen = new Set<string>();
@@ -184,7 +202,7 @@ export async function getNewsCardData(slot: 'am' | 'pm' = 'pm', region: NewsRegi
       const key = n.title.trim();
       if (!key || seen.has(key)) continue;
       seen.add(key);
-      raw.push({ title: n.title, summary: n.summary ?? '', why: n.why ?? '', impact: n.impact, tags: n.tags ?? [], importance: n.importance, region: rg });
+      raw.push({ title: n.title, summary: n.summary ?? '', why: n.why ?? '', impact: n.impact, tags: n.tags ?? [], importance: n.importance, region: resolveRegion(rg, n.title) });
     }
   });
   raw.sort((a, z) => (IMP_ORDER[a.importance] ?? 9) - (IMP_ORDER[z.importance] ?? 9));
