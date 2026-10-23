@@ -1,0 +1,22 @@
+name: Refresh archive snapshots
+
+# /today/{날짜}·/review/{주차} 아카이브 적재.
+# 예전엔 인스타 게시 과정에서 부수적으로 쌓였는데, 인스타 자동 게시를 제거하면서
+# 적재 트리거가 사라졌다. 이 크론이 그 역할을 대신한다(게시 없음, 내부 데이터 갱신만).
+#  · 평일 16:40 KST — 국장 마감 직후, 그날의 화제의 종목 확정
+#  · 토 10:00 KST   — 그 주의 마켓 리뷰
+on:
+  schedule:
+    - cron: '40 7 * * 1-5' # 16:40 KST 평일
+    - cron: '0 1 * * 6'    # 10:00 KST 토요일
+  workflow_dispatch:
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Persist snapshots
+        run: |
+          curl -fsS --max-time 110 --retry 2 --retry-delay 20 -X GET \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "https://investk.app/api/cron/archive"
